@@ -71,7 +71,14 @@ fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
     let scratch = Scratch::new();
     let logs = scratch.dir("logs");
     let other = scratch.dir("other");
-    run(Command::new("git").args(["init", "-q"]), &other);
+    // Not the repository a git hook running this test points at.
+    run(
+        Command::new("git")
+            .args(["init", "-q"])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE"),
+        &other,
+    );
 
     let mut vite = Command::new(if cfg!(windows) { "npm.cmd" } else { "npm" });
     vite.args(["run", "dev"]);
@@ -158,9 +165,8 @@ fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
 
 /// A port the opened project must own: listener and service in section "project", with
 /// the expected service name and signature, in the worktree this test runs from (the
-/// repository root, `repo`). For
-/// host programs, the service's process tree must start at the process this test
-/// started (`npm run dev`, not only the `node vite` it runs).
+/// repository root, `repo`). For host programs, the service's process tree must start
+/// at the process this test started (`npm run dev`, not only the `node vite` it runs).
 fn check_in_project(
     snapshot: &Snapshot,
     repo: &Path,
@@ -563,9 +569,14 @@ impl Drop for Server {
 #[cfg(unix)]
 fn stop_tree(child: &mut Child) {
     let group = format!("-{}", child.id());
-    if signal_group(&group, "-TERM") && !group_gone(child, &group, Duration::from_secs(10)) {
-        signal_group(&group, "-KILL");
-        group_gone(child, &group, Duration::from_secs(5));
+    if signal_group(&group, "-TERM")
+        && !group_gone(child, &group, Duration::from_secs(10))
+        && !(signal_group(&group, "-KILL") && group_gone(child, &group, Duration::from_secs(5)))
+    {
+        eprintln!(
+            "process group {} survived KILL; stop it by hand",
+            child.id()
+        );
     }
     // Without a working `kill`, at least the process this test started stops.
     let _ = child.kill();
@@ -607,6 +618,8 @@ fn stop_tree(child: &mut Child) {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
+    // Without taskkill, at least the process this test started stops.
+    let _ = child.kill();
     let _ = child.wait();
 }
 
