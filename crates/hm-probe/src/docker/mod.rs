@@ -351,7 +351,8 @@ mod tests {
                 endpoint: "tcp://127.0.0.1:1".into(),
                 label: "Docker".into(),
             }],
-            // A refused connection returns at once; the budget only covers slow systems.
+            // Windows retries a refused loopback connection for about 2 s before failing;
+            // elsewhere it returns at once. The budget stays well above that.
             Duration::from_secs(10),
         ));
         assert_eq!(report.engines.len(), 1);
