@@ -42,7 +42,7 @@ fn parse_hex_addr(hex: &str) -> Option<IpAddr> {
         32 => {
             let mut bytes = [0u8; 16];
             for (index, out) in bytes.chunks_mut(4).enumerate() {
-                out.copy_from_slice(&word(&hex[index * 8..index * 8 + 8])?);
+                out.copy_from_slice(&word(hex.get(index * 8..index * 8 + 8)?)?);
             }
             Some(IpAddr::V6(Ipv6Addr::from(bytes)))
         }
@@ -70,13 +70,14 @@ pub fn read() -> Result<Vec<hm_core::raw::RawListener>, String> {
         match std::fs::read_to_string(path) {
             Ok(text) => sockets.extend(parse_proc_net_tcp(&text)),
             // tcp6 is missing when IPv6 is disabled.
-            Err(_) if path.ends_with('6') => {}
+            Err(error) if path.ends_with('6') && error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("cannot read {path}: {error}")),
         }
     }
 
     let mut owners: HashMap<u64, Vec<u32>> = HashMap::new();
-    let proc_dir = std::fs::read_dir("/proc").map_err(|error| error.to_string())?;
+    let proc_dir =
+        std::fs::read_dir("/proc").map_err(|error| format!("cannot read /proc: {error}"))?;
     for entry in proc_dir.flatten() {
         let Some(pid) = entry
             .file_name()

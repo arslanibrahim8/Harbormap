@@ -45,6 +45,27 @@ fn platform_read() -> Result<Vec<RawListener>, String> {
     Err("this operating system is not supported".into())
 }
 
+/// Listening TCP sockets reported by the `listeners` crate: libproc on macOS,
+/// `GetExtendedTcpTable` on Windows.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn from_listeners_crate() -> Result<Vec<RawListener>, String> {
+    let all = listeners::get_all().map_err(|error| error.to_string())?;
+    Ok(all
+        .into_iter()
+        .filter(|listener| {
+            listener.protocol == listeners::Protocol::TCP
+                && listener.state == listeners::SocketState::Listen
+        })
+        .map(|listener| RawListener {
+            proto: Proto::Tcp,
+            addr: listener.socket.ip(),
+            port: listener.socket.port(),
+            pids: vec![listener.process.pid],
+            uid: None,
+        })
+        .collect())
+}
+
 /// One entry per (protocol, address, port), with the union of owner PIDs.
 pub fn merge(raw: Vec<RawListener>) -> Vec<RawListener> {
     let mut merged: BTreeMap<(Proto, IpAddr, u16), RawListener> = BTreeMap::new();
