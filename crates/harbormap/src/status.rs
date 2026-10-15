@@ -2,33 +2,44 @@
 //! of everything else — or, with `--machine`, the full list.
 
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::Path;
 use std::process::ExitCode;
 
-use hm_core::model::{Project, Section, Service, ServiceSource, Snapshot};
+use hm_core::model::{Confidence, Project, Section, Service, ServiceSource, Snapshot};
 use hm_doctor::render::tilde;
 
 use crate::cli::StatusArgs;
 use crate::source::Input;
 
 pub fn run(input: &Input, args: &StatusArgs, json: bool) -> anyhow::Result<ExitCode> {
-    if json {
-        println!("{}", serde_json::to_string_pretty(&input.snapshot)?);
+    let text = if json {
+        format!("{}\n", serde_json::to_string_pretty(&input.snapshot)?)
     } else {
-        print!(
-            "{}",
-            render(&input.snapshot, input.home.as_deref(), args.machine)
-        );
-    }
+        render(&input.snapshot, input.home.as_deref(), args.machine)
+    };
+    write_stdout(&text)?;
     Ok(ExitCode::SUCCESS)
+}
+
+/// Writes to stdout. A reader that stops early (`| head`) is not an error.
+pub fn write_stdout(text: &str) -> std::io::Result<()> {
+    let mut stdout = std::io::stdout().lock();
+    match stdout
+        .write_all(text.as_bytes())
+        .and_then(|()| stdout.flush())
+    {
+        Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        other => other,
+    }
 }
 
 pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String {
     let mut out = String::new();
+    // Without an opened project, the snapshot's note says so; the rest is the computer.
     let opened = snapshot.projects.iter().find(|project| project.opened);
-    match opened {
-        Some(project) => project_block(&mut out, snapshot, project, home),
-        None => out.push_str("Not inside a project folder, so here is the whole computer.\n"),
+    if let Some(project) = opened {
+        project_block(&mut out, snapshot, project, home);
     }
 
     let elsewhere: Vec<&Service> = snapshot
@@ -39,11 +50,11 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
     let system = system_groups(snapshot);
     if machine || opened.is_none() {
         if !elsewhere.is_empty() {
-            out.push('\n');
+            separate(&mut out);
             elsewhere_block(&mut out, snapshot, &elsewhere, home);
         }
         if !system.is_empty() {
-            out.push('\n');
+            separate(&mut out);
             out.push_str("System & unknown\n");
             let width = system
                 .iter()
@@ -59,11 +70,20 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
             .iter()
             .map(|(ports, _)| ports.split(' ').count())
             .sum();
-        out.push('\n');
+        let mut parts = Vec::new();
+        if !elsewhere.is_empty() {
+            parts.push(format!(
+                "{} elsewhere (read-only)",
+                plural(elsewhere.len(), "service")
+            ));
+        }
+        if system_ports > 0 {
+            parts.push(plural(system_ports, "system or unknown port"));
+        }
+        separate(&mut out);
         out.push_str(&format!(
-            "Also on this computer: {} elsewhere (read-only) and {}.\nRun `harbormap status --machine` to list them.\n",
-            plural(elsewhere.len(), "service"),
-            plural(system_ports, "system or unknown port"),
+            "Also on this computer: {}.\nRun `harbormap status --machine` to list them.\n",
+            parts.join(" and "),
         ));
     }
 
@@ -77,7 +97,10 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
         })
         .collect();
     if !engines.is_empty() {
-        out.push_str(&format!("\nDocker: {}\n", engines.join(", ")));
+        separate(&mut out);
+        out.push_str(&format!("Docker: {}\n", engines.join(", ")));
+    } else if !snapshot.notes.is_empty() {
+        separate(&mut out);
     }
     for note in &snapshot.notes {
         out.push_str(&format!("Note: {}\n", note.text));
@@ -139,7 +162,8 @@ fn worktree_tables(
             .unwrap_or(0);
         by_worktree.entry(index).or_default().push(service);
     }
-    if by_worktree.len() == 1 {
+    // The worktree is named unless everything runs in the main one.
+    if by_worktree.len() == 1 && by_worktree.contains_key(&0) {
         table(out, snapshot, services, indent, widths);
         return;
     }
@@ -170,11 +194,9 @@ fn elsewhere_block(
             .push(service);
     }
     let widths = widths(snapshot, services);
-    for (project_id, group) in &by_project {
-        let Some(project_id) = project_id else {
-            continue;
-        };
-        let Some(project) = snapshot.projects.iter().find(|p| p.id == *project_id) else {
+    // Projects in the snapshot's order, which is by name.
+    for project in &snapshot.projects {
+        let Some(group) = by_project.get(&Some(project.id.as_str())) else {
             continue;
         };
         out.push_str(&format!(
@@ -251,12 +273,12 @@ fn row(snapshot: &Snapshot, service: &Service) -> [String; 4] {
     if let Some(url) = service.urls.first() {
         state.push_str(&format!("   {url}"));
     }
-    [
-        service.name.clone(),
-        service.framework.clone().unwrap_or_else(|| "–".into()),
-        ports,
-        state,
-    ]
+    let framework = match (&service.framework, service.confidence) {
+        (Some(framework), Confidence::Probably) => format!("{framework}, probably"),
+        (Some(framework), Confidence::Sure) => framework.clone(),
+        (None, _) => "–".into(),
+    };
+    [service.name.clone(), framework, ports, state]
 }
 
 /// System and unknown listeners grouped by label: ("5000 7000" ports, label).
@@ -291,6 +313,13 @@ fn system_groups(snapshot: &Snapshot) -> Vec<(String, String)> {
             (ports, label)
         })
         .collect()
+}
+
+/// A blank line between blocks, but not before the first one.
+fn separate(out: &mut String) {
+    if !out.is_empty() {
+        out.push('\n');
+    }
 }
 
 fn plural(count: usize, noun: &str) -> String {

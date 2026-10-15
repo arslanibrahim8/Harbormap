@@ -45,6 +45,41 @@ fn prints_its_version() {
 #[test]
 fn status_shows_the_project_first_and_summarises_the_rest() {
     same_text(&stdout(&["status"]), STATUS);
+
+    // When only a linked worktree runs something, its heading still says which one.
+    let mut scenario: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture()).unwrap()).unwrap();
+    let inventory = &mut scenario["inventory"];
+    let main_only = [5173, 8000, 5280, 55432];
+    inventory["listeners"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|listener| !main_only.contains(&listener["port"].as_u64().unwrap()));
+    inventory["processes"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|process| process["pid"] != 970);
+    inventory["containers"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|container| container["name"] != "shop-db-1");
+    let path = std::env::temp_dir().join(format!("hm-linked-only-{}.json", std::process::id()));
+    std::fs::write(&path, scenario.to_string()).unwrap();
+    let output = Command::cargo_bin("harbormap")
+        .unwrap()
+        .env("HARBORMAP_FIXTURE", &path)
+        .arg("status")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    std::fs::remove_file(&path).unwrap();
+    let text = String::from_utf8(output).unwrap();
+    assert!(
+        text.starts_with("shop  ~/code/shop · main\n  feature/login  ~/code/shop-feature\n    web"),
+        "{text}"
+    );
 }
 
 #[test]
@@ -115,13 +150,13 @@ fn why_an_unknown_name_fails_with_a_hint() {
 
 const STATUS: &str = r#"shop  ~/code/shop · main
   main  ~/code/shop
-    Billing          ASP.NET Core  :5280   running · pid 951   http://localhost:5280
-    db               PostgreSQL    :55432  running · healthy · container shop-db-1
-    shop-api         FastAPI       :8000   running · pid 900   http://localhost:8000
-    shop-api-celery  Celery        –       running · pid 970
-    web              Vite          :5173   running · pid 802   http://localhost:5173
+    Billing          ASP.NET Core       :5280   running · pid 951   http://localhost:5280
+    db               PostgreSQL         :55432  running · healthy · container shop-db-1
+    shop-api         FastAPI, probably  :8000   running · pid 900   http://localhost:8000
+    shop-api-celery  Celery             –       running · pid 970
+    web              Vite               :5173   running · pid 802   http://localhost:5173
   feature/login  ~/code/shop-feature
-    web              Vite          :5174   running · pid 1300   http://localhost:5174
+    web              Vite               :5174   running · pid 1300   http://localhost:5174
 
 Also on this computer: 2 services elsewhere (read-only) and 6 system or unknown ports.
 Run `harbormap status --machine` to list them.
@@ -132,13 +167,13 @@ Note: 1 listening port belongs to a program Harbormap can't see without admin ri
 
 const STATUS_MACHINE: &str = r#"shop  ~/code/shop · main
   main  ~/code/shop
-    Billing          ASP.NET Core  :5280   running · pid 951   http://localhost:5280
-    db               PostgreSQL    :55432  running · healthy · container shop-db-1
-    shop-api         FastAPI       :8000   running · pid 900   http://localhost:8000
-    shop-api-celery  Celery        –       running · pid 970
-    web              Vite          :5173   running · pid 802   http://localhost:5173
+    Billing          ASP.NET Core       :5280   running · pid 951   http://localhost:5280
+    db               PostgreSQL         :55432  running · healthy · container shop-db-1
+    shop-api         FastAPI, probably  :8000   running · pid 900   http://localhost:8000
+    shop-api-celery  Celery             –       running · pid 970
+    web              Vite               :5173   running · pid 802   http://localhost:5173
   feature/login  ~/code/shop-feature
-    web              Vite          :5174   running · pid 1300   http://localhost:5174
+    web              Vite               :5174   running · pid 1300   http://localhost:5174
 
 Elsewhere on this computer (read-only)
   blog  ~/code/blog
