@@ -272,9 +272,11 @@ role = "work"
 kind = "dev_server"
 priority = 20
 [[signature.when]]
-ancestor_exe = ["go", "air"]
-[[signature.when]]
 argv_contains = ["/go-build", "\\go-build"]
+# Started by go or air but not built by go run: most likely Go, not certain.
+[[signature.when]]
+ancestor_exe = ["go", "air"]
+probably = true
 [signature.texts]
 beginner = "This is a program written in Go, started from your project."
 builder = "Go program, started with go run or a live-reload tool such as air."
