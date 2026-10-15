@@ -22,6 +22,19 @@ pub fn run(input: &Input, args: &StatusArgs, json: bool) -> anyhow::Result<ExitC
     Ok(ExitCode::SUCCESS)
 }
 
+/// Text from other programs (names, arguments, paths) for a terminal: control characters
+/// and bidirectional overrides become U+FFFD, so they cannot move the cursor, retitle the
+/// window or forge a line.
+pub fn printable(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            let unsafe_char = c.is_control()
+                || matches!(c, '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}');
+            if unsafe_char { '\u{FFFD}' } else { c }
+        })
+        .collect()
+}
+
 /// Writes to stdout. A reader that stops early (`| head`) is not an error.
 pub fn write_stdout(text: &str) -> std::io::Result<()> {
     let mut stdout = std::io::stdout().lock();
@@ -62,7 +75,7 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
                 .max()
                 .unwrap_or(0);
             for (ports, label) in &system {
-                out.push_str(&format!("  {ports:<width$}  {label}\n"));
+                out.push_str(&format!("  {ports:<width$}  {}\n", printable(label)));
             }
         }
     } else if !elsewhere.is_empty() || !system.is_empty() {
@@ -113,22 +126,16 @@ fn project_block(out: &mut String, snapshot: &Snapshot, project: &Project, home:
         .worktrees
         .first()
         .and_then(|worktree| worktree.branch.as_deref());
+    let (name, root) = (
+        printable(&project.name),
+        printable(&tilde(&project.root, home)),
+    );
     match (project.git, branch) {
-        (true, Some(branch)) => out.push_str(&format!(
-            "{}  {} · {branch}\n",
-            project.name,
-            tilde(&project.root, home)
-        )),
-        (true, None) => out.push_str(&format!(
-            "{}  {}\n",
-            project.name,
-            tilde(&project.root, home)
-        )),
-        (false, _) => out.push_str(&format!(
-            "{}  {} (folder without git)\n",
-            project.name,
-            tilde(&project.root, home)
-        )),
+        (true, Some(branch)) => {
+            out.push_str(&format!("{name}  {root} · {}\n", printable(branch)));
+        }
+        (true, None) => out.push_str(&format!("{name}  {root}\n")),
+        (false, _) => out.push_str(&format!("{name}  {root} (folder without git)\n")),
     }
     let services: Vec<&Service> = snapshot
         .services
@@ -172,8 +179,9 @@ fn worktree_tables(
         let worktree = &project.worktrees[index];
         let label = worktree.branch.clone().unwrap_or_else(|| "detached".into());
         out.push_str(&format!(
-            "{indent}{label}  {}\n",
-            tilde(&worktree.path, home)
+            "{indent}{}  {}\n",
+            printable(&label),
+            printable(&tilde(&worktree.path, home))
         ));
         table(out, snapshot, &group, &nested, widths);
     }
@@ -201,8 +209,8 @@ fn elsewhere_block(
         };
         out.push_str(&format!(
             "  {}  {}\n",
-            project.name,
-            tilde(&project.root, home)
+            printable(&project.name),
+            printable(&tilde(&project.root, home))
         ));
         worktree_tables(out, snapshot, project, group, home, "    ", widths);
     }
@@ -278,7 +286,12 @@ fn row(snapshot: &Snapshot, service: &Service) -> [String; 4] {
         (Some(framework), Confidence::Sure) => framework.clone(),
         (None, _) => "–".into(),
     };
-    [service.name.clone(), framework, ports, state]
+    [
+        printable(&service.name),
+        printable(&framework),
+        ports,
+        printable(&state),
+    ]
 }
 
 /// System and unknown listeners grouped by label: ("5000 7000" ports, label).
