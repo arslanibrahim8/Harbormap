@@ -6,6 +6,8 @@ pub mod git;
 pub mod manifest;
 pub mod matcher;
 pub mod paths;
+pub mod resolve;
 pub mod world;
 
+pub use resolve::{ResolveInput, build_snapshot};
 pub use world::{FixtureWorld, RepoInfo, Scenario, World};

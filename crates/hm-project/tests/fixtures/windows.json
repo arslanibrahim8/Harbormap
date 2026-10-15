@@ -1,0 +1,84 @@
+{
+  "launch_dir": "C:\\work\\shop",
+  "world": {
+    "home": "C:\\Users\\me",
+    "windows": true,
+    "repos": [
+      {
+        "root": "C:\\work\\shop",
+        "worktrees": [
+          {
+            "path": "C:\\work\\shop",
+            "branch": "main",
+            "head": null
+          }
+        ]
+      }
+    ],
+    "files": {}
+  },
+  "inventory": {
+    "taken_at": 1760500000,
+    "os": "windows",
+    "arch": "x86_64",
+    "self_pid": 7000,
+    "current_uid": "S-1-5-21-1-1001",
+    "processes": [
+      {
+        "pid": 4,
+        "ppid": 0,
+        "start_time": 1760400000,
+        "name": "System",
+        "argv": [
+          "System"
+        ]
+      },
+      {
+        "pid": 5100,
+        "ppid": 5000,
+        "start_time": 1760499000,
+        "name": "node.exe",
+        "exe": "C:\\Program Files\\nodejs\\node.exe",
+        "argv": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "c:\\Work\\Shop\\web\\node_modules\\vite\\bin\\vite.js"
+        ],
+        "cwd": "c:\\Work\\Shop\\web\\",
+        "uid": "S-1-5-21-1-1001",
+        "user": "me"
+      },
+      {
+        "pid": 5000,
+        "ppid": 1,
+        "start_time": 1760498000,
+        "name": "pwsh.exe",
+        "exe": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+        "argv": [
+          "pwsh.exe"
+        ],
+        "cwd": "C:\\work\\shop\\",
+        "uid": "S-1-5-21-1-1001",
+        "user": "me"
+      }
+    ],
+    "listeners": [
+      {
+        "addr": "0.0.0.0",
+        "port": 80,
+        "pids": [
+          4
+        ]
+      },
+      {
+        "addr": "127.0.0.1",
+        "port": 5173,
+        "pids": [
+          5100
+        ]
+      }
+    ],
+    "containers": [],
+    "engines": [],
+    "notes": []
+  }
+}

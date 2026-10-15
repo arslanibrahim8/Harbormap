@@ -1,0 +1,72 @@
+{
+  "launch_dir": "/Users/me/code/shop/apps/web",
+  "world": {
+    "home": "/Users/me",
+    "repos": [
+      {"root": "/Users/me/code/shop", "worktrees": [{"path": "/Users/me/code/shop", "branch": "main", "head": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"}, {"path": "/Users/me/code/shop-feature", "branch": "feature/login", "head": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1"}]},
+      {"root": "/Users/me/code/blog", "worktrees": [{"path": "/Users/me/code/blog", "branch": "main", "head": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2"}]}
+    ],
+    "files": {
+      "/Users/me/code/shop/package.json": "{\"name\": \"shop\", \"private\": true, \"devDependencies\": {\"turbo\": \"2.5.0\"}}",
+      "/Users/me/code/shop/compose.yaml": "services:\n  db:\n    image: postgres:16-alpine\n",
+      "/Users/me/code/shop/apps/web/package.json": "{\"name\": \"@shop/web\", \"devDependencies\": {\"vite\": \"7.1.0\"}}",
+      "/Users/me/code/shop/apps/api/pyproject.toml": "[project]\nname = \"shop-api\"\ndependencies = [\"fastapi>=0.115\", \"uvicorn[standard]\", \"celery>=5.4\"]\n",
+      "/Users/me/code/shop/apps/api/main.py": "",
+      "/Users/me/code/shop/services/billing/Billing.csproj": "<Project Sdk=\"Microsoft.NET.Sdk.Web\"/>",
+      "/Users/me/code/shop/services/billing/Program.cs": "",
+      "/Users/me/code/blog/package.json": "{\"name\": \"blog\", \"dependencies\": {\"next\": \"15.5.4\", \"react\": \"19.1.0\"}}"
+    }
+  },
+  "inventory": {
+    "taken_at": 1760500000,
+    "os": "macos",
+    "arch": "aarch64",
+    "self_pid": 9000,
+    "current_uid": "501",
+    "processes": [
+      {"pid": 1, "ppid": null, "start_time": 1760400000, "name": "launchd", "argv": ["/sbin/launchd"], "rss_bytes": 52428800, "exe": "/sbin/launchd", "cwd": "/", "uid": "0", "user": "root"},
+      {"pid": 412, "ppid": 1, "start_time": 1760490000, "name": "cupsd", "argv": ["cupsd"], "rss_bytes": 52428800},
+      {"pid": 500, "ppid": 1, "start_time": 1760490000, "name": "zsh", "argv": ["-zsh"], "rss_bytes": 52428800, "exe": "/bin/zsh", "cwd": "/Users/me/code/shop", "uid": "501", "user": "me"},
+      {"pid": 640, "ppid": 1, "start_time": 1760490000, "name": "ControlCenter", "argv": ["/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter"], "rss_bytes": 52428800, "exe": "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter", "cwd": "/", "uid": "501", "user": "me"},
+      {"pid": 700, "ppid": 1, "start_time": 1760490000, "name": "com.docker.backend", "argv": ["/Applications/Docker.app/Contents/MacOS/com.docker.backend", "services"], "rss_bytes": 52428800, "exe": "/Applications/Docker.app/Contents/MacOS/com.docker.backend", "cwd": "/", "uid": "501", "user": "me"},
+      {"pid": 800, "ppid": 500, "start_time": 1760490000, "name": "npm", "argv": ["npm run dev"], "rss_bytes": 52428800, "exe": "/opt/homebrew/bin/node", "cwd": "/Users/me/code/shop/apps/web", "uid": "501", "user": "me"},
+      {"pid": 801, "ppid": 800, "start_time": 1760490000, "name": "sh", "argv": ["sh", "-c", "vite"], "rss_bytes": 52428800, "exe": "/bin/sh", "cwd": "/Users/me/code/shop/apps/web", "uid": "501", "user": "me"},
+      {"pid": 802, "ppid": 801, "start_time": 1760492600, "name": "node", "argv": ["node", "/Users/me/code/shop/apps/web/node_modules/.bin/vite"], "rss_bytes": 52428800, "exe": "/opt/homebrew/bin/node", "cwd": "/Users/me/code/shop/apps/web", "uid": "501", "user": "me", "env": {"names": ["PATH", "PORT", "VITE_API_URL"], "ports": [{"name": "PORT", "port": 5173}], "urls": [{"name": "VITE_API_URL", "scheme": "http", "host": "localhost", "port": 8000}]}},
+      {"pid": 900, "ppid": 500, "start_time": 1760490000, "name": "python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "-m", "uvicorn", "main:app", "--reload", "--port", "8000"], "rss_bytes": 52428800, "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "cwd": "/Users/me/code/shop/apps/api", "uid": "501", "user": "me"},
+      {"pid": 901, "ppid": 900, "start_time": 1760490000, "name": "python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "-c", "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=5, pipe_handle=7)", "--multiprocessing-fork"], "rss_bytes": 52428800, "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "cwd": "/Users/me/code/shop/apps/api", "uid": "501", "user": "me"},
+      {"pid": 950, "ppid": 500, "start_time": 1760490000, "name": "dotnet", "argv": ["dotnet", "run"], "rss_bytes": 52428800, "exe": "/usr/local/share/dotnet/dotnet", "cwd": "/Users/me/code/shop/services/billing", "uid": "501", "user": "me"},
+      {"pid": 951, "ppid": 950, "start_time": 1760490000, "name": "Billing", "argv": ["/Users/me/code/shop/services/billing/bin/Debug/net8.0/Billing"], "rss_bytes": 52428800, "exe": "/Users/me/code/shop/services/billing/bin/Debug/net8.0/Billing", "cwd": "/Users/me/code/shop/services/billing", "uid": "501", "user": "me"},
+      {"pid": 970, "ppid": 500, "start_time": 1760490000, "name": "python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "/Users/me/code/shop/apps/api/.venv/bin/celery", "-A", "shop", "worker"], "rss_bytes": 52428800, "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "cwd": "/Users/me/code/shop/apps/api", "uid": "501", "user": "me"},
+      {"pid": 1100, "ppid": 1, "start_time": 1760490000, "name": "zsh", "argv": ["-zsh"], "rss_bytes": 52428800, "exe": "/bin/zsh", "cwd": "/Users/me/code/blog", "uid": "501", "user": "me"},
+      {"pid": 1200, "ppid": 1100, "start_time": 1760490000, "name": "node", "argv": ["next-server (v15.5.4)"], "rss_bytes": 52428800, "exe": "/opt/homebrew/bin/node", "cwd": "/Users/me/code/blog", "uid": "501", "user": "me"},
+      {"pid": 1250, "ppid": 1, "start_time": 1760490000, "name": "zsh", "argv": ["-zsh"], "rss_bytes": 52428800, "exe": "/bin/zsh", "cwd": "/Users/me/code/shop-feature", "uid": "501", "user": "me"},
+      {"pid": 1300, "ppid": 1250, "start_time": 1760490000, "name": "node", "argv": ["node", "/Users/me/code/shop-feature/apps/web/node_modules/.bin/vite", "--port", "5174"], "rss_bytes": 52428800, "exe": "/opt/homebrew/bin/node", "cwd": "/Users/me/code/shop-feature/apps/web", "uid": "501", "user": "me"},
+      {"pid": 3000, "ppid": 500, "start_time": 1760490000, "name": "claude", "argv": ["claude"], "rss_bytes": 52428800, "exe": "/Users/me/.local/bin/claude", "cwd": "/Users/me/code/shop", "uid": "501", "user": "me"},
+      {"pid": 9000, "ppid": 500, "start_time": 1760490000, "name": "harbormap", "argv": ["harbormap", "status"], "rss_bytes": 52428800, "exe": "/usr/local/bin/harbormap", "cwd": "/Users/me/code/shop/apps/web", "uid": "501", "user": "me"},
+      {"pid": 76915, "ppid": 1, "start_time": 1760490000, "name": "Google Chrome", "argv": ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"], "rss_bytes": 52428800, "exe": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "cwd": "/", "uid": "501", "user": "me"}
+    ],
+    "listeners": [
+      {"addr": "::1", "port": 5173, "pids": [802]},
+      {"addr": "127.0.0.1", "port": 5174, "pids": [1300]},
+      {"addr": "127.0.0.1", "port": 8000, "pids": [900, 901]},
+      {"addr": "127.0.0.1", "port": 5280, "pids": [951]},
+      {"addr": "::", "port": 3000, "pids": [1200]},
+      {"addr": "::", "port": 5000, "pids": [640]},
+      {"addr": "::", "port": 7000, "pids": [640]},
+      {"addr": "::", "port": 55432, "pids": [700]},
+      {"addr": "::", "port": 6380, "pids": [700]},
+      {"addr": "::1", "port": 631, "pids": [412]},
+      {"addr": "127.0.0.1", "port": 9820, "pids": [76915]},
+      {"addr": "127.0.0.1", "port": 41234, "pids": [3000]},
+      {"addr": "0.0.0.0", "port": 6000, "pids": []}
+    ],
+    "containers": [
+      {"engine": "e_1", "id": "4f1c2a9e8b7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a3928170f6e5d4c", "name": "shop-db-1", "image": "postgres:16-alpine", "state": "running", "health": "healthy", "exit_code": 0, "restart_count": 0, "started_at": "2026-10-15T07:00:03Z", "ports": [{"container_port": 5432, "proto": "tcp", "host_ip": "0.0.0.0", "host_port": 55432}, {"container_port": 5432, "proto": "tcp", "host_ip": "::", "host_port": 55432}], "networks": ["shop_default"], "mounts": [{"kind": "volume", "name": "shop_pgdata", "source": null, "destination": "/var/lib/postgresql/data"}], "labels": {"com.docker.compose.project": "shop", "com.docker.compose.service": "db", "com.docker.compose.project.working_dir": "/Users/me/code/shop", "com.docker.compose.project.config_files": "/Users/me/code/shop/compose.yaml", "com.docker.compose.config-hash": "8c3e1f0a", "com.docker.compose.container-number": "1", "com.docker.compose.oneoff": "False"}},
+      {"engine": "e_1", "id": "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b", "name": "lonely-redis", "image": "redis:7", "state": "running", "exit_code": 0, "restart_count": 0, "started_at": "2026-10-15T06:00:00Z", "ports": [{"container_port": 6379, "proto": "tcp", "host_ip": "0.0.0.0", "host_port": 6380}], "networks": ["bridge"], "mounts": [], "labels": {}}
+    ],
+    "engines": [
+      {"id": "e_1", "name": "Docker Desktop", "endpoint": "unix:///Users/me/.docker/run/docker.sock", "version": "29.2.1", "reachable": true, "error": null}
+    ],
+    "notes": []
+  }
+}
