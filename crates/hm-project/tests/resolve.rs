@@ -104,6 +104,72 @@ fn project_services_get_names_frameworks_and_process_trees() {
     let feature_web = service(&snapshot, "web", FEATURE);
     assert_eq!(feature_web.ports, vec![5174]);
     assert_ne!(feature_web.id, web.id);
+
+    // One script that starts two servers gives two services, and a server inside another
+    // service's process tree is its own service.
+    let mut busy = scenario();
+    let process = |pid: u32, ppid: u32, exe: &str, argv: &[&str], cwd: &str| -> RawProcess {
+        serde_json::from_value(serde_json::json!({
+            "pid": pid, "ppid": ppid, "start_time": 1760490000, "name": exe,
+            "exe": format!("/usr/bin/{exe}"), "argv": argv,
+            "cwd": format!("{SHOP}/{cwd}"), "uid": "501", "user": "me",
+        }))
+        .unwrap()
+    };
+    let socket = |port: u16, pid: u32| -> RawListener {
+        serde_json::from_value(serde_json::json!({
+            "proto": "tcp", "addr": "127.0.0.1", "port": port, "pids": [pid],
+        }))
+        .unwrap()
+    };
+    busy.inventory.processes.extend([
+        process(1400, 500, "npm", &["npm run both"], "apps/web"),
+        process(
+            1401,
+            1400,
+            "sh",
+            &["sh", "-c", "vite --port 5176 & uvicorn main:app"],
+            "apps/web",
+        ),
+        process(
+            1402,
+            1401,
+            "node",
+            &["node", "node_modules/.bin/vite", "--port", "5176"],
+            "apps/web",
+        ),
+        process(
+            1403,
+            1401,
+            "python3",
+            &["python3", "-m", "uvicorn", "main:app", "--port", "8001"],
+            "apps/api",
+        ),
+        process(805, 802, "mystery-server", &["mystery-server"], "apps/web"),
+    ]);
+    busy.inventory
+        .listeners
+        .extend([socket(5176, 1402), socket(8001, 1403), socket(7777, 805)]);
+    let snapshot = resolve(&busy);
+    let owner_service = |port: u16| {
+        let id = listener(&snapshot, port).service_id.clone().unwrap();
+        snapshot
+            .services
+            .iter()
+            .find(|service| service.id == id)
+            .unwrap()
+    };
+    assert_eq!(owner_service(5176).signature.as_deref(), Some("vite"));
+    assert_eq!(owner_service(8001).signature.as_deref(), Some("fastapi"));
+    assert_ne!(owner_service(5176).id, owner_service(8001).id);
+    assert!(matches!(
+        owner_service(7777).source,
+        ServiceSource::Process { main_pid: 805, ref pids, .. } if pids == &vec![805]
+    ));
+    assert!(matches!(
+        &service(&snapshot, "web", SHOP).source,
+        ServiceSource::Process { pids, .. } if pids == &vec![800, 801, 802]
+    ));
 }
 
 #[test]

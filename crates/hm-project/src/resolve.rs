@@ -427,16 +427,6 @@ impl<'a> Resolver<'a> {
                 owner_ports.entry(*pid).or_default().insert(listener.port);
             }
         }
-        for (pid, ports) in owner_ports {
-            if !self.can_be_service(pid) {
-                continue;
-            }
-            let root = self.service_root(pid);
-            let draft = by_root
-                .entry(root)
-                .or_insert_with(|| self.process_draft(pid, root));
-            draft.ports.extend(ports);
-        }
         // Background workers have no ports but are services too.
         let workers: Vec<u32> = self
             .places
@@ -448,6 +438,24 @@ impl<'a> Resolver<'a> {
                     .is_some_and(|found| found.signature.kind == Kind::Worker)
             })
             .collect();
+        // Every program that is a service of its own; a wrapper they share belongs to
+        // none of them.
+        let mut owners: BTreeSet<u32> = owner_ports
+            .keys()
+            .copied()
+            .filter(|pid| self.can_be_service(*pid))
+            .collect();
+        owners.extend(workers.iter().copied());
+        for (pid, ports) in owner_ports {
+            if !self.can_be_service(pid) {
+                continue;
+            }
+            let root = self.service_root(pid, &owners);
+            let draft = by_root
+                .entry(root)
+                .or_insert_with(|| self.process_draft(pid, root));
+            draft.ports.extend(ports);
+        }
         let mut covered: BTreeSet<u32> = BTreeSet::new();
         for root in by_root.keys() {
             covered.extend(self.descendants(*root));
@@ -458,17 +466,24 @@ impl<'a> Resolver<'a> {
             if covered.contains(&pid) {
                 continue;
             }
-            let root = self.service_root(pid);
+            let root = self.service_root(pid, &owners);
             covered.extend(self.descendants(root));
             by_root
                 .entry(root)
                 .or_insert_with(|| self.process_draft(pid, root));
         }
 
+        let roots: BTreeSet<u32> = by_root.keys().copied().collect();
         let mut drafts: Vec<Draft<'a>> = by_root.into_values().collect();
         for draft in &mut drafts {
             if let DraftSource::Process { main, root, pids } = &mut draft.source {
-                *pids = self.descendants(*root);
+                // A process belongs to the nearest service root above it, so a server
+                // inside another service's tree is counted once, in its own service.
+                *pids = self
+                    .descendants(*root)
+                    .into_iter()
+                    .filter(|pid| self.nearest_root(*pid, &roots) == Some(*root))
+                    .collect();
                 let (main, place) = (*main, draft.place.clone());
                 draft.base_name = self.process_service_name(main, place.as_ref(), draft.signature);
             }
@@ -522,8 +537,11 @@ impl<'a> Resolver<'a> {
         })
     }
 
-    /// Walks up through wrappers and same-signature parents inside the same project.
-    fn service_root(&self, pid: u32) -> u32 {
+    /// Walks up through wrappers and same-signature parents inside the same project, but
+    /// not into a parent whose tree also holds another service's program: two servers
+    /// started by one script stay two services.
+    fn service_root(&self, pid: u32, owners: &BTreeSet<u32>) -> u32 {
+        let own: BTreeSet<u32> = self.descendants(pid).into_iter().collect();
         let mut current = pid;
         for _ in 0..16 {
             let Some(parent) = self.procs[&current]
@@ -544,9 +562,28 @@ impl<'a> Resolver<'a> {
             {
                 break;
             }
+            let shared = self
+                .descendants(parent.pid)
+                .into_iter()
+                .any(|other| owners.contains(&other) && !own.contains(&other));
+            if shared {
+                break;
+            }
             current = parent.pid;
         }
         current
+    }
+
+    /// The service root at `pid` or nearest above it.
+    fn nearest_root(&self, pid: u32, roots: &BTreeSet<u32>) -> Option<u32> {
+        let mut current = pid;
+        for _ in 0..64 {
+            if roots.contains(&current) {
+                return Some(current);
+            }
+            current = self.procs.get(&current)?.ppid?;
+        }
+        None
     }
 
     /// The project's own programs (servers, databases, workers) are named after their
