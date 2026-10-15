@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels the older runs of that pull request.
+# Pushes to main get their own group (the run id), so they are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # rust-toolchain.toml pins channel 1.99.0 with clippy and rustfmt. Given no
+      # toolchain name, `rustup toolchain install` (rustup >= 1.28) installs that
+      # toolchain and its components. We do not rely on implicit installation on
+      # first use: see https://github.com/rust-lang/rustup/issues/4836.
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install --profile minimal --no-self-update
+      - run: cargo fmt --all --check
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install --profile minimal --no-self-update
+      # Must come after the toolchain step: the cache key uses the rustc version.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  deny:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # Runs `cargo deny --all-features check` (advisories, bans, licenses and
+      # sources) with deny.toml from the repository root.
+      - uses: EmbarkStudios/cargo-deny-action@v2
