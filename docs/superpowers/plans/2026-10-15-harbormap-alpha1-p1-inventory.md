@@ -1029,7 +1029,7 @@ git commit -s -m "feat(core): add program-name helpers and environment-value rul
 
 This task adds the redaction rules from spec §15. Every command line goes through `redact_argv` before it is stored or shown, so passwords, tokens, URL credentials, known key formats and long random-looking strings never leave the probe. Log lines will use `redact_text` from alpha.3 on.
 
-A name is secret when one of its parts (split at `-`, `_` and `.`, or the last word of a camelCase part) is `password`, `passwd`, `pwd`, `passphrase`, `token`, `secret` or `apikey`, or when its last part is `key` or `pass`: `DB_PASSWORD`, `--client-secret`, `apiKey` and `API_KEY` are secret, while `--key-file`, `--pass-with-no-tests`, `--max-tokens` and `monkey` are not. One argument is one value, so `DB_PASSWORD=pa;ss` loses everything after `=`. Inside text, such as the command line that `sh -c` runs, a value ends at whitespace or `&`, `;` and `,`, and `:` separates a pair only before whitespace or a quote, so `cache-key:6379` stays a host and port. Ordinary flags such as `--max-old-space-size=4096` stay readable.
+A variable or option name is secret when one of its parts (split at `-`, `_` and `.`) ends with `password`, `passwd`, `passphrase`, `secret`, `token` or `apikey`, digits aside, or when its last part is `key`, `pass` or `pwd` (qualifiers such as `2`, `v2` or `PROD` aside, and camelCase counted by its last word): `DB_PASSWORD`, `PGPASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2` and `apiKey` are secret, while `--key-file`, `--max-tokens` and `monkey` are not. The word after a flag is masked only when the flag's last part names the secret, so `--password-stdin`, `--password-file`, `--no-password` and `--ask-pass` keep the next argument, and a following flag is never masked. A bare `name=value` argument is one value, so `DB_PASSWORD=pa;ss` loses everything after `=`; any other argument (a URL, the command line that `sh -c` runs) is redacted as text, where a value ends at whitespace or `&`, `;`, `,`, `}` and `]`, and `:` separates a pair only before whitespace or a quote, so `cache-key:6379` stays a host and port. MySQL's `-pVALUE` is checked first, also after `sudo` and inside shell text where `mysql` is a command. Ordinary flags such as `--max-old-space-size=4096` stay readable.
 
 **Files:**
 - Create: `crates/hm-core/src/redact.rs`
@@ -1100,6 +1100,17 @@ mod tests {
             &["jest", "--pass-with-no-tests", "src/"],
             &["nginx", "--key-file", "/etc/tls/site.pem", "monkey=banana"],
             &["vllm", "serve", "--max-tokens", "4096"],
+            &["docker", "login", "--password-stdin", "ghcr.io"],
+            &["ansible-playbook", "--ask-pass", "site.yml"],
+            &["psql", "--no-password", "-h", "db", "app"],
+            &[
+                "app",
+                "--token-limit",
+                "100",
+                "--password-file",
+                "/etc/app/pw",
+            ],
+            &["sh", "-c", "docker run --name mysql -p3306:3306 mysql:8"],
         ] {
             let input = argv(parts);
             assert_eq!(redact_argv(&input), input);
@@ -1143,6 +1154,47 @@ mod tests {
             redact_argv(&argv(&["sh", "-c", "app --password hunter2 --port 80"])),
             argv(&["sh", "-c", "app --password *** --port 80"])
         );
+        // Secret words inside longer names, and qualifiers after them.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "env",
+                "PGPASSWORD=a1",
+                "NGROK_AUTHTOKEN=a2",
+                "API_KEY_2=a3",
+                "OPENAI_API_KEY_PROD=a4",
+                "PASSWORD2=a5",
+                "-Dpassword=a6",
+            ])),
+            argv(&[
+                "env",
+                "PGPASSWORD=***",
+                "NGROK_AUTHTOKEN=***",
+                "API_KEY_2=***",
+                "OPENAI_API_KEY_PROD=***",
+                "PASSWORD2=***",
+                "-Dpassword=***",
+            ])
+        );
+        // An argument that is not a bare `name=value` keeps its text around the secret.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "curl",
+                "https://u:hunter2@host.example/x?api_key=abc"
+            ])),
+            argv(&["curl", "https://***@host.example/x?api_key=***"])
+        );
+        assert_eq!(
+            redact_argv(&argv(&[
+                "sh",
+                "-c",
+                "export API_TOKEN=abc && exec node server.js --port 80",
+            ])),
+            argv(&[
+                "sh",
+                "-c",
+                "export API_TOKEN=*** && exec node server.js --port 80",
+            ])
+        );
     }
 
     #[test]
@@ -1162,6 +1214,19 @@ mod tests {
         assert_eq!(
             redact_argv(&argv(&["bash", "-lc", "mysql -u root -phunter2 shop"])),
             argv(&["bash", "-lc", "mysql -u root -p*** shop"])
+        );
+        // The password itself may look like a secret name; `-p` still wins.
+        assert_eq!(
+            redact_argv(&argv(&["mysql", "-uroot", "-pmy_secret", "shop"])),
+            argv(&["mysql", "-uroot", "-p***", "shop"])
+        );
+        assert_eq!(
+            redact_argv(&argv(&["sudo", "mysql", "-phunter2"])),
+            argv(&["sudo", "mysql", "-p***"])
+        );
+        assert_eq!(
+            redact_text("cd /srv && mysql -u root -p'hunter 2' shop"),
+            "cd /srv && mysql -u root -p*** shop"
         );
     }
 
@@ -1190,6 +1255,10 @@ mod tests {
             r#"{"password":***}"#
         );
         assert_eq!(redact_text(r#"{"apiKey": "k1"}"#), r#"{"apiKey": ***}"#);
+        assert_eq!(
+            redact_text(&redact_text(r#"{"password": "x1"}"#)),
+            r#"{"password": ***}"#
+        );
         assert_eq!(
             redact_text("url=http://x/?token=abc&page=2"),
             "url=http://x/?token=***&page=2"
@@ -1272,21 +1341,34 @@ use crate::names::exe_stem;
 
 pub const MASK: &str = "***";
 
-/// Name parts that make a flag or variable name secret wherever they appear
-/// (`DB_PASSWORD`, `--client-secret`, `spring.datasource.password`).
-const SECRET_PARTS: &[&str] = &[
+/// Words that make a name secret when one of its parts ends with them, digits aside
+/// (`DB_PASSWORD`, `PGPASSWORD`, `NGROK_AUTHTOKEN`, `client_secret`, `PASSWORD2`).
+const SECRET_WORDS: &[&str] = &[
     "password",
     "passwd",
-    "pwd",
     "passphrase",
-    "token",
     "secret",
+    "token",
     "apikey",
 ];
 
-/// Name parts that make a name secret only as its last part (`API_KEY`, `--db-pass`),
-/// so that `--key-file` and `--pass-with-no-tests` keep their values.
-const SECRET_LAST_PARTS: &[&str] = &["key", "pass"];
+/// Short words that make a name secret only as its last part (`API_KEY`, `--db-pass`,
+/// `apiKey`), so that `--key-file`, `monkey` and `--pass-with-no-tests` stay readable.
+const SECRET_LAST_WORDS: &[&str] = &["key", "pass", "pwd"];
+
+/// Trailing name parts that only qualify a secret (`API_KEY_2`, `STRIPE_KEY_LIVE`).
+const QUALIFIERS: &[&str] = &[
+    "prod",
+    "production",
+    "live",
+    "test",
+    "dev",
+    "staging",
+    "local",
+];
+
+/// Programs that run the next argument as a command (`sudo mysql -p…`).
+const WRAPPERS: &[&str] = &["sudo", "doas", "env", "exec", "nohup", "time"];
 
 /// CLIs where `-pVALUE` (attached) is a password rather than a port.
 const MYSQL_LIKE: &[&str] = &[
@@ -1327,10 +1409,13 @@ static FLAG_AND_VALUE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(^|\s)(--?[A-Za-z][A-Za-z0-9_.\-]*)(\s+)("[^"]*"|'[^']*'|[^\s\-"']\S*)"#).unwrap()
 });
 
-/// `mysql … -pVALUE` inside text.
+/// `mysql … -pVALUE` inside text, where `mysql` is a command: first, after `;`, `&`, `|`,
+/// `(` or a backtick, after a wrapper such as `sudo`, or as a path. `--name mysql -p3306`
+/// is a port mapping, not a password.
 static MYSQL_PASSWORD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r#"((?:^|[\s/\\])(?i:{})(?:\.exe)?\s(?:[^;&|\n]*?\s)?-p)([^\s;&|'"]+)"#,
+        r#"((?:^|[;&|(`]\s*|\b(?:{})\s+|[/\\])(?i:{})(?:\.exe)?\s(?:[^;&|\n]*?\s)?-p)('[^']*'|"[^"]*"|[^\s;&|'"]+)"#,
+        WRAPPERS.join("|"),
         MYSQL_LIKE.join("|")
     ))
     .unwrap()
@@ -1341,34 +1426,43 @@ static MYSQL_PASSWORD: LazyLock<Regex> = LazyLock::new(|| {
 static CANDIDATE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[A-Za-z0-9_+\-]{24,}={0,2}").unwrap());
 
-/// Redacts a full command line. `argv[0]` decides whether MySQL-style `-pVALUE` applies.
+/// Redacts a full command line. The program (after wrappers such as `sudo`) decides
+/// whether MySQL-style `-pVALUE` applies.
 pub fn redact_argv(argv: &[String]) -> Vec<String> {
     let mysql_like = argv
-        .first()
-        .is_some_and(|first| MYSQL_LIKE.contains(&exe_stem(first).as_str()));
+        .iter()
+        .map(|arg| exe_stem(arg))
+        .find(|stem| !WRAPPERS.contains(&stem.as_str()))
+        .is_some_and(|stem| MYSQL_LIKE.contains(&stem.as_str()));
     let mut out = Vec::with_capacity(argv.len());
     let mut mask_next = false;
     for (index, arg) in argv.iter().enumerate() {
         if mask_next {
-            out.push(MASK.to_string());
             mask_next = false;
-            continue;
+            // A flag right after a secret flag means that flag was a switch.
+            if !arg.starts_with('-') {
+                out.push(MASK.to_string());
+                continue;
+            }
         }
         if index > 0 {
-            if arg.starts_with('-') && !arg.contains('=') && is_secret_name(arg) {
+            if mysql_like && arg.len() > 2 && arg.starts_with("-p") {
+                out.push(format!("-p{MASK}"));
+                continue;
+            }
+            if arg.starts_with('-') && !arg.contains('=') && is_secret_flag(arg) {
                 out.push(arg.clone());
                 mask_next = true;
                 continue;
             }
-            // One argument is one value: everything after the first `=` is secret.
+            // A bare `name=value` argument is one value: everything after the first `=`
+            // is secret. Anything else (a URL, a shell command) is text.
             if let Some((name, _)) = arg.split_once('=')
+                && !name.is_empty()
+                && name.bytes().all(is_name_byte)
                 && is_secret_name(name)
             {
                 out.push(format!("{name}={MASK}"));
-                continue;
-            }
-            if mysql_like && arg.len() > 2 && arg.starts_with("-p") {
-                out.push(format!("-p{MASK}"));
                 continue;
             }
         }
@@ -1386,7 +1480,7 @@ pub fn redact_text(text: &str) -> String {
     let text = PREFIXED.replace_all(&text, format!("${{1}}{MASK}"));
     let text = mask_named_values(&text);
     let text = FLAG_AND_VALUE.replace_all(&text, |caps: &regex::Captures<'_>| {
-        if is_secret_name(&caps[2]) {
+        if is_secret_flag(&caps[2]) {
             format!("{}{}{}{MASK}", &caps[1], &caps[2], &caps[3])
         } else {
             caps[0].to_string()
@@ -1405,26 +1499,68 @@ pub fn redact_text(text: &str) -> String {
         .into_owned()
 }
 
-/// True when a flag or variable name names a secret. The name is split into parts at
-/// `-`, `_` and `.`; a camelCase part counts by its last word (`apiKey`, `accessToken`).
+/// True when a variable or option name names a secret: one of its parts (split at `-`,
+/// `_` and `.`) ends with a secret word, or its last part, qualifiers aside, is a short
+/// one (`DB_PASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2`, `accessToken`).
 fn is_secret_name(name: &str) -> bool {
-    let parts: Vec<&str> = name
+    let parts = secret_parts(name);
+    parts.iter().any(|part| ends_with_secret_word(part))
+        || parts.last().is_some_and(|last| is_short_secret_word(last))
+}
+
+/// True when the word after a flag is a secret: the flag's last part names it
+/// (`--password`, `--client-secret`, `--api-key`). `--password-file` and `--token-limit`
+/// keep their values, and `--no-password` and `--ask-pass` are switches.
+fn is_secret_flag(flag: &str) -> bool {
+    let parts = secret_parts(flag);
+    if parts
+        .first()
+        .is_some_and(|first| first.eq_ignore_ascii_case("no") || first.eq_ignore_ascii_case("ask"))
+    {
+        return false;
+    }
+    parts
+        .last()
+        .is_some_and(|last| ends_with_secret_word(last) || is_short_secret_word(last))
+}
+
+/// The parts of a name without leading dashes and trailing qualifiers.
+fn secret_parts(name: &str) -> Vec<&str> {
+    let mut parts: Vec<&str> = name
         .trim_start_matches('-')
         .split(['-', '_', '.'])
         .filter(|part| !part.is_empty())
         .collect();
-    let Some(last) = parts.last() else {
-        return false;
-    };
-    let secret_part = |part: &str| {
-        let word = last_camel_word(part).to_ascii_lowercase();
-        let whole = part.to_ascii_lowercase();
-        SECRET_PARTS.contains(&whole.as_str()) || SECRET_PARTS.contains(&word.as_str())
-    };
-    let last_word = last_camel_word(last).to_ascii_lowercase();
-    parts.iter().any(|part| secret_part(part))
-        || SECRET_LAST_PARTS.contains(&last.to_ascii_lowercase().as_str())
-        || SECRET_LAST_PARTS.contains(&last_word.as_str())
+    while parts.len() > 1 && parts.last().is_some_and(|part| is_qualifier(part)) {
+        parts.pop();
+    }
+    parts
+}
+
+/// `2`, `v2`, `PROD`, `live`.
+fn is_qualifier(part: &str) -> bool {
+    let version = part
+        .strip_prefix(['v', 'V'])
+        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|byte| byte.is_ascii_digit()));
+    part.bytes().all(|byte| byte.is_ascii_digit())
+        || version
+        || QUALIFIERS
+            .iter()
+            .any(|word| part.eq_ignore_ascii_case(word))
+}
+
+/// `PGPASSWORD`, `AUTHTOKEN`, `accessToken`, `PASSWORD2`; not `tokens` or `tokenizer`.
+fn ends_with_secret_word(part: &str) -> bool {
+    let lower = part
+        .trim_end_matches(|c: char| c.is_ascii_digit())
+        .to_ascii_lowercase();
+    SECRET_WORDS.iter().any(|word| lower.ends_with(word))
+}
+
+/// `KEY`, `pass`, `pwd`, or a camelCase part ending in one (`apiKey`, `dbPass`).
+fn is_short_secret_word(part: &str) -> bool {
+    let word = last_camel_word(part).to_ascii_lowercase();
+    SECRET_LAST_WORDS.contains(&word.as_str())
 }
 
 /// The last word of a camelCase part (`apiKey` → `Key`), or the whole part.
@@ -1499,7 +1635,9 @@ fn secret_value_after(text: &str, separator: usize) -> Option<(usize, usize)> {
             .map_or(bytes.len(), |offset| start + 1 + offset + 1)
     } else {
         text[start..]
-            .find(|c: char| c.is_whitespace() || matches!(c, '&' | ';' | ',' | '"' | '\''))
+            .find(|c: char| {
+                c.is_whitespace() || matches!(c, '&' | ';' | ',' | '"' | '\'' | '}' | ']')
+            })
             .map_or(bytes.len(), |offset| start + offset)
     };
     (end > start).then_some((start, end))
@@ -2452,6 +2590,16 @@ mod tests {
         let mut kept = vite.clone();
         drop_environment_tail(&mut kept);
         assert_eq!(kept, vite);
+
+        // Environment names need not be identifiers.
+        let mut odd = args(&[
+            "node",
+            "DB_PASS=hunter2",
+            "BASH_FUNC_ml%%=() { :; }",
+            "npm_config_@acme:registry=https://r.example/",
+        ]);
+        drop_environment_tail(&mut odd);
+        assert_eq!(odd, args(&["node"]));
     }
 
     fn args(list: &[&str]) -> Vec<String> {
@@ -2660,9 +2808,9 @@ pub fn clean_cwd(cwd: &Path) -> PathBuf {
 /// On macOS, a process that renamed itself (node, which runs npm and Next.js, or perl)
 /// keeps its new title in argv[0] and blanks the rest of its original arguments. The
 /// argument reader skips the blanks and returns the first environment entries in their
-/// place, values included. Environment values must never leave the probe (spec §15), so
-/// a run of `NAME=value` or blank arguments at the end is dropped. Real argument lists
-/// rarely end that way, and dropping one loses only display detail.
+/// place, values included. Environment values must not leave the probe (spec §15), so a
+/// run of `name=value` or blank arguments at the end is dropped. Real argument lists
+/// rarely end that way; when one does, only that display detail is lost.
 fn drop_environment_tail(argv: &mut Vec<String>) {
     while argv
         .last()
@@ -2672,11 +2820,14 @@ fn drop_environment_tail(argv: &mut Vec<String>) {
     }
 }
 
-/// `NAME=value`, where NAME is a letter or `_` followed by letters, digits or `_`.
+/// `name=value` as an environment block holds it. Names are loose in practice
+/// (`BASH_FUNC_f%%`, `npm_config_@scope:registry`), so anything that is not an option
+/// (`--port=5173`) or a path or URL (`http://x/?a=b`) counts.
 fn is_environment_entry(arg: &str) -> bool {
     arg.split_once('=').is_some_and(|(name, _)| {
-        name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
-            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        !name.is_empty()
+            && !name.starts_with('-')
+            && !name.chars().any(|c| c.is_whitespace() || c == '/')
     })
 }
 
@@ -3074,7 +3225,7 @@ fn parse_hex_addr(hex: &str) -> Option<IpAddr> {
         32 => {
             let mut bytes = [0u8; 16];
             for (index, out) in bytes.chunks_mut(4).enumerate() {
-                out.copy_from_slice(&word(&hex[index * 8..index * 8 + 8])?);
+                out.copy_from_slice(&word(hex.get(index * 8..index * 8 + 8)?)?);
             }
             Some(IpAddr::V6(Ipv6Addr::from(bytes)))
         }
@@ -3102,13 +3253,14 @@ pub fn read() -> Result<Vec<hm_core::raw::RawListener>, String> {
         match std::fs::read_to_string(path) {
             Ok(text) => sockets.extend(parse_proc_net_tcp(&text)),
             // tcp6 is missing when IPv6 is disabled.
-            Err(_) if path.ends_with('6') => {}
+            Err(error) if path.ends_with('6') && error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("cannot read {path}: {error}")),
         }
     }
 
     let mut owners: HashMap<u64, Vec<u32>> = HashMap::new();
-    let proc_dir = std::fs::read_dir("/proc").map_err(|error| error.to_string())?;
+    let proc_dir =
+        std::fs::read_dir("/proc").map_err(|error| format!("cannot read /proc: {error}"))?;
     for entry in proc_dir.flatten() {
         let Some(pid) = entry
             .file_name()
@@ -3301,7 +3453,7 @@ git commit -s -m "feat(probe): list listening TCP sockets and the processes that
 
 ### Task 7: Docker engine discovery
 
-This task finds where Docker-compatible engines might be listening, in the order of spec §6.4: `DOCKER_HOST`, the current docker context, then the well-known sockets of Docker Desktop, OrbStack, Colima, Rancher Desktop and Podman, and the Windows named pipe. Discovery reads everything through a `DiscoverEnv` value, so tests can point it at a temporary home folder; connecting to the engines comes in Task 8.
+This task finds where Docker-compatible engines might be listening, in the order of spec §6.4: `DOCKER_HOST`, the current docker context, then the well-known sockets of Docker Desktop, OrbStack, Colima, Rancher Desktop and Podman, and the Windows named pipe. Discovery reads everything through a `DiscoverEnv` value, so tests can point it at a temporary home folder; connecting to the engines comes in Task 8. Only engines on this computer count: a `tcp://` host that is not a loopback address, or an `ssh://` host, is skipped, because the only outside connection Harbormap makes is the local Docker engine (spec §15). Engine names come from folder names in the configured endpoint (`/.colima/`, `/.rd/`), never from parts of a user name, and `podman machine inspect` gets two seconds before it is stopped, so a podman waiting on a lock cannot hold up the probe.
 
 **Files:**
 - Create: `crates/hm-probe/src/docker/mod.rs` (first version: module doc comment, `pub mod discover;` and `on_path`; Task 8 adds the rest)
@@ -3402,6 +3554,22 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].endpoint, "npipe:////./pipe/docker_engine");
         assert_eq!(found[0].label, "Docker Desktop");
+
+        // A remote engine is not this computer's: Harbormap never connects to it.
+        let remote = DiscoverEnv {
+            docker_host: Some("tcp://10.0.0.5:2375".into()),
+            ..DiscoverEnv::default()
+        };
+        assert!(candidates(&remote).is_empty());
+        // Labels come from folder names, not from parts of a user name.
+        assert_eq!(
+            label_for("unix:///Users/halima/.docker/run/docker.sock"),
+            "Docker Desktop"
+        );
+        assert_eq!(
+            label_for("unix:///Users/me/.lima/default/sock/docker.sock"),
+            "Colima"
+        );
     }
 
     #[cfg(unix)]
@@ -3433,9 +3601,13 @@ Add this above the `#[cfg(test)]` line in `crates/hm-probe/src/docker/discover.r
 
 ```rust
 //! Where Docker-compatible engines might be listening (v0.1 spec §6.4), in order:
-//! `DOCKER_HOST`, the current docker context, then well-known sockets.
+//! `DOCKER_HOST`, the current docker context, then well-known sockets. Only engines on
+//! this computer count: a remote `tcp://` or `ssh://` host is skipped (spec §15).
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candidate {
@@ -3479,11 +3651,23 @@ impl DiscoverEnv {
 pub fn candidates(env: &DiscoverEnv) -> Vec<Candidate> {
     let mut found: Vec<Candidate> = Vec::new();
     let mut push = |endpoint: String| {
-        let endpoint = canonical_endpoint(&endpoint);
-        if !found.iter().any(|candidate| candidate.endpoint == endpoint) {
+        if !is_local(&endpoint) {
+            return;
+        }
+        let canonical = canonical_endpoint(&endpoint);
+        if !found
+            .iter()
+            .any(|candidate| candidate.endpoint == canonical)
+        {
+            // The name as configured says more than the resolved path, which may point
+            // into a VM folder.
+            let label = match label_for(&endpoint).as_str() {
+                "Docker" => label_for(&canonical),
+                known => known.to_string(),
+            };
             found.push(Candidate {
-                label: label_for(&endpoint),
-                endpoint,
+                label,
+                endpoint: canonical,
             });
         }
     };
@@ -3561,6 +3745,22 @@ fn context_host(env: &DiscoverEnv) -> Option<String> {
     None
 }
 
+/// Sockets and pipes are local; a TCP endpoint counts only on a loopback address.
+fn is_local(endpoint: &str) -> bool {
+    match endpoint.split_once("://") {
+        Some(("unix" | "npipe", _)) => true,
+        Some(("tcp" | "http", rest)) => {
+            let authority = rest.split('/').next().unwrap_or(rest);
+            let host = match authority.rsplit_once(':') {
+                Some((host, port)) if port.bytes().all(|byte| byte.is_ascii_digit()) => host,
+                _ => authority,
+            };
+            matches!(host, "localhost" | "127.0.0.1" | "[::1]" | "::1")
+        }
+        _ => false,
+    }
+}
+
 /// Resolves symlinks in `unix://` endpoints so two names for one socket collapse.
 fn canonical_endpoint(endpoint: &str) -> String {
     match endpoint.strip_prefix("unix://") {
@@ -3572,17 +3772,19 @@ fn canonical_endpoint(endpoint: &str) -> String {
     }
 }
 
+/// Engine name guessed from folder names in the endpoint, never from parts of a name
+/// (a user called `halima` is not running Colima).
 pub fn label_for(endpoint: &str) -> String {
-    let lower = endpoint.to_ascii_lowercase();
-    let label = if lower.contains(".orbstack") {
+    let lower = endpoint.to_ascii_lowercase().replace('\\', "/");
+    let label = if lower.contains("/.orbstack/") {
         "OrbStack"
-    } else if lower.contains(".colima") || lower.contains("lima") {
+    } else if lower.contains("/.colima/") || lower.contains("/.lima/") {
         "Colima"
     } else if lower.contains("/.rd/") {
         "Rancher Desktop"
-    } else if lower.contains("podman") {
+    } else if lower.contains("/podman/") || lower.contains("podman.sock") {
         "Podman"
-    } else if lower.contains(".docker/run") || lower.contains("docker_engine") {
+    } else if lower.contains("/.docker/run/") || lower.contains("docker_engine") {
         "Docker Desktop"
     } else {
         "Docker"
@@ -3590,22 +3792,40 @@ pub fn label_for(endpoint: &str) -> String {
     label.to_string()
 }
 
-/// Asks `podman machine inspect` for the API socket when the podman CLI exists.
+/// Asks `podman machine inspect` for the API socket when the podman CLI exists. Podman can
+/// wait on a machine lock, so it gets two seconds before it is stopped.
 fn podman_machine_socket() -> Option<PathBuf> {
     if !super::on_path("podman") {
         return None;
     }
-    let output = std::process::Command::new("podman")
+    let mut child = Command::new("podman")
         .args([
             "machine",
             "inspect",
             "--format",
             "{{.ConnectionInfo.PodmanSocket.Path}}",
         ])
-        .output()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
         .ok()?;
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    (output.status.success() && !path.is_empty() && Path::new(&path).is_absolute())
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    };
+    let mut output = String::new();
+    child.stdout.take()?.read_to_string(&mut output).ok()?;
+    let path = output.trim();
+    (status.success() && !path.is_empty() && Path::new(path).is_absolute())
         .then(|| PathBuf::from(path))
 }
 ```
@@ -4496,6 +4716,11 @@ argv = ["node", "/work/shop/apps/web/node_modules/.bin/vite", "--port", "5173"]
 [[signature.fixture]]
 exe = "node"
 argv = ["node", "C:\\work\\shop\\node_modules\\vite\\bin\\vite.js"]
+# A Vite app in a project that also depends on Next.js: the sure match wins.
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/.bin/vite"]
+packages = ["next", "vite"]
 
 [[signature]]
 id = "sveltekit"
@@ -4508,6 +4733,7 @@ priority = 60
 [[signature.when]]
 argv_basename = ["vite"]
 package = ["@sveltejs/kit"]
+probably = true
 [signature.texts]
 beginner = "This is the live preview of your SvelteKit website. It updates as soon as you save a file."
 builder = "SvelteKit dev server (vite dev with the SvelteKit plugin). Default port 5173."
@@ -4651,7 +4877,10 @@ argv = ["node", "/work/site/node_modules/.bin/astro", "dev"]
 ```toml
 # Back-end servers, workers and language runtimes: what does the work.
 # Licensed CC0-1.0 (see packs/LICENSE). Generic runtimes use priority 10 so any
-# framework signature wins over them.
+# framework signature wins over them. Signatures that recognise a program mostly by
+# its parent (ASP.NET Core under dotnet, Go under go or air) use 20, so a framework
+# that recognises the program itself wins. A framework named only by a declared
+# dependency is a guess, so those blocks say `probably`.
 
 [[signature]]
 id = "nestjs"
@@ -4730,7 +4959,7 @@ argv_contains = ["runserver"]
 [signature.texts]
 beginner = "This is your app's server program, built with Django (Python). It answers requests from your website."
 builder = "Django development server (manage.py runserver). Default port 8000; it reloads when Python files change."
-expert = "Django runserver: an autoreloader parent and a worker child share the socket. Address from the runserver argument (default 127.0.0.1:8000)."
+expert = "Django runserver: an autoreloader parent restarts a worker child, and only the child listens. Address from the runserver argument (default 127.0.0.1:8000)."
 [[signature.fixture]]
 exe = "python3"
 argv = ["python3", "manage.py", "runserver", "8000"]
@@ -4776,6 +5005,7 @@ argv_basename = ["fastapi"]
 [[signature.when]]
 argv_basename = ["uvicorn", "hypercorn", "granian"]
 package = ["fastapi"]
+probably = true
 [signature.texts]
 beginner = "This is your app's server program, built with FastAPI (Python). It answers requests from your website or app."
 builder = "FastAPI app served by Uvicorn. Default port 8000; interactive API docs at /docs."
@@ -4833,6 +5063,7 @@ http = true
 argv_basename = ["rails"]
 [[signature.when]]
 argv_prefix = ["puma "]
+probably = true
 [signature.texts]
 beginner = "This is your app's server program, built with Ruby on Rails. It answers requests from your website."
 builder = "Rails server (Puma). Default port 3000."
@@ -4851,6 +5082,7 @@ role = "work"
 kind = "dev_server"
 default_port = 5000
 http = true
+priority = 20
 [[signature.when]]
 ancestor_exe = ["dotnet"]
 cwd_files = ["*.csproj", "*.fsproj"]
@@ -4915,6 +5147,7 @@ id = "go"
 name = "Go"
 role = "work"
 kind = "dev_server"
+priority = 20
 [[signature.when]]
 ancestor_exe = ["go", "air"]
 [[signature.when]]
@@ -5697,10 +5930,14 @@ mod tests {
     use super::*;
     use std::process::Command;
 
+    /// Runs git without the developer's own configuration (signing, hooks, templates).
     fn git(dir: &Path, args: &[&str]) -> bool {
+        let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
         Command::new("git")
             .args(args)
             .current_dir(dir)
+            .env("GIT_CONFIG_GLOBAL", null)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
             .env("GIT_AUTHOR_NAME", "t")
             .env("GIT_AUTHOR_EMAIL", "t@example.com")
             .env("GIT_COMMITTER_NAME", "t")
@@ -6042,7 +6279,7 @@ git commit -s -m "feat(project): add path rules, recorded worlds and git discove
 
 ### Task 11: Manifests and signature matching
 
-To tell Vite from a bare Node process, the matcher needs facts about each process: its executable, arguments, ancestors, the files in its working folder and the dependencies declared in the nearest manifest. This task adds the read-only manifest reader (`package.json`, `pyproject.toml`, `requirements*.txt`, `*.csproj`/`*.fsproj`, `go.mod`) and the signature matcher (v0.1 spec §8), and checks that every fixture in the embedded packs matches its own signature.
+To tell Vite from a bare Node process, the matcher needs facts about each process: its executable, arguments, ancestors, the files in its working folder and the dependencies declared in the nearest manifest. This task adds the read-only manifest reader (`package.json`, `pyproject.toml`, `requirements*.txt`, `*.csproj`/`*.fsproj`, `go.mod`) and the signature matcher (v0.1 spec §8), and checks that every fixture in the embedded packs matches its own signature. The matcher takes the first signature in priority order with a matching `when` block, but a sure block beats a `probably` one, inside a signature and between signatures of the same priority: Vite in a project that also depends on Next.js is Vite, not "probably Next.js".
 
 **Files:**
 - Create: `crates/hm-project/src/manifest.rs`
@@ -6473,40 +6710,53 @@ pub struct Match<'s> {
 }
 
 pub fn match_process<'s>(set: &'s SignatureSet, facts: &ProcFacts) -> Option<Match<'s>> {
-    set.iter()
-        .filter(|signature| os_allows(signature, &facts.os))
-        .find_map(|signature| {
-            signature
-                .when
-                .iter()
-                .filter(|when| when.image.is_empty())
-                .find(|when| process_matches(when, facts))
-                .map(|when| Match {
-                    signature,
-                    confidence: confidence(when),
-                })
-        })
+    best_match(set, &facts.os, |when| {
+        when.image.is_empty() && process_matches(when, facts)
+    })
 }
 
 pub fn match_image<'s>(set: &'s SignatureSet, image: &str, os: &str) -> Option<Match<'s>> {
     let name = image_name(image);
-    set.iter()
-        .filter(|signature| os_allows(signature, os))
-        .find_map(|signature| {
-            signature
-                .when
-                .iter()
-                .filter(|when| !when.image.is_empty())
-                .find(|when| {
-                    when.image
-                        .iter()
-                        .any(|candidate| candidate.eq_ignore_ascii_case(&name))
-                })
-                .map(|when| Match {
-                    signature,
-                    confidence: confidence(when),
-                })
-        })
+    best_match(set, os, |when| {
+        when.image
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(&name))
+    })
+}
+
+/// The first signature, in priority order, with a matching `when` block. A sure block
+/// beats a `probably` one, both inside a signature and between signatures of the same
+/// priority, so the order blocks or signatures are written in never lowers confidence.
+fn best_match<'s>(
+    set: &'s SignatureSet,
+    os: &str,
+    matches: impl Fn(&When) -> bool,
+) -> Option<Match<'s>> {
+    let mut best: Option<Match<'s>> = None;
+    for signature in set.iter().filter(|signature| os_allows(signature, os)) {
+        if let Some(found) = best
+            && (found.confidence == Confidence::Sure
+                || found.signature.priority > signature.priority)
+        {
+            break;
+        }
+        let blocks: Vec<&When> = signature.when.iter().filter(|when| matches(when)).collect();
+        if blocks.is_empty() {
+            continue;
+        }
+        let confidence = if blocks.iter().any(|when| !when.probably) {
+            Confidence::Sure
+        } else {
+            Confidence::Probably
+        };
+        if best.is_none() || confidence == Confidence::Sure {
+            best = Some(Match {
+                signature,
+                confidence,
+            });
+        }
+    }
+    best
 }
 
 /// `docker.io/bitnami/postgresql:16@sha256:...` → `postgresql`.
@@ -6518,14 +6768,6 @@ pub fn image_name(image: &str) -> String {
 
 fn os_allows(signature: &Signature, os: &str) -> bool {
     signature.os.as_deref().is_none_or(|only| only == os)
-}
-
-fn confidence(when: &When) -> Confidence {
-    if when.probably {
-        Confidence::Probably
-    } else {
-        Confidence::Sure
-    }
 }
 
 fn process_matches(when: &When, facts: &ProcFacts) -> bool {
@@ -6551,7 +6793,7 @@ fn process_matches(when: &When, facts: &ProcFacts) -> bool {
         || facts.argv.iter().any(|arg| {
             when.argv_prefix
                 .iter()
-                .any(|prefix| arg.starts_with(prefix.as_str()))
+                .any(|prefix| starts_with_ignore_case(arg, prefix))
         });
     let ancestor_ok = when.ancestor_exe.is_empty()
         || facts.ancestors.iter().any(|ancestor| {
@@ -6584,6 +6826,13 @@ pub(crate) fn script_stem(arg: &str) -> String {
 }
 
 /// Case-insensitive match with one `*` wildcard at the start or the end.
+/// `puma 6.4.3 (…)` starts with `Puma `; comparisons ignore case, as the `When` docs say.
+fn starts_with_ignore_case(value: &str, prefix: &str) -> bool {
+    value
+        .get(..prefix.len())
+        .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+}
+
 fn glob(pattern: &str, value: &str) -> bool {
     let (pattern, value) = (pattern.to_ascii_lowercase(), value.to_ascii_lowercase());
     if let Some(suffix) = pattern.strip_prefix('*') {
@@ -8379,7 +8628,7 @@ git commit -s -m "feat(project): resolve raw inventories into snapshots"
 
 ### Task 13: Card texts and rendering helpers
 
-`harbormap why` explains a port or a service in plain sentences at three levels: beginner, builder and expert. This task adds the sentence templates (`packs/texts/cards.toml`, compiled into the binary like the signature packs), their loader, and the small helpers that fill templates and format durations, sizes, times and paths. Task 14 puts them together into cards.
+`harbormap why` explains a port or a service in plain sentences at three levels: beginner, builder and expert. This task adds the sentence templates (`packs/texts/cards.toml`, compiled into the binary like the signature packs), their loader, and the small helpers that fill templates and format durations, sizes, times and paths. Task 14 puts them together into cards. A sentence whose fact is missing is left out, so most lines carry `||` fallbacks: a container without a health check still gets its image and state, a folder without a branch still gets its folder line, and a title without a framework keeps the port.
 
 **Files:**
 - Create: `packs/texts/cards.toml`
@@ -8517,8 +8766,8 @@ Create `packs/texts/cards.toml` with exactly this content. Each card kind (`proc
 # A program that belongs to a project.
 [process]
 title.beginner = "Port {port}: {name} || {name}"
-title.builder = ":{port} → {name} ({framework}) || {name} ({framework}) || {name}"
-title.expert = ":{port}/tcp → {name} [{signature}] || {name} [{signature}] || {name}"
+title.builder = ":{port} → {name} ({framework}) || {name} ({framework}) || :{port} → {name} || {name}"
+title.expert = ":{port}/tcp → {name} [{signature}] || {name} [{signature}] || :{port}/tcp → {name} || {name}"
 beginner = [
   "{name} is part of the project {project}.",
   "{what}",
@@ -8530,8 +8779,8 @@ beginner = [
 builder = [
   "{what}",
   "{guess}",
-  "Process {process}, pid {pid}, started {uptime} ago by {user}.",
-  "Folder: {cwd_rel} (project {project}, branch {branch})",
+  "Process {process}, pid {pid}, started {uptime} ago by {user}. || Process {process}, pid {pid}, started {uptime} ago. || Process {process}, pid {pid}.",
+  "Folder: {cwd_rel} (project {project}, branch {branch}) || Folder: {cwd_rel} (project {project}) || Folder: {cwd_rel}",
   "Listening on {addr} ({reach}).",
   "Open: {url}",
   "Port settings: {env_ports}",
@@ -8541,11 +8790,11 @@ expert = [
   "Signature: {signature} ({confidence}) · role {role} · kind {kind}",
   "{what}",
   "Socket: {addr} ({reach}) · owner pid {pid} ({process})",
-  "Project: {project} ({project_id}) · worktree {worktree} ({branch})",
+  "Project: {project} ({project_id}) · worktree {worktree} ({branch}) || Project: {project} ({project_id}) · worktree {worktree}",
   "argv: {argv}",
   "exe: {exe}",
   "cwd: {cwd}",
-  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss}",
+  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss} || Started {started_utc} (up {uptime}) · ppid {ppid} · rss {rss} || Started {started_utc} (up {uptime})",
   "Service pids: {pids}",
   "Env ports: {env_ports}",
   "Env targets: {env_urls}",
@@ -8554,8 +8803,8 @@ expert = [
 # A container of a project, or a container outside any project.
 [container]
 title.beginner = "Port {port}: {name} || {name}"
-title.builder = ":{port} → {name} ({framework}) · Docker || {name} ({framework}) · Docker || {name} · Docker"
-title.expert = ":{port}/tcp → container {container} [{signature}] || container {container} [{signature}] || container {container}"
+title.builder = ":{port} → {name} ({framework}) · Docker || {name} ({framework}) · Docker || :{port} → {name} · Docker || {name} · Docker"
+title.expert = ":{port}/tcp → container {container} [{signature}] || container {container} [{signature}] || :{port}/tcp → container {container} || container {container}"
 beginner = [
   "{name} is part of the project {project}. It runs inside Docker. || {name} runs inside Docker.",
   "{what}",
@@ -8564,19 +8813,19 @@ beginner = [
 ]
 builder = [
   "{what}",
-  "Container {container} from image {image}: {state}, {health}.",
+  "Container {container} from image {image}: {state}, {health}. || Container {container} from image {image}: {state}.",
   "Ports: {mapping}",
   "Engine: {engine}",
-  "Compose: service {compose_service} from {compose_files}",
+  "Compose: service {compose_service} from {compose_files} || Compose: service {compose_service}",
 ]
 expert = [
   "Signature: {signature} ({confidence}) · role {role} · kind {kind}",
   "{what}",
-  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc}",
+  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state}",
   "Ports: {mapping}",
   "Networks: {networks}",
   "Volumes: {volumes}",
-  "Compose project {compose_project}, service {compose_service}, files {compose_files}, working dir {working_dir}",
+  "Compose project {compose_project}, service {compose_service}, files {compose_files}, working dir {working_dir} || Compose project {compose_project}, service {compose_service}",
   "Engine: {engine} at {engine_endpoint}",
 ]
 
@@ -8602,18 +8851,18 @@ beginner = [
 ]
 builder = [
   "{what}",
-  "Program {program}, pid {pid}, user {user}; not part of a project.",
+  "Program {program}, pid {pid}, user {user}; not part of a project. || Program {program}, pid {pid}; not part of a project.",
   "Executable: {exe}",
   "Listening on {addr} ({reach}).",
 ]
 expert = [
   "Signature: {signature}",
   "{what}",
-  "Socket: {addr} ({reach}) · owner pid {pid} ({program}), user {user}",
+  "Socket: {addr} ({reach}) · owner pid {pid} ({program}), user {user} || Socket: {addr} ({reach}) · owner pid {pid} ({program})",
   "argv: {argv}",
   "exe: {exe}",
   "cwd: {cwd}",
-  "Started {started_utc} · ppid {ppid} ({parent})",
+  "Started {started_utc} · ppid {ppid} ({parent}) || Started {started_utc} · ppid {ppid} || Started {started_utc}",
 ]
 
 # The operating system or a container engine holds the port.
@@ -8621,9 +8870,9 @@ expert = [
 title.beginner = "Port {port}: {reason}"
 title.builder = ":{port} → {reason}"
 title.expert = ":{port}/tcp → {reason}"
-beginner = ["{reason} holds this port. It is part of your computer, not of your project.", "{what}"]
-builder = ["{what}", "Held by {reason} (pid {pid}, {program})."]
-expert = ["Socket: {addr} ({reach}) · system owner: {reason}", "{what}", "pid {pid} ({program}) · exe {exe}"]
+beginner = ["This port is held by {reason}. It is part of your computer, not of your project.", "{what}"]
+builder = ["{what}", "Held by {reason} (pid {pid}, {program}). || Held by {reason}."]
+expert = ["Socket: {addr} ({reach}) · system owner: {reason}", "{what}", "pid {pid} ({program}) · exe {exe} || pid {pid} ({program})"]
 
 # The owner is not visible to Harbormap.
 [unknown]
@@ -8676,9 +8925,9 @@ builder = "starting"
 expert = "starting"
 
 [guess]
-beginner = "Harbormap is guessing this from the project's files."
-builder = "Guessed from the project's dependencies (probably)."
-expert = "Match confidence: probably (inferred from dependencies)."
+beginner = "Harbormap is guessing this from clues it can see, so it may be wrong."
+builder = "A good guess from what Harbormap can see, not a certainty (probably)."
+expert = "Match confidence: probably (a good guess, not certain)."
 ```
 
 Add this above the `#[cfg(test)]` line in `crates/hm-doctor/src/render.rs`, with one blank line between them. `fill` stops at the first missing or empty fact, so `?` drops the whole alternative; `civil_from_days` turns Unix days into a calendar date without a time crate:
@@ -8937,7 +9186,7 @@ git commit -s -m "feat(doctor): card text templates and rendering helpers"
 
 ### Task 14: Cards
 
-A card is a title plus a few sentences that explain one owner of a port, or one service, at the chosen level. This task collects the facts for a card from the snapshot (process, folder, branch, ports, container, engine) and renders the templates from Task 13. One card is made per distinct owner of a port, so the IPv4 and IPv6 sockets of one program share a card, while two programs that split a port get one card each.
+A card is a title plus a few sentences that explain one owner of a port, or one service, at the chosen level. This task collects the facts for a card from the snapshot (process, folder, branch, ports, container, engine) and renders the templates from Task 13. One card is made per distinct owner of a port, so the IPv4 and IPv6 sockets of one program share a card, while two programs that split a port get one card each. A card that covers several sockets states the widest reach among them, and a service on several ports links the port that was asked about.
 
 **Files:**
 - Create: `crates/hm-doctor/tests/fixtures/shop-snapshot.json`
@@ -8969,7 +9218,7 @@ Create `crates/hm-doctor/tests/fixtures/shop-snapshot.json` with:
   "services": [
     {"id": "s_22ccab3c72e3", "name": "Billing", "section": "project", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "signature": "dotnet", "framework": "ASP.NET Core", "confidence": "sure", "role": "work", "kind": "dev_server", "source": {"type": "process", "main_pid": 951, "root_pid": 950, "pids": [950, 951]}, "ports": [5280], "urls": ["http://localhost:5280"], "state": "running", "health": null},
     {"id": "s_4419dc4ed284", "name": "db", "section": "project", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "signature": "postgres", "framework": "PostgreSQL", "confidence": "sure", "role": "keep", "kind": "database", "source": {"type": "container", "container_id": "4f1c2a9e8b7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a3928170f6e5d4c"}, "ports": [55432], "urls": [], "state": "running", "health": "healthy"},
-    {"id": "s_5fc9a9c5f444", "name": "shop-api", "section": "project", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "signature": "fastapi", "framework": "FastAPI", "confidence": "sure", "role": "work", "kind": "dev_server", "source": {"type": "process", "main_pid": 900, "root_pid": 900, "pids": [900, 901]}, "ports": [8000], "urls": ["http://localhost:8000"], "state": "running", "health": null},
+    {"id": "s_5fc9a9c5f444", "name": "shop-api", "section": "project", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "signature": "fastapi", "framework": "FastAPI", "confidence": "probably", "role": "work", "kind": "dev_server", "source": {"type": "process", "main_pid": 900, "root_pid": 900, "pids": [900, 901]}, "ports": [8000], "urls": ["http://localhost:8000"], "state": "running", "health": null},
     {"id": "s_ed8b26b15b23", "name": "shop-api-celery", "section": "project", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "signature": "celery", "framework": "Celery", "confidence": "sure", "role": "work", "kind": "worker", "source": {"type": "process", "main_pid": 970, "root_pid": 970, "pids": [970]}, "ports": [], "urls": [], "state": "running", "health": null},
     {"id": "s_c7efece97dfc", "name": "web", "section": "project", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "signature": "vite", "framework": "Vite", "confidence": "sure", "role": "see", "kind": "dev_server", "source": {"type": "process", "main_pid": 802, "root_pid": 800, "pids": [800, 801, 802]}, "ports": [5173], "urls": ["http://localhost:5173"], "state": "running", "health": null},
     {"id": "s_e1120aa884ed", "name": "web", "section": "project", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop-feature", "signature": "vite", "framework": "Vite", "confidence": "sure", "role": "see", "kind": "dev_server", "source": {"type": "process", "main_pid": 1300, "root_pid": 1300, "pids": [1300]}, "ports": [5174], "urls": ["http://localhost:5174"], "state": "running", "health": null},
@@ -9098,6 +9347,46 @@ fn builders_see_the_process_folder_and_environment() {
         card.lines
             .contains(&"Talks to: VITE_API_URL → http://localhost:8000".to_string())
     );
+
+    // One card covers both sockets of a program and states the wider reach.
+    let mut wide = snapshot();
+    let mut all = wide
+        .listeners
+        .iter()
+        .find(|listener| listener.port == 5173)
+        .unwrap()
+        .clone();
+    all.addr = "::".parse().unwrap();
+    all.bind = BindScope::All;
+    wide.listeners.push(all);
+    let card = one(&wide, 5173, Level::Builder);
+    assert!(
+        card.lines
+            .contains(&"Listening on [::1]:5173, [::]:5173 (every network interface).".to_string())
+    );
+
+    // A service on two ports links the one asked about.
+    let mut two = snapshot();
+    let mut debug = two
+        .listeners
+        .iter()
+        .find(|listener| listener.port == 8000)
+        .unwrap()
+        .clone();
+    debug.port = 9229;
+    two.listeners.push(debug);
+    let api = two
+        .services
+        .iter_mut()
+        .find(|service| service.name == "shop-api")
+        .unwrap();
+    api.ports.push(9229);
+    api.urls.push("http://localhost:9229".into());
+    let card = one(&two, 9229, Level::Builder);
+    assert!(
+        card.lines
+            .contains(&"Open: http://localhost:9229".to_string())
+    );
 }
 
 #[test]
@@ -9141,6 +9430,14 @@ fn a_compose_database_is_described_as_a_container() {
         beginner
             .lines
             .contains(&"Docker says it is healthy.".to_string())
+    );
+
+    // Without a health check the container line still says what runs.
+    let redis = one(&snapshot(), 6380, Level::Builder);
+    assert!(
+        redis
+            .lines
+            .contains(&"Container lonely-redis from image redis:7: running.".to_string())
     );
 }
 
@@ -9275,9 +9572,9 @@ pub struct CardContext<'a> {
     pub home: Option<&'a Path>,
 }
 
-/// Cards for everything listening on `port`. When nothing listens but a container
-/// publishes the port (Docker without a userland proxy), that container's card is
-/// returned; otherwise a "free" card.
+/// Cards for everything listening on `port`. When nothing listens but a service claims
+/// the port (a container Docker publishes without a userland proxy), that service's card
+/// is returned; otherwise a "free" card.
 pub fn port_cards(ctx: &CardContext<'_>, port: u16) -> Vec<Card> {
     let mut groups: Vec<(&Owner, Vec<&Listener>)> = Vec::new();
     for listener in ctx.snapshot.listeners.iter().filter(|l| l.port == port) {
@@ -9385,7 +9682,7 @@ fn service_card_at(
     listeners: &[&Listener],
 ) -> Card {
     let mut facts = socket_facts(ctx, port, listeners);
-    add_service_facts(ctx, &mut facts, service);
+    add_service_facts(ctx, &mut facts, service, port);
     let lines = match &service.source {
         ServiceSource::Process { main_pid, pids, .. } => {
             if let Some(process) = find_process(ctx, *main_pid) {
@@ -9448,10 +9745,14 @@ fn socket_facts(ctx: &CardContext<'_>, port: Option<u16>, listeners: &[&Listener
             })
             .collect();
         facts.insert("addr", addrs.join(", "));
-        let scope = match listeners[0].bind {
-            hm_core::model::BindScope::Loopback => "loopback",
-            hm_core::model::BindScope::All => "all",
-            hm_core::model::BindScope::Specific => "specific",
+        // One card covers every socket of its owner, so it states the widest reach.
+        let reaches = |scope| listeners.iter().any(|listener| listener.bind == scope);
+        let scope = if reaches(hm_core::model::BindScope::All) {
+            "all"
+        } else if reaches(hm_core::model::BindScope::Specific) {
+            "specific"
+        } else {
+            "loopback"
         };
         if let Some(reach) = ctx.texts.reach.get(scope) {
             facts.insert("reach", reach.get(ctx.level).to_string());
@@ -9460,7 +9761,12 @@ fn socket_facts(ctx: &CardContext<'_>, port: Option<u16>, listeners: &[&Listener
     facts
 }
 
-fn add_service_facts(ctx: &CardContext<'_>, facts: &mut Facts, service: &Service) {
+fn add_service_facts(
+    ctx: &CardContext<'_>,
+    facts: &mut Facts,
+    service: &Service,
+    port: Option<u16>,
+) {
     facts.insert("name", service.name.clone());
     if let Some(framework) = &service.framework {
         let framework = match service.confidence {
@@ -9481,7 +9787,14 @@ fn add_service_facts(ctx: &CardContext<'_>, facts: &mut Facts, service: &Service
     );
     facts.insert("role", snake(&service.role));
     facts.insert("kind", snake(&service.kind));
-    if let Some(url) = service.urls.first() {
+    // The URL of the port asked about, else the service's first one.
+    let url = port
+        .and_then(|port| {
+            let suffix = format!(":{port}");
+            service.urls.iter().find(|url| url.ends_with(&suffix))
+        })
+        .or_else(|| service.urls.first());
+    if let Some(url) = url {
         facts.insert("url", url.clone());
     }
     add_signature_text(ctx, facts, service.signature.as_deref(), service.confidence);
