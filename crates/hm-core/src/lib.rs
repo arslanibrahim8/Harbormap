@@ -3,5 +3,9 @@
 //! and the narrow rules for reading environment values.
 
 pub mod env;
+pub mod ids;
+pub mod model;
 pub mod names;
+pub mod raw;
 pub mod redact;
+pub mod signature;
