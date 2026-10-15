@@ -2975,6 +2975,27 @@ fn platform_read() -> Result<Vec<RawListener>, String> {
     Err("this operating system is not supported".into())
 }
 
+/// Listening TCP sockets reported by the `listeners` crate: libproc on macOS,
+/// `GetExtendedTcpTable` on Windows.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn from_listeners_crate() -> Result<Vec<RawListener>, String> {
+    let all = listeners::get_all().map_err(|error| error.to_string())?;
+    Ok(all
+        .into_iter()
+        .filter(|listener| {
+            listener.protocol == listeners::Protocol::TCP
+                && listener.state == listeners::SocketState::Listen
+        })
+        .map(|listener| RawListener {
+            proto: Proto::Tcp,
+            addr: listener.socket.ip(),
+            port: listener.socket.port(),
+            pids: vec![listener.process.pid],
+            uid: None,
+        })
+        .collect())
+}
+
 /// One entry per (protocol, address, port), with the union of owner PIDs.
 pub fn merge(raw: Vec<RawListener>) -> Vec<RawListener> {
     let mut merged: BTreeMap<(Proto, IpAddr, u16), RawListener> = BTreeMap::new();
@@ -3226,21 +3247,7 @@ use hm_core::raw::RawListener;
 use super::netstat;
 
 pub fn read() -> Result<Vec<RawListener>, String> {
-    let own = listeners::get_all().map_err(|error| error.to_string())?;
-    let mut out: Vec<RawListener> = own
-        .into_iter()
-        .filter(|listener| {
-            listener.protocol == listeners::Protocol::TCP
-                && listener.state == listeners::SocketState::Listen
-        })
-        .map(|listener| RawListener {
-            proto: Proto::Tcp,
-            addr: listener.socket.ip(),
-            port: listener.socket.port(),
-            pids: vec![listener.process.pid],
-            uid: None,
-        })
-        .collect();
+    let mut out = super::from_listeners_crate()?;
 
     // netstat fills in sockets of processes libproc may not inspect (root, other users).
     let seen: HashSet<u32> = out
@@ -3273,25 +3280,10 @@ Create `crates/hm-probe/src/listeners/windows.rs`:
 ```rust
 //! Windows: `GetExtendedTcpTable` through the `listeners` crate.
 
-use hm_core::model::Proto;
 use hm_core::raw::RawListener;
 
 pub fn read() -> Result<Vec<RawListener>, String> {
-    let all = listeners::get_all().map_err(|error| error.to_string())?;
-    Ok(all
-        .into_iter()
-        .filter(|listener| {
-            listener.protocol == listeners::Protocol::TCP
-                && listener.state == listeners::SocketState::Listen
-        })
-        .map(|listener| RawListener {
-            proto: Proto::Tcp,
-            addr: listener.socket.ip(),
-            port: listener.socket.port(),
-            pids: vec![listener.process.pid],
-            uid: None,
-        })
-        .collect())
+    super::from_listeners_crate()
 }
 ```
 
@@ -3369,7 +3361,9 @@ mod tests {
         assert_eq!(found.len(), 2);
         assert_eq!(found[0].endpoint, "tcp://127.0.0.1:2375");
         assert_eq!(found[1].label, "OrbStack");
-        assert!(found[1].endpoint.ends_with(".orbstack/run/docker.sock"));
+        // Compare path components: Windows canonical paths use `\` and a `\\?\` prefix.
+        let socket = found[1].endpoint.trim_start_matches("unix://");
+        assert!(Path::new(socket).ends_with(".orbstack/run/docker.sock"));
     }
 
     #[test]
@@ -3855,7 +3849,11 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_hanging_engine_times_out_with_a_note() {
-        let dir = tempfile::tempdir().unwrap();
+        // Unix socket paths are short (104 bytes on macOS), so stay out of a long TMPDIR.
+        let dir = tempfile::Builder::new()
+            .prefix("hm")
+            .tempdir_in("/tmp")
+            .unwrap();
         let path = dir.path().join("hang.sock");
         let socket = std::os::unix::net::UnixListener::bind(&path).unwrap();
         // Accept connections and hold them open without ever answering.
@@ -4447,10 +4445,18 @@ expert = "e"
     fn duplicate_ids_keep_the_first_entry() {
         let packs = load_embedded();
         let mut signatures: Vec<Signature> = packs.signatures.iter().cloned().collect();
-        signatures.push(signatures[0].clone());
+        let first = signatures[0].clone();
+        let mut second = first.clone();
+        second.name = format!("{} (second copy)", first.name);
+        signatures.push(second);
         let mut warnings = Vec::new();
         let kept = drop_duplicate_ids(signatures, &mut warnings);
         assert_eq!(kept.len(), packs.signatures.len());
+        let survivor = kept
+            .iter()
+            .find(|signature| signature.id == first.id)
+            .unwrap();
+        assert_eq!(survivor.name, first.name);
         assert_eq!(warnings.len(), 1);
     }
 }
@@ -5381,7 +5387,7 @@ exe = "Google Chrome"
 argv = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "--headless=new", "--remote-debugging-port=9877", "about:blank"]
 ```
 
-Then add this above the `#[cfg(test)]` line in `crates/hm-doctor/src/packs.rs` (the `include_str!` paths are relative to that file and point at the repository's `packs/` folder):
+Then add this above the `#[cfg(test)]` line in `crates/hm-doctor/src/packs.rs`, ending with one empty line (the `include_str!` paths are relative to that file and point at the repository's `packs/` folder):
 
 ```rust
 //! Signature packs compiled into the binary and validated on load. A broken entry is
@@ -5708,10 +5714,11 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let repo = temp.path().join("shop");
         std::fs::create_dir_all(repo.join("apps/web")).unwrap();
-        if !git(&repo, &["init", "-q", "-b", "main"]) {
+        if !git(temp.path(), &["--version"]) {
             eprintln!("git is not installed; skipping");
             return;
         }
+        assert!(git(&repo, &["init", "-q", "-b", "main"]));
         assert!(git(&repo, &["commit", "-q", "--allow-empty", "-m", "init"]));
         assert!(git(
             &repo,
@@ -5752,7 +5759,7 @@ Expected: FAIL — compile errors such as ``error[E0425]: cannot find function `
 
 - [ ] **Step 3: Write the implementation**
 
-Add this above the `#[cfg(test)]` line in `crates/hm-project/src/paths.rs`:
+Add this above the `#[cfg(test)]` line in `crates/hm-project/src/paths.rs`, ending with one empty line:
 
 ```rust
 //! Path comparisons that behave the same for real paths and recorded fixtures.
@@ -5793,7 +5800,7 @@ pub fn is_boundary(dir: &Path, home: Option<&Path>, windows: bool) -> bool {
 
 ```
 
-Add this above the `#[cfg(test)]` line in `crates/hm-project/src/world.rs`:
+Add this above the `#[cfg(test)]` line in `crates/hm-project/src/world.rs`, ending with one empty line:
 
 ```rust
 //! The read-only view of the filesystem and git that resolution needs. `RealWorld`
@@ -5898,7 +5905,7 @@ pub struct Scenario {
 
 ```
 
-Add this above the `#[cfg(test)]` line in `crates/hm-project/src/git.rs`:
+Add this above the `#[cfg(test)]` line in `crates/hm-project/src/git.rs`, ending with one empty line:
 
 ```rust
 //! The real world: git through gix (no `git` binary needed) and the local filesystem.
@@ -6242,7 +6249,7 @@ Expected: FAIL — compile errors such as ``error[E0425]: cannot find function `
 
 - [ ] **Step 3: Write the implementation**
 
-Add this above the `#[cfg(test)]` line in `crates/hm-project/src/manifest.rs`:
+Add this above the `#[cfg(test)]` line in `crates/hm-project/src/manifest.rs`, ending with one empty line:
 
 ```rust
 //! Reads project manifests near a working directory (read-only): the nearest
@@ -6415,7 +6422,7 @@ fn go_module_name(text: &str) -> Option<String> {
 
 ```
 
-Add this above the `#[cfg(test)]` line in `crates/hm-project/src/matcher.rs`:
+Add this above the `#[cfg(test)]` line in `crates/hm-project/src/matcher.rs`, ending with one empty line:
 
 ```rust
 //! Signature matching (v0.1 spec §8). Signatures are tried in priority order and the
@@ -7648,19 +7655,9 @@ impl<'a> Resolver<'a> {
                 continue;
             }
             let root = self.service_root(pid);
-            let draft = by_root.entry(root).or_insert_with(|| Draft {
-                place: self.places.get(&pid).cloned(),
-                signature: self.matches.get(&pid).copied(),
-                source: DraftSource::Process {
-                    main: pid,
-                    root,
-                    pids: Vec::new(),
-                },
-                ports: BTreeSet::new(),
-                base_name: String::new(),
-                state: "running".into(),
-                health: None,
-            });
+            let draft = by_root
+                .entry(root)
+                .or_insert_with(|| self.process_draft(pid, root));
             draft.ports.extend(ports);
         }
         // Background workers have no ports but are services too.
@@ -7686,19 +7683,9 @@ impl<'a> Resolver<'a> {
             }
             let root = self.service_root(pid);
             covered.extend(self.descendants(root));
-            by_root.entry(root).or_insert_with(|| Draft {
-                place: self.places.get(&pid).cloned(),
-                signature: self.matches.get(&pid).copied(),
-                source: DraftSource::Process {
-                    main: pid,
-                    root,
-                    pids: Vec::new(),
-                },
-                ports: BTreeSet::new(),
-                base_name: String::new(),
-                state: "running".into(),
-                health: None,
-            });
+            by_root
+                .entry(root)
+                .or_insert_with(|| self.process_draft(pid, root));
         }
 
         let mut drafts: Vec<Draft<'a>> = by_root.into_values().collect();
@@ -7727,6 +7714,23 @@ impl<'a> Resolver<'a> {
             });
         }
         drafts
+    }
+
+    /// A process service whose main process is `pid` and whose tree starts at `root`.
+    fn process_draft(&self, pid: u32, root: u32) -> Draft<'a> {
+        Draft {
+            place: self.places.get(&pid).cloned(),
+            signature: self.matches.get(&pid).copied(),
+            source: DraftSource::Process {
+                main: pid,
+                root,
+                pids: Vec::new(),
+            },
+            ports: BTreeSet::new(),
+            base_name: String::new(),
+            state: "running".into(),
+            health: None,
+        }
     }
 
     fn can_be_service(&self, pid: u32) -> bool {
@@ -10315,7 +10319,7 @@ git commit -s -m "feat(cli): harbormap status"
 - Test: `crates/harbormap/tests/cli.rs`
 
 **Interfaces:**
-- Consumes: `hm_doctor::cards::{Card, CardContext, port_cards, service_card}` (Task 14); `hm_doctor::texts::{load_embedded, CardTexts}` and `hm_doctor::render::tilde` (Task 13); `hm_core::signature::{Level, SignatureSet}` and `hm_core::model::{Section, Service}` (Task 4); `hm_project::paths::within(child: &Path, parent: &Path, windows: bool) -> bool` (Task 10); `cli::{Cli, Command}` and `source::{Input, load}` (Task 15); `predicates` (Task 1).
+- Consumes: `hm_doctor::cards::{Card, CardContext, port_cards, service_card}` (Task 14); `hm_doctor::texts::{load_embedded, CardTexts}` and `hm_doctor::render::tilde` (Task 13); `hm_core::signature::{Level, SignatureSet}` and `hm_core::model::{Section, Service}` (Task 4); `hm_project::paths::within(child: &Path, parent: &Path, windows: bool) -> bool` (Task 10); `cli::{Cli, Command}` and `source::{Input, load}` (Task 15); `predicates` (Task 1); and, through the replaced `source.rs`, everything Task 15's `source.rs` consumes: `hm_doctor::packs::load_embedded()` (Task 9), `hm_probe::{probe, ProbeOptions}` (Task 8), `hm_project::git::RealWorld` and `hm_project::{World, Scenario}` (Task 10), `hm_project::{ResolveInput, build_snapshot}` (Task 12).
 - Produces: `why::run(input: &Input, args: &WhyArgs, json: bool, level: Level) -> anyhow::Result<ExitCode>`; `cli::WhyArgs { pub target: String }`, `cli::LevelArg { Beginner, Builder, Expert }` (`ValueEnum`) with `impl From<LevelArg> for Level`, `Cli` gains `pub level: LevelArg` (global `--level`, default `builder`), `Command::Why(WhyArgs)`; `source::Input` gains `pub signatures: SignatureSet`, `pub texts: CardTexts` and `pub launch_dir: PathBuf`. On the command line: `harbormap why <port|:port|name|project/name> [--level beginner|builder|expert] [--json]`; with `--json` it prints an object with `target` (the argument as given) and `cards`, a list of `{title, lines}`.
 
 - [ ] **Step 1: Write the failing test**
@@ -11580,7 +11584,7 @@ Expected: `test status_json_maps_dev_servers_to_projects_services_and_frameworks
 
 - [ ] **Step 7: Run the harness**
 
-This is the exit criterion. The first run needs the network: it installs the Vite app's `node_modules`, creates the FastAPI `.venv`, and `dotnet run` restores and builds the app, so it can take a few minutes. Later runs take seconds.
+This is the exit criterion. The first run needs the network: it installs the Vite app's `node_modules`, creates the FastAPI `.venv`, and `dotnet run` restores and builds the app, so it can take a few minutes. Later runs take well under a minute; `dotnet run` still rebuilds the app each time (about 20–40 s).
 
 Run: `cargo test -p harbormap --test e2e -- --ignored --nocapture`
 Expected: PASS. The output shows when each server started listening, then the verdict:
@@ -11597,7 +11601,7 @@ test status_json_maps_dev_servers_to_projects_services_and_frameworks ... ok
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
-The order and the times differ from run to run. If Docker with compose is installed, run it again with Postgres:
+The order and the times differ from run to run. A run longer than 60 seconds also prints libtest's `… has been running for over 60 seconds`. If Docker with compose is installed, run it again with Postgres:
 
 Run: `HM_E2E_DOCKER=1 cargo test -p harbormap --test e2e -- --ignored --nocapture`
 Expected: PASS, with `postgres is healthy after … s` first and `every listener maps as expected (docker: true)` at the end.
