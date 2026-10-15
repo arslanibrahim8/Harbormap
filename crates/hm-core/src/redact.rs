@@ -9,21 +9,34 @@ use crate::names::exe_stem;
 
 pub const MASK: &str = "***";
 
-/// Name parts that make a flag or variable name secret wherever they appear
-/// (`DB_PASSWORD`, `--client-secret`, `spring.datasource.password`).
-const SECRET_PARTS: &[&str] = &[
+/// Words that make a name secret when one of its parts ends with them, digits aside
+/// (`DB_PASSWORD`, `PGPASSWORD`, `NGROK_AUTHTOKEN`, `client_secret`, `PASSWORD2`).
+const SECRET_WORDS: &[&str] = &[
     "password",
     "passwd",
-    "pwd",
     "passphrase",
-    "token",
     "secret",
+    "token",
     "apikey",
 ];
 
-/// Name parts that make a name secret only as its last part (`API_KEY`, `--db-pass`),
-/// so that `--key-file` and `--pass-with-no-tests` keep their values.
-const SECRET_LAST_PARTS: &[&str] = &["key", "pass"];
+/// Short words that make a name secret only as its last part (`API_KEY`, `--db-pass`,
+/// `apiKey`), so that `--key-file`, `monkey` and `--pass-with-no-tests` stay readable.
+const SECRET_LAST_WORDS: &[&str] = &["key", "pass", "pwd"];
+
+/// Trailing name parts that only qualify a secret (`API_KEY_2`, `STRIPE_KEY_LIVE`).
+const QUALIFIERS: &[&str] = &[
+    "prod",
+    "production",
+    "live",
+    "test",
+    "dev",
+    "staging",
+    "local",
+];
+
+/// Programs that run the next argument as a command (`sudo mysql -p…`).
+const WRAPPERS: &[&str] = &["sudo", "doas", "env", "exec", "nohup", "time"];
 
 /// CLIs where `-pVALUE` (attached) is a password rather than a port.
 const MYSQL_LIKE: &[&str] = &[
@@ -64,10 +77,13 @@ static FLAG_AND_VALUE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(^|\s)(--?[A-Za-z][A-Za-z0-9_.\-]*)(\s+)("[^"]*"|'[^']*'|[^\s\-"']\S*)"#).unwrap()
 });
 
-/// `mysql … -pVALUE` inside text.
+/// `mysql … -pVALUE` inside text, where `mysql` is a command: first, after `;`, `&`, `|`,
+/// `(` or a backtick, after a wrapper such as `sudo`, or as a path. `--name mysql -p3306`
+/// is a port mapping, not a password.
 static MYSQL_PASSWORD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r#"((?:^|[\s/\\])(?i:{})(?:\.exe)?\s(?:[^;&|\n]*?\s)?-p)([^\s;&|'"]+)"#,
+        r#"((?:^|[;&|(`]\s*|\b(?:{})\s+|[/\\])(?i:{})(?:\.exe)?\s(?:[^;&|\n]*?\s)?-p)('[^']*'|"[^"]*"|[^\s;&|'"]+)"#,
+        WRAPPERS.join("|"),
         MYSQL_LIKE.join("|")
     ))
     .unwrap()
@@ -78,34 +94,43 @@ static MYSQL_PASSWORD: LazyLock<Regex> = LazyLock::new(|| {
 static CANDIDATE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[A-Za-z0-9_+\-]{24,}={0,2}").unwrap());
 
-/// Redacts a full command line. `argv[0]` decides whether MySQL-style `-pVALUE` applies.
+/// Redacts a full command line. The program (after wrappers such as `sudo`) decides
+/// whether MySQL-style `-pVALUE` applies.
 pub fn redact_argv(argv: &[String]) -> Vec<String> {
     let mysql_like = argv
-        .first()
-        .is_some_and(|first| MYSQL_LIKE.contains(&exe_stem(first).as_str()));
+        .iter()
+        .map(|arg| exe_stem(arg))
+        .find(|stem| !WRAPPERS.contains(&stem.as_str()))
+        .is_some_and(|stem| MYSQL_LIKE.contains(&stem.as_str()));
     let mut out = Vec::with_capacity(argv.len());
     let mut mask_next = false;
     for (index, arg) in argv.iter().enumerate() {
         if mask_next {
-            out.push(MASK.to_string());
             mask_next = false;
-            continue;
+            // A flag right after a secret flag means that flag was a switch.
+            if !arg.starts_with('-') {
+                out.push(MASK.to_string());
+                continue;
+            }
         }
         if index > 0 {
-            if arg.starts_with('-') && !arg.contains('=') && is_secret_name(arg) {
+            if mysql_like && arg.len() > 2 && arg.starts_with("-p") {
+                out.push(format!("-p{MASK}"));
+                continue;
+            }
+            if arg.starts_with('-') && !arg.contains('=') && is_secret_flag(arg) {
                 out.push(arg.clone());
                 mask_next = true;
                 continue;
             }
-            // One argument is one value: everything after the first `=` is secret.
+            // A bare `name=value` argument is one value: everything after the first `=`
+            // is secret. Anything else (a URL, a shell command) is text.
             if let Some((name, _)) = arg.split_once('=')
+                && !name.is_empty()
+                && name.bytes().all(is_name_byte)
                 && is_secret_name(name)
             {
                 out.push(format!("{name}={MASK}"));
-                continue;
-            }
-            if mysql_like && arg.len() > 2 && arg.starts_with("-p") {
-                out.push(format!("-p{MASK}"));
                 continue;
             }
         }
@@ -123,7 +148,7 @@ pub fn redact_text(text: &str) -> String {
     let text = PREFIXED.replace_all(&text, format!("${{1}}{MASK}"));
     let text = mask_named_values(&text);
     let text = FLAG_AND_VALUE.replace_all(&text, |caps: &regex::Captures<'_>| {
-        if is_secret_name(&caps[2]) {
+        if is_secret_flag(&caps[2]) {
             format!("{}{}{}{MASK}", &caps[1], &caps[2], &caps[3])
         } else {
             caps[0].to_string()
@@ -142,26 +167,68 @@ pub fn redact_text(text: &str) -> String {
         .into_owned()
 }
 
-/// True when a flag or variable name names a secret. The name is split into parts at
-/// `-`, `_` and `.`; a camelCase part counts by its last word (`apiKey`, `accessToken`).
+/// True when a variable or option name names a secret: one of its parts (split at `-`,
+/// `_` and `.`) ends with a secret word, or its last part, qualifiers aside, is a short
+/// one (`DB_PASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2`, `accessToken`).
 fn is_secret_name(name: &str) -> bool {
-    let parts: Vec<&str> = name
+    let parts = secret_parts(name);
+    parts.iter().any(|part| ends_with_secret_word(part))
+        || parts.last().is_some_and(|last| is_short_secret_word(last))
+}
+
+/// True when the word after a flag is a secret: the flag's last part names it
+/// (`--password`, `--client-secret`, `--api-key`). `--password-file` and `--token-limit`
+/// keep their values, and `--no-password` and `--ask-pass` are switches.
+fn is_secret_flag(flag: &str) -> bool {
+    let parts = secret_parts(flag);
+    if parts
+        .first()
+        .is_some_and(|first| first.eq_ignore_ascii_case("no") || first.eq_ignore_ascii_case("ask"))
+    {
+        return false;
+    }
+    parts
+        .last()
+        .is_some_and(|last| ends_with_secret_word(last) || is_short_secret_word(last))
+}
+
+/// The parts of a name without leading dashes and trailing qualifiers.
+fn secret_parts(name: &str) -> Vec<&str> {
+    let mut parts: Vec<&str> = name
         .trim_start_matches('-')
         .split(['-', '_', '.'])
         .filter(|part| !part.is_empty())
         .collect();
-    let Some(last) = parts.last() else {
-        return false;
-    };
-    let secret_part = |part: &str| {
-        let word = last_camel_word(part).to_ascii_lowercase();
-        let whole = part.to_ascii_lowercase();
-        SECRET_PARTS.contains(&whole.as_str()) || SECRET_PARTS.contains(&word.as_str())
-    };
-    let last_word = last_camel_word(last).to_ascii_lowercase();
-    parts.iter().any(|part| secret_part(part))
-        || SECRET_LAST_PARTS.contains(&last.to_ascii_lowercase().as_str())
-        || SECRET_LAST_PARTS.contains(&last_word.as_str())
+    while parts.len() > 1 && parts.last().is_some_and(|part| is_qualifier(part)) {
+        parts.pop();
+    }
+    parts
+}
+
+/// `2`, `v2`, `PROD`, `live`.
+fn is_qualifier(part: &str) -> bool {
+    let version = part
+        .strip_prefix(['v', 'V'])
+        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|byte| byte.is_ascii_digit()));
+    part.bytes().all(|byte| byte.is_ascii_digit())
+        || version
+        || QUALIFIERS
+            .iter()
+            .any(|word| part.eq_ignore_ascii_case(word))
+}
+
+/// `PGPASSWORD`, `AUTHTOKEN`, `accessToken`, `PASSWORD2`; not `tokens` or `tokenizer`.
+fn ends_with_secret_word(part: &str) -> bool {
+    let lower = part
+        .trim_end_matches(|c: char| c.is_ascii_digit())
+        .to_ascii_lowercase();
+    SECRET_WORDS.iter().any(|word| lower.ends_with(word))
+}
+
+/// `KEY`, `pass`, `pwd`, or a camelCase part ending in one (`apiKey`, `dbPass`).
+fn is_short_secret_word(part: &str) -> bool {
+    let word = last_camel_word(part).to_ascii_lowercase();
+    SECRET_LAST_WORDS.contains(&word.as_str())
 }
 
 /// The last word of a camelCase part (`apiKey` → `Key`), or the whole part.
@@ -236,7 +303,9 @@ fn secret_value_after(text: &str, separator: usize) -> Option<(usize, usize)> {
             .map_or(bytes.len(), |offset| start + 1 + offset + 1)
     } else {
         text[start..]
-            .find(|c: char| c.is_whitespace() || matches!(c, '&' | ';' | ',' | '"' | '\''))
+            .find(|c: char| {
+                c.is_whitespace() || matches!(c, '&' | ';' | ',' | '"' | '\'' | '}' | ']')
+            })
             .map_or(bytes.len(), |offset| start + offset)
     };
     (end > start).then_some((start, end))
@@ -311,6 +380,17 @@ mod tests {
             &["jest", "--pass-with-no-tests", "src/"],
             &["nginx", "--key-file", "/etc/tls/site.pem", "monkey=banana"],
             &["vllm", "serve", "--max-tokens", "4096"],
+            &["docker", "login", "--password-stdin", "ghcr.io"],
+            &["ansible-playbook", "--ask-pass", "site.yml"],
+            &["psql", "--no-password", "-h", "db", "app"],
+            &[
+                "app",
+                "--token-limit",
+                "100",
+                "--password-file",
+                "/etc/app/pw",
+            ],
+            &["sh", "-c", "docker run --name mysql -p3306:3306 mysql:8"],
         ] {
             let input = argv(parts);
             assert_eq!(redact_argv(&input), input);
@@ -354,6 +434,47 @@ mod tests {
             redact_argv(&argv(&["sh", "-c", "app --password hunter2 --port 80"])),
             argv(&["sh", "-c", "app --password *** --port 80"])
         );
+        // Secret words inside longer names, and qualifiers after them.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "env",
+                "PGPASSWORD=a1",
+                "NGROK_AUTHTOKEN=a2",
+                "API_KEY_2=a3",
+                "OPENAI_API_KEY_PROD=a4",
+                "PASSWORD2=a5",
+                "-Dpassword=a6",
+            ])),
+            argv(&[
+                "env",
+                "PGPASSWORD=***",
+                "NGROK_AUTHTOKEN=***",
+                "API_KEY_2=***",
+                "OPENAI_API_KEY_PROD=***",
+                "PASSWORD2=***",
+                "-Dpassword=***",
+            ])
+        );
+        // An argument that is not a bare `name=value` keeps its text around the secret.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "curl",
+                "https://u:hunter2@host.example/x?api_key=abc"
+            ])),
+            argv(&["curl", "https://***@host.example/x?api_key=***"])
+        );
+        assert_eq!(
+            redact_argv(&argv(&[
+                "sh",
+                "-c",
+                "export API_TOKEN=abc && exec node server.js --port 80",
+            ])),
+            argv(&[
+                "sh",
+                "-c",
+                "export API_TOKEN=*** && exec node server.js --port 80",
+            ])
+        );
     }
 
     #[test]
@@ -373,6 +494,19 @@ mod tests {
         assert_eq!(
             redact_argv(&argv(&["bash", "-lc", "mysql -u root -phunter2 shop"])),
             argv(&["bash", "-lc", "mysql -u root -p*** shop"])
+        );
+        // The password itself may look like a secret name; `-p` still wins.
+        assert_eq!(
+            redact_argv(&argv(&["mysql", "-uroot", "-pmy_secret", "shop"])),
+            argv(&["mysql", "-uroot", "-p***", "shop"])
+        );
+        assert_eq!(
+            redact_argv(&argv(&["sudo", "mysql", "-phunter2"])),
+            argv(&["sudo", "mysql", "-p***"])
+        );
+        assert_eq!(
+            redact_text("cd /srv && mysql -u root -p'hunter 2' shop"),
+            "cd /srv && mysql -u root -p*** shop"
         );
     }
 
@@ -401,6 +535,10 @@ mod tests {
             r#"{"password":***}"#
         );
         assert_eq!(redact_text(r#"{"apiKey": "k1"}"#), r#"{"apiKey": ***}"#);
+        assert_eq!(
+            redact_text(&redact_text(r#"{"password": "x1"}"#)),
+            r#"{"password": ***}"#
+        );
         assert_eq!(
             redact_text("url=http://x/?token=abc&page=2"),
             "url=http://x/?token=***&page=2"
