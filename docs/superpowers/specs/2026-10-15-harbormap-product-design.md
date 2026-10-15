@@ -7,7 +7,7 @@
   - [v0.1 Runtime Doctor](2026-10-15-harbormap-v0.1-runtime-doctor-design.md)
   - [v0.2 Harbor Chart](2026-10-15-harbormap-v0.2-harbor-chart-design.md)
   - [Research summary](../../research/2026-10-15-research-summary.md)
-- **Visual mockup** (private Design canvas, ask the owner for access): https://claude.ai/artifact/4uH5KC9WCYASMJWevxzsnB
+- **Visual mockup:** [Harbor Chart mockup](../../design/2026-10-15-harbor-chart-mockup/). These are Design-canvas source files (`*.dc.html` boards and `canvas.json`). They render only when published as a Design canvas; a browser cannot open them directly. The light and dark palettes are the `PALETTE` constants in `Overview.dc.html` and `Tour.dc.html`.
 
 ## 1. Summary
 

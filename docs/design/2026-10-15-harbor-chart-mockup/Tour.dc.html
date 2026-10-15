@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tour · What happens when you log in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1920px; height: 1000px; overflow: hidden; font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; color: {{c.ink}}; background-color: {{c.bg}}; background-image: linear-gradient({{c.grid}} 1px, transparent 1px), linear-gradient(90deg, {{c.grid}} 1px, transparent 1px); background-size: 32px 32px; transition: background-color 0.3s ease">
+
+<div style="position: absolute; left: 296px; top: 200px; width: 280px; height: 656px; box-sizing: border-box; background: {{c.seeBand}}; border: 1px solid {{c.seeBandBd}}; border-radius: 18px"></div>
+<div style="position: absolute; left: 728px; top: 200px; width: 280px; height: 656px; box-sizing: border-box; background: {{c.workBand}}; border: 1px solid {{c.workBandBd}}; border-radius: 18px"></div>
+
+<svg width="63" height="8" viewBox="0 0 63 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 200px; top: 364px; width: 63px; height: 8px; overflow: visible; fill: none; stroke: {{c.see.solid}}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6; opacity: {{e.http}}; transition: opacity 0.35s ease"><defs><marker id="dc-arrow-head-filled-1" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="{{c.see.solid}}" stroke="none" style="stroke: none; fill: {{c.see.solid}}; fill: context-stroke"/></marker></defs><path d="M 0 4 L 59 4" marker-end="url(#dc-arrow-head-filled-1)"></path></svg>
+<svg width="8" height="79" viewBox="0 0 8 79" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 432px; top: 404px; width: 8px; height: 79px; overflow: visible; fill: none; stroke: {{c.code}}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: {{e.login}}; transition: opacity 0.35s ease"><defs><marker id="dc-arrow-head-filled-2" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="{{c.code}}" stroke="none" style="stroke: none; fill: {{c.code}}; fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 75" marker-end="url(#dc-arrow-head-filled-2)"></path></svg>
+<svg width="159" height="8" viewBox="0 0 159 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 536px; top: 504px; width: 159px; height: 8px; overflow: visible; fill: none; stroke: {{c.work.solid}}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6; opacity: {{e.out}}; transition: opacity 0.35s ease"><defs><marker id="dc-arrow-head-filled-3" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="{{c.work.solid}}" stroke="none" style="stroke: none; fill: {{c.work.solid}}; fill: context-stroke"/></marker></defs><path d="M 0 4 L 155 4" marker-end="url(#dc-arrow-head-filled-3)"></path></svg>
+<svg width="159" height="8" viewBox="0 0 159 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 537px; top: 528px; width: 159px; height: 8px; overflow: visible; fill: none; stroke: {{c.see.solid}}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6; opacity: {{e.ret}}; transition: opacity 0.35s ease"><defs><marker id="dc-arrow-head-filled-4" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="{{c.see.solid}}" stroke="none" style="stroke: none; fill: {{c.see.solid}}; fill: context-stroke"/></marker></defs><path d="M 159 4 L 4 4" marker-end="url(#dc-arrow-head-filled-4)"></path></svg>
+<svg width="8" height="59" viewBox="0 0 8 59" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 864px; top: 556px; width: 8px; height: 59px; overflow: visible; fill: none; stroke: {{c.code}}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: {{e.routes}}; transition: opacity 0.35s ease"><defs><marker id="dc-arrow-head-filled-5" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="{{c.code}}" stroke="none" style="stroke: none; fill: {{c.code}}; fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 55" marker-end="url(#dc-arrow-head-filled-5)"></path></svg>
+<svg width="8" height="59" viewBox="0 0 8 59" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 864px; top: 688px; width: 8px; height: 59px; overflow: visible; fill: none; stroke: {{c.code}}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: {{e.models}}; transition: opacity 0.35s ease"><defs><marker id="dc-arrow-head-filled-6" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="{{c.code}}" stroke="none" style="stroke: none; fill: {{c.code}}; fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 55" marker-end="url(#dc-arrow-head-filled-6)"></path></svg>
+<svg width="135" height="8" viewBox="0 0 135 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: 968px; top: 780px; width: 135px; height: 8px; overflow: visible; fill: none; stroke: {{c.keep.solid}}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6; opacity: {{e.db}}; transition: opacity 0.35s ease"><defs><marker id="dc-arrow-head-filled-7" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="{{c.keep.solid}}" stroke="none" style="stroke: none; fill: {{c.keep.solid}}; fill: context-stroke"/></marker></defs><path d="M 0 4 L 131 4" marker-end="url(#dc-arrow-head-filled-7)"></path></svg>
+
+<div style="position: absolute; left: 72px; top: 336px; width: 128px; height: 64px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 12px; font-size: 14px; line-height: 20px; color: {{c.ink}}; transition: opacity 0.35s ease, background-color 0.35s ease; background: {{m.browser.bg}}; border: {{m.browser.bd}}; opacity: {{m.browser.o}}; box-shadow: {{m.browser.sh}}"><span><b>Your browser</b></span></div>
+<div style="position: absolute; left: 336px; top: 332px; width: 200px; height: 72px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; border-radius: 12px; font-size: 14px; line-height: 20px; color: {{c.ink}}; transition: opacity 0.35s ease, background-color 0.35s ease; background: {{m.login.bg}}; border: {{m.login.bd}}; opacity: {{m.login.o}}; box-shadow: {{m.login.sh}}"><span><b style="font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace">login.tsx</b><br><span style="font-size: 13px; color: {{c.sub}}">the login page</span></span></div>
+<div style="position: absolute; left: 336px; top: 484px; width: 200px; height: 72px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; border-radius: 12px; font-size: 14px; line-height: 20px; color: {{c.ink}}; transition: opacity 0.35s ease, background-color 0.35s ease; background: {{m.client.bg}}; border: {{m.client.bd}}; opacity: {{m.client.o}}; box-shadow: {{m.client.sh}}"><span><b style="font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace">api-client.ts</b><br><span style="font-size: 13px; color: {{c.sub}}">talks to the api</span></span></div>
+<div style="position: absolute; left: 768px; top: 484px; width: 200px; height: 72px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; border-radius: 12px; font-size: 14px; line-height: 20px; color: {{c.ink}}; transition: opacity 0.35s ease, background-color 0.35s ease; background: {{m.routes.bg}}; border: {{m.routes.bd}}; opacity: {{m.routes.o}}; box-shadow: {{m.routes.sh}}"><span><b style="font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace">routes/auth.py</b><br><span style="font-size: 13px; color: {{c.sub}}">the login route</span></span></div>
+<div style="position: absolute; left: 768px; top: 616px; width: 200px; height: 72px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; border-radius: 12px; font-size: 14px; line-height: 20px; color: {{c.ink}}; transition: opacity 0.35s ease, background-color 0.35s ease; background: {{m.services.bg}}; border: {{m.services.bd}}; opacity: {{m.services.o}}; box-shadow: {{m.services.sh}}"><span><b style="font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace">services/auth.py</b><br><span style="font-size: 13px; color: {{c.sub}}">checks the password</span></span></div>
+<div style="position: absolute; left: 768px; top: 748px; width: 200px; height: 72px; box-sizing: border-box; padding: 10px 14px; display: flex; align-items: center; border-radius: 12px; font-size: 14px; line-height: 20px; color: {{c.ink}}; transition: opacity 0.35s ease, background-color 0.35s ease; background: {{m.models.bg}}; border: {{m.models.bd}}; opacity: {{m.models.o}}; box-shadow: {{m.models.sh}}"><span><b style="font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace">models/user.py</b><br><span style="font-size: 13px; color: {{c.sub}}">user records</span></span></div>
+<div style="position: absolute; left: 1136px; top: 724px; width: 216px; height: 120px; box-sizing: border-box; padding: 14px 16px 14px 44px; display: flex; align-items: center; border-radius: 14px; font-size: 14px; line-height: 21px; color: {{c.ink}}; transition: opacity 0.35s ease, background-color 0.35s ease; background: {{m.db.bg}}; border: {{m.db.bd}}; opacity: {{m.db.o}}; box-shadow: {{m.db.sh}}"><span><b style="font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif; font-size: 18px">db</b><span style="color: {{c.sub}}"> · PostgreSQL</span><br><span style="display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 999px; background: {{c.badBg}}; color: {{c.badFg}}; font-size: 13px; line-height: 20px; font-weight: 600">Restarting 14×</span></span></div>
+
+<div style="position: absolute; left: 264px; top: 354px; width: 64px; height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: {{c.see.solid}}; color: {{c.tabFg}}; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 13px; font-weight: 600; box-shadow: 0 0 0 3px {{c.bg}}; transition: opacity 0.35s ease; opacity: {{t.t3000}}">:3000</div>
+<div style="position: absolute; left: 696px; top: 500px; width: 64px; height: 40px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: {{c.work.solid}}; color: {{c.tabFg}}; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 13px; font-weight: 600; box-shadow: 0 0 0 3px {{c.bg}}; transition: opacity 0.35s ease; opacity: {{t.t8000}}">:8000</div>
+<div style="position: absolute; left: 1104px; top: 770px; width: 64px; height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: {{c.panel}}; border: 1.5px dashed {{c.keep.solid}}; color: {{c.keep.fg}}; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 13px; font-weight: 600; box-shadow: 0 0 0 3px {{c.bg}}; transition: opacity 0.35s ease; opacity: {{t.t5432}}">:5432</div>
+
+<div style="position: absolute; left: 212px; top: 340px; width: 40px; text-align: center; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; font-weight: 600; color: {{c.see.fg}}; transition: opacity 0.35s ease; opacity: {{e.http}}">http</div>
+<div style="position: absolute; left: 448px; top: 435px; width: 64px; text-align: center; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; color: {{c.sub}}; transition: opacity 0.35s ease; opacity: {{e.login}}">login()</div>
+<div style="position: absolute; left: 552px; top: 480px; width: 128px; text-align: center; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; font-weight: 600; color: {{c.work.fg}}; transition: opacity 0.35s ease; opacity: {{e.out}}">POST /api/login</div>
+<div style="position: absolute; left: 592px; top: 544px; width: 48px; text-align: center; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; font-weight: 600; color: {{c.see.fg}}; transition: opacity 0.35s ease; opacity: {{e.ret}}">token</div>
+<div style="position: absolute; left: 880px; top: 577px; width: 104px; text-align: center; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; color: {{c.sub}}; transition: opacity 0.35s ease; opacity: {{e.routes}}">verify_user()</div>
+<div style="position: absolute; left: 880px; top: 709px; width: 120px; text-align: center; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; color: {{c.sub}}; transition: opacity 0.35s ease; opacity: {{e.models}}">User.by_email()</div>
+<div style="position: absolute; left: 984px; top: 756px; width: 104px; text-align: center; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; font-weight: 600; color: {{c.keep.fg}}; transition: opacity 0.35s ease; opacity: {{e.db}}">DATABASE_URL</div>
+<div style="position: absolute; left: 312px; top: 214px; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; letter-spacing: 0.08em; font-weight: 600; color: {{c.see.fg}}">WEB · WHAT PEOPLE SEE</div>
+<div style="position: absolute; left: 744px; top: 214px; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; letter-spacing: 0.08em; font-weight: 600; color: {{c.work.fg}}">API · DOES THE WORK</div>
+
+<div style="position: absolute; left: 72px; top: 44px; font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif; font-size: 32px; line-height: 40px; font-weight: 700; letter-spacing: -0.01em">What happens when you log in</div>
+<div style="position: absolute; left: 72px; top: 90px; font-size: 14px; line-height: 20px; color: {{c.sub}}">Journey tour · 6 steps · built from your code, no AI needed · steps follow the real order the code runs in</div>
+<button type="button" onClick="{{toggleTheme}}" aria-pressed="{{darkPressed}}" style="position: absolute; left: 1180px; top: 48px; width: 172px; height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1.5px solid {{c.panelBd}}; border-radius: 12px; background: {{c.panel}}; color: {{c.ink}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: {{c.ink}}; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>{{themeLabel}}</button>
+<div style="position: absolute; left: 72px; top: 892px; font-size: 13px; line-height: 20px; color: {{c.sub}}"><span style="display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; box-sizing: border-box; border-radius: 4px; background: {{c.focusBg}}; border: 2px solid {{c.focusBd}}"></span>what this step is about · faded = not part of this step · the map never moves, only the light does</div>
+
+<div style="position: absolute; left: 1384px; top: 64px; width: 472px; height: 872px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 14px; background: {{c.panel}}; border: 1px solid {{c.panelBd}}; border-radius: 20px; box-shadow: {{c.shadow}}; color: {{c.ink}}; overflow: auto">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<span style="font-size: 13px; color: {{c.sub}}">Explain for</span>
+<div role="group" aria-label="Explanation level" style="display: flex; gap: 4px; padding: 4px; background: {{c.segBg}}; border-radius: 12px">
+<button type="button" onClick="{{setB}}" aria-pressed="{{lv.b.p}}" style="height: 44px; padding: 0 14px; border: 0; border-radius: 9px; background: {{lv.b.bg}}; color: {{lv.b.fg}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; font-weight: {{lv.b.fw}}; cursor: pointer">Beginner</button>
+<button type="button" onClick="{{setM}}" aria-pressed="{{lv.m.p}}" style="height: 44px; padding: 0 14px; border: 0; border-radius: 9px; background: {{lv.m.bg}}; color: {{lv.m.fg}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; font-weight: {{lv.m.fw}}; cursor: pointer">Builder</button>
+<button type="button" onClick="{{setE}}" aria-pressed="{{lv.e.p}}" style="height: 44px; padding: 0 14px; border: 0; border-radius: 9px; background: {{lv.e.bg}}; color: {{lv.e.fg}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; font-weight: {{lv.e.fw}}; cursor: pointer">Expert</button>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; letter-spacing: 0.12em; font-weight: 600; color: {{stepColor}}">STEP {{stepNo}} OF 6 · {{stepPlace}}</span>
+<h2 style="margin: 0; font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif; font-size: 26px; line-height: 32px; font-weight: 700">{{title}}</h2>
+</div>
+<p style="margin: 0; font-size: 16px; line-height: 24px">{{body}}</p>
+<div style="border: 1px solid {{c.codeBd}}; border-radius: 12px; overflow: hidden; background: {{c.codeBg}}">
+<div style="display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid {{c.codeHd}}; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 16px; color: {{c.sub}}"><span>{{file}}</span><span>{{codeTag}}</span></div>
+<div style="padding: 8px 0; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12.5px; line-height: 20px; color: {{c.ink}}">
+<sc-for list="{{lines}}" as="ln" hint-placeholder-count="7">
+<div style="display: flex; gap: 12px; padding: 0 12px; background: {{ln.bg}}; font-weight: {{ln.fw}}"><span style="width: 24px; flex: none; text-align: right; color: {{c.lineNo}}">{{ln.n}}</span><span style="white-space: pre; overflow: hidden; text-overflow: ellipsis">{{ln.code}}</span></div>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{showNote}}" hint-placeholder-val="{{ true }}">
+<p style="margin: 0; font-size: 14px; line-height: 20px; color: {{c.sub}}">{{codeNote}}</p>
+</sc-if>
+<div style="display: flex; flex-wrap: wrap; gap: 6px">
+<sc-for list="{{evidence}}" as="ev" hint-placeholder-count="2">
+<span style="display: inline-block; padding: 2px 10px; border-radius: 999px; background: {{ev.bg}}; color: {{ev.fg}}; font-size: 12px; line-height: 20px; font-weight: 600">{{ev.text}}</span>
+</sc-for>
+</div>
+<sc-if value="{{alert}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: {{c.badBg}}; color: {{c.badFg}}; font-size: 14px; line-height: 20px"><span style="flex: 1"><b>Right now this step fails:</b> db keeps restarting because its password doesn’t match.</span><button type="button" style="height: 44px; padding: 0 14px; border: 1.5px solid {{c.badBd}}; border-radius: 10px; background: transparent; color: {{c.badFg}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer">Why?</button></div>
+</sc-if>
+<p style="margin: 0; font-size: 13px; line-height: 19px; color: {{c.sub}}">{{hidden}}</p>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 12px">
+<button type="button" onClick="{{prev}}" disabled="{{atStart}}" style="height: 48px; padding: 0 18px; border: 1.5px solid {{c.ink}}; border-radius: 12px; background: transparent; color: {{c.ink}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; opacity: {{prevO}}">← Back</button>
+<div aria-hidden="true" style="flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px">
+<sc-for list="{{dots}}" as="d" hint-placeholder-count="6">
+<span style="display: inline-block; width: {{d.w}}; height: 10px; border-radius: 999px; background: {{d.bg}}; transition: width 0.3s ease"></span>
+</sc-for>
+</div>
+<button type="button" onClick="{{next}}" disabled="{{atEnd}}" style="height: 48px; padding: 0 22px; border: 0; border-radius: 12px; background: {{c.primary}}; color: {{c.primaryFg}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; opacity: {{nextO}}">Next →</button>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1000}}'>
+const PALETTE = {
+  light: {
+    bg: '#F4F1E8', grid: 'rgba(23,32,51,0.045)', ink: '#172033', sub: '#4A5163', code: '#5F6472',
+    panel: '#FFFFFF', panelBd: '#DCD5C4', shadow: '0 24px 48px -36px rgba(23,32,51,0.6)', segBg: '#E7E2D4',
+    codeBg: '#FBFAF6', codeBd: '#DCD5C4', codeHd: '#E6E0D2', lineNo: '#8A8F9C',
+    focusBg: '#FFF1B8', focusBd: '#172033', hl: '#FFF1B8', btnBg: '#172033', btnFg: '#FFFFFF',
+    badBd: '#C2410C', badBg: '#FCE3D6', badFg: '#9A3412', primary: '#0B5D6B', primaryFg: '#FFFFFF', tabFg: '#FFFFFF',
+    seeBand: 'rgba(47,111,219,0.06)', seeBandBd: 'rgba(47,111,219,0.22)', workBand: 'rgba(116,69,216,0.06)', workBandBd: 'rgba(116,69,216,0.22)',
+    see: { bg: '#EAF1FE', bd: '#8FB0EE', fg: '#1E4FB8', solid: '#2F6FDB' },
+    work: { bg: '#F1EBFE', bd: '#BDA6F2', fg: '#5B2FC0', solid: '#7445D8' },
+    keep: { bg: '#FDF3E1', bd: '#E3BC72', fg: '#7A4A05', solid: '#96600A' },
+    people: { bg: '#FFFFFF', bd: '#B9B3A3', fg: '#172033', solid: '#4A5163' },
+    ev: { parsed: ['#ECEAE3', '#3D4352'], observed: ['#DDEFEA', '#0B4F5B'], matched: ['#E3ECFA', '#1E3A8A'], config: ['#F1EDFC', '#47398A'] },
+    dotOn: '#0B5D6B', dotDone: '#7FB3BB', dotOff: '#D6D0C0'
+  },
+  dark: {
+    bg: '#0E131D', grid: 'rgba(255,255,255,0.035)', ink: '#E8EBF3', sub: '#A7AFC2', code: '#8F98AD',
+    panel: '#151B28', panelBd: '#2A3349', shadow: '0 24px 48px -30px rgba(0,0,0,0.8)', segBg: '#1F2738',
+    codeBg: '#10151F', codeBd: '#2A3349', codeHd: '#232B3D', lineNo: '#6E778C',
+    focusBg: '#3B3413', focusBd: '#F5D565', hl: '#3B3413', btnBg: '#E8EBF3', btnFg: '#0E131D',
+    badBd: '#F0703E', badBg: '#3B1E12', badFg: '#FFB792', primary: '#3FB6C4', primaryFg: '#08151A', tabFg: '#0E131D',
+    seeBand: 'rgba(91,142,240,0.08)', seeBandBd: 'rgba(91,142,240,0.28)', workBand: 'rgba(150,119,240,0.08)', workBandBd: 'rgba(150,119,240,0.28)',
+    see: { bg: '#132542', bd: '#3E6CC9', fg: '#9CC0FF', solid: '#5B8EF0' },
+    work: { bg: '#231A3F', bd: '#7B5BD8', fg: '#C4AEFF', solid: '#9677F0' },
+    keep: { bg: '#2C2213', bd: '#A9772A', fg: '#F4C978', solid: '#D69A3A' },
+    people: { bg: '#151B28', bd: '#3A4560', fg: '#E8EBF3', solid: '#A7AFC2' },
+    ev: { parsed: ['#232B3D', '#C3CCDA'], observed: ['#12362F', '#86E3C7'], matched: ['#162847', '#9CC0FF'], config: ['#2A2147', '#C4AEFF'] },
+    dotOn: '#3FB6C4', dotDone: '#2F6E76', dotOff: '#2A3349'
+  }
+};
+
+const ROLE = { browser: 'people', login: 'see', client: 'see', routes: 'work', services: 'work', models: 'work', db: 'keep' };
+
+const STEPS = [
+  {
+    title: 'You press “Log in”', place: 'web',
+    focus: ['browser', 'login'], ctx: [], tabs: ['t3000'], edges: ['http'],
+    file: 'web/app/pages/login.tsx', tag: 'hand-off · line 23',
+    lines: [
+      [18, 'export default function LoginPage() {'],
+      [19, '  const router = useRouter();'],
+      [20, '  async function handleSubmit(form) {'],
+      [21, '    const email = form.get("email");'],
+      [22, '    const password = form.get("password");'],
+      [23, '    await login(email, password);'],
+      [24, '    router.push("/account");']
+    ],
+    hand: 23,
+    text: {
+      beginner: 'You type your email and password and press Log in. This page belongs to the web part of the project, which your browser opens at localhost:3000.',
+      builder: 'app/pages/login.tsx renders the form. On submit, handleSubmit() reads the email and password and calls login() from lib/api-client.ts.',
+      expert: 'LoginPage (login.tsx:18) · client component · handleSubmit → login() is the only call that leaves the page, followed by router.push("/account").'
+    },
+    note: 'Line 23 hands your email and password to login(), which lives in another file.',
+    evidence: [['parsed', 'login.tsx:23 calls login()'], ['observed', 'web is open at :3000']],
+    hidden: 'Hidden to keep this simple: 3 UI pieces on this page (Button, Input, Card).',
+    alert: false
+  },
+  {
+    title: 'The page asks the API', place: 'web → api',
+    focus: ['client'], ctx: ['login'], tabs: ['t8000'], edges: ['login', 'out'],
+    file: 'web/lib/api-client.ts', tag: 'hand-off · line 15',
+    lines: [
+      [10, 'const API_URL ='],
+      [11, '  process.env.NEXT_PUBLIC_API_URL;'],
+      [13, 'export async function login(email, password) {'],
+      [14, '  const url = `${API_URL}/api/login`;'],
+      [15, '  const res = await fetch(url, {'],
+      [16, '    method: "POST",'],
+      [17, '    body: JSON.stringify({ email, password }),']
+    ],
+    hand: 15,
+    text: {
+      beginner: 'The page can’t check passwords by itself, so it sends your details to the api part of the project. The address it uses is written in API_URL.',
+      builder: 'lib/api-client.ts: login() sends POST /api/login to API_URL with the email and password as JSON. API_URL is set in .env.local to http://localhost:8000.',
+      expert: 'fetch POST /api/login · API_URL from .env.local → :8000 (open) · matched to its route by path, so this link is exact, not a guess.'
+    },
+    note: 'Line 15 is where the request leaves the web part and travels to port 8000.',
+    evidence: [['parsed', 'api-client.ts:15 fetch → /api/login'], ['matched', 'route POST /api/login in api'], ['observed', ':8000 is open']],
+    hidden: '+1 helper like this is hidden: withTimeout().',
+    alert: false
+  },
+  {
+    title: 'The API receives it', place: 'api',
+    focus: ['routes'], ctx: ['client'], tabs: ['t8000'], edges: ['out'],
+    file: 'api/routes/auth.py', tag: 'hand-off · line 14',
+    lines: [
+      [12, '@router.post("/api/login")'],
+      [13, 'async def post_login(body: LoginBody):'],
+      [14, '    user = await verify_user('],
+      [15, '        body.email, body.password)'],
+      [16, '    if user is None:'],
+      [17, '        raise HTTPException(401)'],
+      [18, '    return {"token": issue_token(user)}']
+    ],
+    hand: 14,
+    text: {
+      beginner: 'The api part waits at port 8000. A route is like a reception desk: this one takes every “log in” request and passes it on.',
+      builder: 'routes/auth.py: post_login() is registered for POST /api/login. It checks the request body and calls verify_user() in services/auth.py.',
+      expert: '@router.post("/api/login") → post_login (auth.py:13) · body: LoginBody · 1 network link in, 2 calls out (verify_user, issue_token) · covered by tests/test_auth.py.'
+    },
+    note: 'Line 14 asks another file to check the password.',
+    evidence: [['parsed', '@router.post("/api/login")'], ['parsed', 'tests/test_auth.py covers it']],
+    hidden: '+7 other routes live in routes/. This tour follows only the login one.',
+    alert: false
+  },
+  {
+    title: 'The password is checked', place: 'api',
+    focus: ['services'], ctx: ['routes'], tabs: [], edges: ['routes'],
+    file: 'api/services/auth.py', tag: 'hand-off · line 8',
+    lines: [
+      [7, 'async def verify_user(email, password):'],
+      [8, '    user = await User.by_email(email)'],
+      [9, '    if user and bcrypt.checkpw('],
+      [10, '            password.encode(),'],
+      [11, '            user.password_hash):'],
+      [12, '        return user'],
+      [13, '    return None']
+    ],
+    hand: 8,
+    text: {
+      beginner: 'This is where the real decision is made: does the password match? Passwords are never stored as plain text, only as a scrambled “hash”.',
+      builder: 'services/auth.py: verify_user() loads the user by email, then compares the password with the stored bcrypt hash.',
+      expert: 'verify_user (services/auth.py:7) · callers: post_login, refresh_token · calls: User.by_email, bcrypt.checkpw · no side effects.'
+    },
+    note: 'Line 8 needs the user’s record, so it asks the models part.',
+    evidence: [['parsed', 'auth.py:8 calls User.by_email()']],
+    hidden: '+1 caller hidden: refresh_token() also uses verify_user().',
+    alert: false
+  },
+  {
+    title: 'The database is asked', place: 'api → db',
+    focus: ['models', 'db'], ctx: ['services'], tabs: ['t5432'], edges: ['models', 'db'],
+    file: 'api/models/user.py', tag: 'hand-off · line 23',
+    lines: [
+      [14, 'class User(Base):'],
+      [15, '    __tablename__ = "users"'],
+      [21, '    @classmethod'],
+      [22, '    async def by_email(cls, email):'],
+      [23, '        async with get_session() as s:'],
+      [24, '            q = select(cls).where('],
+      [25, '                cls.email == email)'],
+      [26, '            return await s.scalar(q)']
+    ],
+    hand: 23,
+    text: {
+      beginner: 'To find your account, the api asks the database, the project’s long-term memory. It runs in Docker and listens at port 5432.',
+      builder: 'models/user.py: User.by_email() runs a SELECT on the users table through get_session(), which connects using DATABASE_URL.',
+      expert: 'SQLAlchemy select(User) · session from db/session.py:5 · DATABASE_URL (.env) → localhost:5432 · container db (docker-compose.yml:12) · state: restarting.'
+    },
+    note: 'Line 23 opens a connection to the database, using the address in DATABASE_URL.',
+    evidence: [['parsed', 'user.py:23 get_session()'], ['config', '.env DATABASE_URL → :5432'], ['observed', 'db is restarting']],
+    hidden: 'Hidden: db/session.py, the small file that opens the connection.',
+    alert: true
+  },
+  {
+    title: 'The answer comes back', place: 'api → web',
+    focus: ['client', 'login'], ctx: ['routes'], tabs: ['t8000'], edges: ['ret'],
+    file: 'web/lib/api-client.ts', tag: 'hand-off · line 21',
+    lines: [
+      [18, '  });'],
+      [19, '  if (!res.ok) throw new Error("Wrong login");'],
+      [20, '  const { token } = await res.json();'],
+      [21, '  setSession(token);'],
+      [22, '  return token;'],
+      [23, '}']
+    ],
+    hand: 21,
+    text: {
+      beginner: 'If the password is right, the api sends back a pass called a token. The page keeps it, so you stay logged in, and takes you to your account.',
+      builder: 'post_login() returns {token}. login() saves it with setSession(), and handleSubmit() then sends you to /account.',
+      expert: '200 {token} · api-client.ts:21 setSession(token) · login.tsx:24 router.push("/account") · a 401 throws and the form shows the error.'
+    },
+    note: 'Line 21 saves the pass so the next pages know who you are.',
+    evidence: [['parsed', 'post_login returns {token}'], ['parsed', 'api-client.ts:21 setSession()']],
+    hidden: 'Next tour: “What happens when you place an order” · 8 steps.',
+    alert: false
+  }
+];
+
+class Component extends DCLogic {
+  renderVals() {
+    const st = this.state || {};
+    const step = st.step || 1;
+    const level = st.level || 'beginner';
+    const theme = st.theme || 'light';
+    const c = PALETTE[theme];
+    const s = STEPS[step - 1];
+    const m = {};
+    Object.keys(ROLE).forEach((k) => {
+      const r = c[ROLE[k]];
+      if (s.focus.indexOf(k) >= 0) m[k] = { o: '1', bg: c.focusBg, bd: '2px solid ' + c.focusBd, sh: c.shadow };
+      else if (s.ctx.indexOf(k) >= 0) m[k] = { o: '0.6', bg: r.bg, bd: '1.5px solid ' + r.bd, sh: 'none' };
+      else m[k] = { o: '0.18', bg: r.bg, bd: '1.5px solid ' + r.bd, sh: 'none' };
+    });
+    if (s.focus.indexOf('db') < 0) m.db = Object.assign({}, m.db, { bd: '2px solid ' + c.badBd });
+    const t = {};
+    ['t3000', 't8000', 't5432'].forEach((k) => { t[k] = s.tabs.indexOf(k) >= 0 ? '1' : '0.25'; });
+    const e = {};
+    ['http', 'login', 'out', 'ret', 'routes', 'models', 'db'].forEach((k) => { e[k] = s.edges.indexOf(k) >= 0 ? '1' : '0.1'; });
+    const lines = s.lines.map((row) => ({
+      n: String(row[0]),
+      code: row[1],
+      bg: row[0] === s.hand ? c.hl : 'transparent',
+      fw: row[0] === s.hand ? '600' : '400'
+    }));
+    const evidence = s.evidence.map((row) => ({ text: row[0] + ' · ' + row[1], bg: c.ev[row[0]][0], fg: c.ev[row[0]][1] }));
+    const btn = (on) => ({ bg: on ? c.btnBg : 'transparent', fg: on ? c.btnFg : c.ink, p: on ? 'true' : 'false', fw: on ? '600' : '500' });
+    const dots = STEPS.map((x, i) => ({
+      w: i + 1 === step ? '28px' : '10px',
+      bg: i + 1 === step ? c.dotOn : (i + 1 < step ? c.dotDone : c.dotOff)
+    }));
+    const placeColor = s.place.indexOf('db') >= 0 ? c.keep.fg : (s.place.indexOf('api') === 0 ? c.work.fg : c.see.fg);
+    return {
+      c: c, m: m, t: t, e: e, lines: lines, evidence: evidence, dots: dots,
+      stepNo: String(step),
+      stepPlace: s.place.toUpperCase(),
+      stepColor: placeColor,
+      title: s.title,
+      body: s.text[level],
+      file: s.file,
+      codeTag: s.tag,
+      showNote: level === 'beginner',
+      codeNote: s.note,
+      hidden: s.hidden,
+      alert: !!s.alert,
+      themeLabel: theme === 'dark' ? 'Light theme' : 'Dark theme',
+      darkPressed: theme === 'dark' ? 'true' : 'false',
+      toggleTheme: () => this.setState({ theme: theme === 'dark' ? 'light' : 'dark' }),
+      lv: { b: btn(level === 'beginner'), m: btn(level === 'builder'), e: btn(level === 'expert') },
+      setB: () => this.setState({ level: 'beginner' }),
+      setM: () => this.setState({ level: 'builder' }),
+      setE: () => this.setState({ level: 'expert' }),
+      prev: () => this.setState({ step: Math.max(1, step - 1) }),
+      next: () => this.setState({ step: Math.min(STEPS.length, step + 1) }),
+      atStart: step === 1,
+      atEnd: step === STEPS.length,
+      prevO: step === 1 ? '0.4' : '1',
+      nextO: step === STEPS.length ? '0.4' : '1'
+    };
+  }
+}
+</script>
+</body>
+</html>
