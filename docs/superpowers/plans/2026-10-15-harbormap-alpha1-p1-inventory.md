@@ -3917,6 +3917,14 @@ Create the fixture `crates/hm-probe/tests/fixtures/inspect-compose-postgres.json
       "Mode": "z",
       "RW": true,
       "Propagation": ""
+    },
+    {
+      "Type": "bind",
+      "Source": "/Users/me/code/shop/db/init",
+      "Destination": "/docker-entrypoint-initdb.d",
+      "Mode": "",
+      "RW": false,
+      "Propagation": "rprivate"
     }
   ],
   "Config": {
@@ -3995,9 +4003,15 @@ mod tests {
             ]
         );
         assert_eq!(container.networks, vec!["shop_default"]);
-        assert_eq!(container.mounts[0].kind, "volume");
-        assert_eq!(container.mounts[0].name.as_deref(), Some("shop_pgdata"));
-        assert_eq!(container.mounts[0].source, None);
+        // Sorted by destination; a bind mount keeps its host path, a volume its name.
+        assert_eq!(container.mounts[0].kind, "bind");
+        assert_eq!(
+            container.mounts[0].source,
+            Some(PathBuf::from("/Users/me/code/shop/db/init"))
+        );
+        assert_eq!(container.mounts[1].kind, "volume");
+        assert_eq!(container.mounts[1].name.as_deref(), Some("shop_pgdata"));
+        assert_eq!(container.mounts[1].source, None);
         assert_eq!(
             container
                 .labels
@@ -4058,11 +4072,14 @@ mod tests {
                 endpoint: "tcp://127.0.0.1:1".into(),
                 label: "Docker".into(),
             }],
-            Duration::from_secs(2),
+            // A refused connection returns at once; the budget only covers slow systems.
+            Duration::from_secs(10),
         ));
         assert_eq!(report.engines.len(), 1);
         assert!(!report.engines[0].reachable);
-        assert!(report.engines[0].error.is_some());
+        // The OS reason survives, not only "client error (Connect)".
+        let error = report.engines[0].error.as_deref().unwrap();
+        assert!(error.to_lowercase().contains("refused"), "{error}");
         assert_eq!(report.notes[0].code, "docker_not_running");
     }
 
@@ -4206,7 +4223,7 @@ pub fn from_inspect(engine: &str, inspect: ContainerInspectResponse) -> Option<R
     let mut networks: Vec<String> = network.networks.unwrap_or_default().into_keys().collect();
     networks.sort();
 
-    let mounts = inspect
+    let mut mounts: Vec<Mount> = inspect
         .mounts
         .unwrap_or_default()
         .into_iter()
@@ -4225,6 +4242,15 @@ pub fn from_inspect(engine: &str, inspect: ContainerInspectResponse) -> Option<R
             }
         })
         .collect();
+    // Docker lists mounts in no fixed order; sort them so snapshots stay stable.
+    mounts.sort_by(|a, b| {
+        (&a.destination, &a.kind, &a.name, &a.source).cmp(&(
+            &b.destination,
+            &b.kind,
+            &b.name,
+            &b.source,
+        ))
+    });
 
     let labels: BTreeMap<String, String> = config
         .labels
@@ -4268,10 +4294,12 @@ pub fn from_inspect(engine: &str, inspect: ContainerInspectResponse) -> Option<R
 In `crates/hm-probe/src/docker/mod.rs`, insert this between `pub mod discover;` and the `` /// True when an executable with this name is on `PATH`. `` comment, with one blank line on each side:
 
 ```rust
+use std::io::ErrorKind;
 use std::time::Duration;
 
 use bollard::query_parameters::ListContainersOptions;
 use bollard::{API_DEFAULT_VERSION, Docker};
+use tokio::task::JoinSet;
 
 use hm_core::ids::engine_id;
 use hm_core::model::{Engine, Note};
@@ -4281,6 +4309,9 @@ use discover::{Candidate, DiscoverEnv};
 
 /// Seconds bollard waits for a single API request.
 const REQUEST_TIMEOUT_SECS: u64 = 5;
+
+/// Containers inspected at the same time on one engine.
+const PARALLEL_INSPECTS: usize = 16;
 
 #[derive(Debug, Default)]
 pub struct DockerReport {
@@ -4301,37 +4332,67 @@ impl DockerReport {
     }
 }
 
-/// Probes every candidate engine, giving each at most `timeout`.
+/// Probes every candidate engine at the same time, giving each at most `timeout`.
 pub fn probe_docker(env: &DiscoverEnv, timeout: Duration) -> DockerReport {
     let candidates = discover::candidates(env);
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
-        Ok(runtime) => runtime.block_on(probe_all(candidates, timeout)),
+        Ok(runtime) => {
+            let report = runtime.block_on(probe_all(candidates, timeout));
+            // Don't wait for blocking work left behind by a timed-out connect (a name
+            // lookup cannot be cancelled); the timeout is the promise.
+            runtime.shutdown_background();
+            report
+        }
         Err(error) => DockerReport::failed(&error.to_string()),
+    }
+}
+
+/// Why an engine could not be read.
+struct ProbeError {
+    text: String,
+    kind: Option<ErrorKind>,
+}
+
+impl ProbeError {
+    fn new(error: &bollard::errors::Error) -> Self {
+        ProbeError {
+            text: describe(error),
+            kind: io_kind(error),
+        }
     }
 }
 
 async fn probe_all(candidates: Vec<Candidate>, timeout: Duration) -> DockerReport {
     let mut report = DockerReport::default();
+    let installed = on_path("docker") || on_path("podman");
     if candidates.is_empty() {
-        report
-            .notes
-            .push(if on_path("docker") || on_path("podman") {
-                not_running()
-            } else {
-                note(
-                    "docker_not_installed",
-                    "Docker isn't installed, so there are no containers to show.",
-                )
-            });
+        report.notes.push(if installed {
+            not_running()
+        } else {
+            not_installed()
+        });
         return report;
     }
+    let mut tasks = JoinSet::new();
+    for (index, candidate) in candidates.iter().cloned().enumerate() {
+        tasks.spawn(async move {
+            let result = tokio::time::timeout(timeout, probe_one(&candidate)).await;
+            (index, result)
+        });
+    }
+    let mut results: Vec<Option<_>> = candidates.iter().map(|_| None).collect();
+    while let Some(Ok((index, result))) = tasks.join_next().await {
+        results[index] = Some(result);
+    }
     let mut timed_out = false;
-    for candidate in candidates {
-        match tokio::time::timeout(timeout, probe_one(&candidate)).await {
-            Ok(Ok((engine, containers))) => {
+    let mut denied = None;
+    let mut missing_only = true;
+    for (candidate, result) in candidates.iter().zip(results) {
+        match result {
+            Some(Ok(Ok((engine, containers)))) => {
                 // Two sockets can reach the same daemon; keep the first.
                 if report.engines.iter().any(|known| known.id == engine.id) {
                     continue;
@@ -4339,13 +4400,26 @@ async fn probe_all(candidates: Vec<Candidate>, timeout: Duration) -> DockerRepor
                 report.engines.push(engine);
                 report.containers.extend(containers);
             }
-            Ok(Err(error)) => report.engines.push(unreachable(&candidate, error)),
-            Err(_) => {
+            Some(Ok(Err(error))) => {
+                if error.kind == Some(ErrorKind::PermissionDenied) && denied.is_none() {
+                    denied = Some(candidate.endpoint.clone());
+                }
+                missing_only &= error.kind == Some(ErrorKind::NotFound);
+                report.engines.push(unreachable(candidate, error.text));
+            }
+            Some(Err(_)) => {
                 timed_out = true;
+                missing_only = false;
                 report.engines.push(unreachable(
-                    &candidate,
+                    candidate,
                     format!("no answer within {} ms", timeout.as_millis()),
                 ));
+            }
+            None => {
+                missing_only = false;
+                report
+                    .engines
+                    .push(unreachable(candidate, "the check stopped early".into()));
             }
         }
     }
@@ -4355,6 +4429,15 @@ async fn probe_all(candidates: Vec<Candidate>, timeout: Duration) -> DockerRepor
                 "docker_not_answering",
                 "Docker didn't answer in time. It may still be starting; try again in a moment.",
             )
+        } else if let Some(endpoint) = denied {
+            note(
+                "docker_unavailable",
+                &format!(
+                    "Harbormap couldn't check Docker: permission denied on {endpoint}. Your user may need access to the Docker socket."
+                ),
+            )
+        } else if missing_only && !installed {
+            not_installed()
         } else {
             not_running()
         });
@@ -4362,12 +4445,15 @@ async fn probe_all(candidates: Vec<Candidate>, timeout: Duration) -> DockerRepor
     report
 }
 
-async fn probe_one(candidate: &Candidate) -> Result<(Engine, Vec<RawContainer>), String> {
+async fn probe_one(candidate: &Candidate) -> Result<(Engine, Vec<RawContainer>), ProbeError> {
     let docker = connect(&candidate.endpoint)?
         .negotiate_version()
         .await
-        .map_err(|error| error.to_string())?;
-    let info = docker.info().await.map_err(|error| error.to_string())?;
+        .map_err(|error| ProbeError::new(&error))?;
+    let info = docker
+        .info()
+        .await
+        .map_err(|error| ProbeError::new(&error))?;
     let key = info
         .id
         .clone()
@@ -4380,14 +4466,25 @@ async fn probe_one(candidate: &Candidate) -> Result<(Engine, Vec<RawContainer>),
             ..ListContainersOptions::default()
         }))
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| ProbeError::new(&error))?;
+    // Inspect several containers at once, so hundreds of stopped containers still fit
+    // in the time budget.
+    let mut ids = summaries.into_iter().filter_map(|summary| summary.id);
+    let mut tasks = JoinSet::new();
     let mut containers = Vec::new();
-    for summary in summaries {
-        let Some(container_id) = summary.id else {
-            continue;
+    loop {
+        while tasks.len() < PARALLEL_INSPECTS {
+            let Some(container_id) = ids.next() else {
+                break;
+            };
+            let docker = docker.clone();
+            tasks.spawn(async move { docker.inspect_container(&container_id, None).await });
+        }
+        let Some(done) = tasks.join_next().await else {
+            break;
         };
         // A container can disappear between listing and inspecting; skip it then.
-        if let Ok(inspect) = docker.inspect_container(&container_id, None).await
+        if let Ok(Ok(inspect)) = done
             && let Some(container) = convert::from_inspect(&id, inspect)
         {
             containers.push(container);
@@ -4405,13 +4502,40 @@ async fn probe_one(candidate: &Candidate) -> Result<(Engine, Vec<RawContainer>),
     Ok((engine, containers))
 }
 
-fn connect(endpoint: &str) -> Result<Docker, String> {
+fn connect(endpoint: &str) -> Result<Docker, ProbeError> {
     let docker = if endpoint.starts_with("tcp://") || endpoint.starts_with("http://") {
         Docker::connect_with_http(endpoint, REQUEST_TIMEOUT_SECS, API_DEFAULT_VERSION)
     } else {
-        connect_local(endpoint)?
+        connect_local(endpoint).map_err(|text| ProbeError { text, kind: None })?
     };
-    docker.map_err(|error| error.to_string())
+    docker.map_err(|error| ProbeError::new(&error))
+}
+
+/// The error with its causes, so the OS reason ("permission denied") is not lost.
+fn describe(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut text = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        let cause_text = cause.to_string();
+        if !text.contains(&cause_text) {
+            text.push_str(": ");
+            text.push_str(&cause_text);
+        }
+        source = cause.source();
+    }
+    text
+}
+
+/// The kind of the first I/O error among the causes.
+fn io_kind(error: &(dyn std::error::Error + 'static)) -> Option<ErrorKind> {
+    let mut current: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(cause) = current {
+        if let Some(io) = cause.downcast_ref::<std::io::Error>() {
+            return Some(io.kind());
+        }
+        current = cause.source();
+    }
+    None
 }
 
 #[cfg(unix)]
@@ -4456,6 +4580,13 @@ fn unreachable(candidate: &Candidate, error: String) -> Engine {
         reachable: false,
         error: Some(error),
     }
+}
+
+fn not_installed() -> Note {
+    note(
+        "docker_not_installed",
+        "Docker isn't installed, so there are no containers to show.",
+    )
 }
 
 fn not_running() -> Note {
@@ -7155,6 +7286,72 @@ fn project_services_get_names_frameworks_and_process_trees() {
     let feature_web = service(&snapshot, "web", FEATURE);
     assert_eq!(feature_web.ports, vec![5174]);
     assert_ne!(feature_web.id, web.id);
+
+    // One script that starts two servers gives two services, and a server inside another
+    // service's process tree is its own service.
+    let mut busy = scenario();
+    let process = |pid: u32, ppid: u32, exe: &str, argv: &[&str], cwd: &str| -> RawProcess {
+        serde_json::from_value(serde_json::json!({
+            "pid": pid, "ppid": ppid, "start_time": 1760490000, "name": exe,
+            "exe": format!("/usr/bin/{exe}"), "argv": argv,
+            "cwd": format!("{SHOP}/{cwd}"), "uid": "501", "user": "me",
+        }))
+        .unwrap()
+    };
+    let socket = |port: u16, pid: u32| -> RawListener {
+        serde_json::from_value(serde_json::json!({
+            "proto": "tcp", "addr": "127.0.0.1", "port": port, "pids": [pid],
+        }))
+        .unwrap()
+    };
+    busy.inventory.processes.extend([
+        process(1400, 500, "npm", &["npm run both"], "apps/web"),
+        process(
+            1401,
+            1400,
+            "sh",
+            &["sh", "-c", "vite --port 5176 & uvicorn main:app"],
+            "apps/web",
+        ),
+        process(
+            1402,
+            1401,
+            "node",
+            &["node", "node_modules/.bin/vite", "--port", "5176"],
+            "apps/web",
+        ),
+        process(
+            1403,
+            1401,
+            "python3",
+            &["python3", "-m", "uvicorn", "main:app", "--port", "8001"],
+            "apps/api",
+        ),
+        process(805, 802, "mystery-server", &["mystery-server"], "apps/web"),
+    ]);
+    busy.inventory
+        .listeners
+        .extend([socket(5176, 1402), socket(8001, 1403), socket(7777, 805)]);
+    let snapshot = resolve(&busy);
+    let owner_service = |port: u16| {
+        let id = listener(&snapshot, port).service_id.clone().unwrap();
+        snapshot
+            .services
+            .iter()
+            .find(|service| service.id == id)
+            .unwrap()
+    };
+    assert_eq!(owner_service(5176).signature.as_deref(), Some("vite"));
+    assert_eq!(owner_service(8001).signature.as_deref(), Some("fastapi"));
+    assert_ne!(owner_service(5176).id, owner_service(8001).id);
+    assert!(matches!(
+        owner_service(7777).source,
+        ServiceSource::Process { main_pid: 805, ref pids, .. } if pids == &vec![805]
+    ));
+    assert!(matches!(
+        &service(&snapshot, "web", SHOP).source,
+        ServiceSource::Process { pids, .. } if pids == &vec![800, 801, 802]
+    ));
 }
 
 #[test]
@@ -7899,16 +8096,6 @@ impl<'a> Resolver<'a> {
                 owner_ports.entry(*pid).or_default().insert(listener.port);
             }
         }
-        for (pid, ports) in owner_ports {
-            if !self.can_be_service(pid) {
-                continue;
-            }
-            let root = self.service_root(pid);
-            let draft = by_root
-                .entry(root)
-                .or_insert_with(|| self.process_draft(pid, root));
-            draft.ports.extend(ports);
-        }
         // Background workers have no ports but are services too.
         let workers: Vec<u32> = self
             .places
@@ -7920,6 +8107,24 @@ impl<'a> Resolver<'a> {
                     .is_some_and(|found| found.signature.kind == Kind::Worker)
             })
             .collect();
+        // Every program that is a service of its own; a wrapper they share belongs to
+        // none of them.
+        let mut owners: BTreeSet<u32> = owner_ports
+            .keys()
+            .copied()
+            .filter(|pid| self.can_be_service(*pid))
+            .collect();
+        owners.extend(workers.iter().copied());
+        for (pid, ports) in owner_ports {
+            if !self.can_be_service(pid) {
+                continue;
+            }
+            let root = self.service_root(pid, &owners);
+            let draft = by_root
+                .entry(root)
+                .or_insert_with(|| self.process_draft(pid, root));
+            draft.ports.extend(ports);
+        }
         let mut covered: BTreeSet<u32> = BTreeSet::new();
         for root in by_root.keys() {
             covered.extend(self.descendants(*root));
@@ -7930,17 +8135,24 @@ impl<'a> Resolver<'a> {
             if covered.contains(&pid) {
                 continue;
             }
-            let root = self.service_root(pid);
+            let root = self.service_root(pid, &owners);
             covered.extend(self.descendants(root));
             by_root
                 .entry(root)
                 .or_insert_with(|| self.process_draft(pid, root));
         }
 
+        let roots: BTreeSet<u32> = by_root.keys().copied().collect();
         let mut drafts: Vec<Draft<'a>> = by_root.into_values().collect();
         for draft in &mut drafts {
             if let DraftSource::Process { main, root, pids } = &mut draft.source {
-                *pids = self.descendants(*root);
+                // A process belongs to the nearest service root above it, so a server
+                // inside another service's tree is counted once, in its own service.
+                *pids = self
+                    .descendants(*root)
+                    .into_iter()
+                    .filter(|pid| self.nearest_root(*pid, &roots) == Some(*root))
+                    .collect();
                 let (main, place) = (*main, draft.place.clone());
                 draft.base_name = self.process_service_name(main, place.as_ref(), draft.signature);
             }
@@ -7994,8 +8206,11 @@ impl<'a> Resolver<'a> {
         })
     }
 
-    /// Walks up through wrappers and same-signature parents inside the same project.
-    fn service_root(&self, pid: u32) -> u32 {
+    /// Walks up through wrappers and same-signature parents inside the same project, but
+    /// not into a parent whose tree also holds another service's program: two servers
+    /// started by one script stay two services.
+    fn service_root(&self, pid: u32, owners: &BTreeSet<u32>) -> u32 {
+        let own: BTreeSet<u32> = self.descendants(pid).into_iter().collect();
         let mut current = pid;
         for _ in 0..16 {
             let Some(parent) = self.procs[&current]
@@ -8016,9 +8231,28 @@ impl<'a> Resolver<'a> {
             {
                 break;
             }
+            let shared = self
+                .descendants(parent.pid)
+                .into_iter()
+                .any(|other| owners.contains(&other) && !own.contains(&other));
+            if shared {
+                break;
+            }
             current = parent.pid;
         }
         current
+    }
+
+    /// The service root at `pid` or nearest above it.
+    fn nearest_root(&self, pid: u32, roots: &BTreeSet<u32>) -> Option<u32> {
+        let mut current = pid;
+        for _ in 0..64 {
+            if roots.contains(&current) {
+                return Some(current);
+            }
+            current = self.procs.get(&current)?.ppid?;
+        }
+        None
     }
 
     /// The project's own programs (servers, databases, workers) are named after their
@@ -10071,6 +10305,27 @@ fn stdout(args: &[&str]) -> String {
     String::from_utf8(output).unwrap()
 }
 
+/// Runs harbormap on a copy of the shop scenario changed by `edit`.
+fn run_patched(edit: impl FnOnce(&mut serde_json::Value), args: &[&str]) -> std::process::Output {
+    let mut scenario: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture()).unwrap()).unwrap();
+    edit(&mut scenario);
+    // Tests run in parallel: every copy gets its own file.
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let number = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path =
+        std::env::temp_dir().join(format!("hm-scenario-{}-{number}.json", std::process::id()));
+    std::fs::write(&path, scenario.to_string()).unwrap();
+    let output = Command::cargo_bin("harbormap")
+        .unwrap()
+        .env("HARBORMAP_FIXTURE", &path)
+        .args(args)
+        .output()
+        .unwrap();
+    std::fs::remove_file(&path).unwrap();
+    output
+}
+
 /// Compares line by line first, so a failure points at the first differing line.
 fn same_text(actual: &str, expected: &str) {
     for (number, (a, e)) in actual.lines().zip(expected.lines()).enumerate() {
@@ -10092,6 +10347,33 @@ fn prints_its_version() {
 #[test]
 fn status_shows_the_project_first_and_summarises_the_rest() {
     same_text(&stdout(&["status"]), STATUS);
+
+    // When only a linked worktree runs something, its heading still says which one.
+    let output = run_patched(
+        |scenario| {
+            let inventory = &mut scenario["inventory"];
+            let main_only = [5173, 8000, 5280, 55432];
+            inventory["listeners"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|listener| !main_only.contains(&listener["port"].as_u64().unwrap()));
+            inventory["processes"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|process| process["pid"] != 970);
+            inventory["containers"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|container| container["name"] != "shop-db-1");
+        },
+        &["status"],
+    );
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        text.starts_with("shop  ~/code/shop · main\n  feature/login  ~/code/shop-feature\n    web"),
+        "{text}"
+    );
 }
 
 #[test]
@@ -10120,13 +10402,13 @@ fn status_json_is_the_snapshot() {
 
 const STATUS: &str = r#"shop  ~/code/shop · main
   main  ~/code/shop
-    Billing          ASP.NET Core  :5280   running · pid 951   http://localhost:5280
-    db               PostgreSQL    :55432  running · healthy · container shop-db-1
-    shop-api         FastAPI       :8000   running · pid 900   http://localhost:8000
-    shop-api-celery  Celery        –       running · pid 970
-    web              Vite          :5173   running · pid 802   http://localhost:5173
+    Billing          ASP.NET Core       :5280   running · pid 951   http://localhost:5280
+    db               PostgreSQL         :55432  running · healthy · container shop-db-1
+    shop-api         FastAPI, probably  :8000   running · pid 900   http://localhost:8000
+    shop-api-celery  Celery             –       running · pid 970
+    web              Vite               :5173   running · pid 802   http://localhost:5173
   feature/login  ~/code/shop-feature
-    web              Vite          :5174   running · pid 1300   http://localhost:5174
+    web              Vite               :5174   running · pid 1300   http://localhost:5174
 
 Also on this computer: 2 services elsewhere (read-only) and 6 system or unknown ports.
 Run `harbormap status --machine` to list them.
@@ -10137,13 +10419,13 @@ Note: 1 listening port belongs to a program Harbormap can't see without admin ri
 
 const STATUS_MACHINE: &str = r#"shop  ~/code/shop · main
   main  ~/code/shop
-    Billing          ASP.NET Core  :5280   running · pid 951   http://localhost:5280
-    db               PostgreSQL    :55432  running · healthy · container shop-db-1
-    shop-api         FastAPI       :8000   running · pid 900   http://localhost:8000
-    shop-api-celery  Celery        –       running · pid 970
-    web              Vite          :5173   running · pid 802   http://localhost:5173
+    Billing          ASP.NET Core       :5280   running · pid 951   http://localhost:5280
+    db               PostgreSQL         :55432  running · healthy · container shop-db-1
+    shop-api         FastAPI, probably  :8000   running · pid 900   http://localhost:8000
+    shop-api-celery  Celery             –       running · pid 970
+    web              Vite               :5173   running · pid 802   http://localhost:5173
   feature/login  ~/code/shop-feature
-    web              Vite          :5174   running · pid 1300   http://localhost:5174
+    web              Vite               :5174   running · pid 1300   http://localhost:5174
 
 Elsewhere on this computer (read-only)
   blog  ~/code/blog
@@ -10274,33 +10556,57 @@ Create `crates/harbormap/src/status.rs`. `--json` always prints the full snapsho
 //! of everything else — or, with `--machine`, the full list.
 
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::Path;
 use std::process::ExitCode;
 
-use hm_core::model::{Project, Section, Service, ServiceSource, Snapshot};
+use hm_core::model::{Confidence, Project, Section, Service, ServiceSource, Snapshot};
 use hm_doctor::render::tilde;
 
 use crate::cli::StatusArgs;
 use crate::source::Input;
 
 pub fn run(input: &Input, args: &StatusArgs, json: bool) -> anyhow::Result<ExitCode> {
-    if json {
-        println!("{}", serde_json::to_string_pretty(&input.snapshot)?);
+    let text = if json {
+        format!("{}\n", serde_json::to_string_pretty(&input.snapshot)?)
     } else {
-        print!(
-            "{}",
-            render(&input.snapshot, input.home.as_deref(), args.machine)
-        );
-    }
+        render(&input.snapshot, input.home.as_deref(), args.machine)
+    };
+    write_stdout(&text)?;
     Ok(ExitCode::SUCCESS)
+}
+
+/// Text from other programs (names, arguments, paths) for a terminal: control characters
+/// and bidirectional overrides become U+FFFD, so they cannot move the cursor, retitle the
+/// window or forge a line.
+pub fn printable(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            let unsafe_char = c.is_control()
+                || matches!(c, '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}');
+            if unsafe_char { '\u{FFFD}' } else { c }
+        })
+        .collect()
+}
+
+/// Writes to stdout. A reader that stops early (`| head`) is not an error.
+pub fn write_stdout(text: &str) -> std::io::Result<()> {
+    let mut stdout = std::io::stdout().lock();
+    match stdout
+        .write_all(text.as_bytes())
+        .and_then(|()| stdout.flush())
+    {
+        Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        other => other,
+    }
 }
 
 pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String {
     let mut out = String::new();
+    // Without an opened project, the snapshot's note says so; the rest is the computer.
     let opened = snapshot.projects.iter().find(|project| project.opened);
-    match opened {
-        Some(project) => project_block(&mut out, snapshot, project, home),
-        None => out.push_str("Not inside a project folder, so here is the whole computer.\n"),
+    if let Some(project) = opened {
+        project_block(&mut out, snapshot, project, home);
     }
 
     let elsewhere: Vec<&Service> = snapshot
@@ -10311,11 +10617,11 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
     let system = system_groups(snapshot);
     if machine || opened.is_none() {
         if !elsewhere.is_empty() {
-            out.push('\n');
+            separate(&mut out);
             elsewhere_block(&mut out, snapshot, &elsewhere, home);
         }
         if !system.is_empty() {
-            out.push('\n');
+            separate(&mut out);
             out.push_str("System & unknown\n");
             let width = system
                 .iter()
@@ -10323,7 +10629,7 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
                 .max()
                 .unwrap_or(0);
             for (ports, label) in &system {
-                out.push_str(&format!("  {ports:<width$}  {label}\n"));
+                out.push_str(&format!("  {ports:<width$}  {}\n", printable(label)));
             }
         }
     } else if !elsewhere.is_empty() || !system.is_empty() {
@@ -10331,11 +10637,20 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
             .iter()
             .map(|(ports, _)| ports.split(' ').count())
             .sum();
-        out.push('\n');
+        let mut parts = Vec::new();
+        if !elsewhere.is_empty() {
+            parts.push(format!(
+                "{} elsewhere (read-only)",
+                plural(elsewhere.len(), "service")
+            ));
+        }
+        if system_ports > 0 {
+            parts.push(plural(system_ports, "system or unknown port"));
+        }
+        separate(&mut out);
         out.push_str(&format!(
-            "Also on this computer: {} elsewhere (read-only) and {}.\nRun `harbormap status --machine` to list them.\n",
-            plural(elsewhere.len(), "service"),
-            plural(system_ports, "system or unknown port"),
+            "Also on this computer: {}.\nRun `harbormap status --machine` to list them.\n",
+            parts.join(" and "),
         ));
     }
 
@@ -10349,7 +10664,10 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
         })
         .collect();
     if !engines.is_empty() {
-        out.push_str(&format!("\nDocker: {}\n", engines.join(", ")));
+        separate(&mut out);
+        out.push_str(&format!("Docker: {}\n", engines.join(", ")));
+    } else if !snapshot.notes.is_empty() {
+        separate(&mut out);
     }
     for note in &snapshot.notes {
         out.push_str(&format!("Note: {}\n", note.text));
@@ -10362,22 +10680,16 @@ fn project_block(out: &mut String, snapshot: &Snapshot, project: &Project, home:
         .worktrees
         .first()
         .and_then(|worktree| worktree.branch.as_deref());
+    let (name, root) = (
+        printable(&project.name),
+        printable(&tilde(&project.root, home)),
+    );
     match (project.git, branch) {
-        (true, Some(branch)) => out.push_str(&format!(
-            "{}  {} · {branch}\n",
-            project.name,
-            tilde(&project.root, home)
-        )),
-        (true, None) => out.push_str(&format!(
-            "{}  {}\n",
-            project.name,
-            tilde(&project.root, home)
-        )),
-        (false, _) => out.push_str(&format!(
-            "{}  {} (folder without git)\n",
-            project.name,
-            tilde(&project.root, home)
-        )),
+        (true, Some(branch)) => {
+            out.push_str(&format!("{name}  {root} · {}\n", printable(branch)));
+        }
+        (true, None) => out.push_str(&format!("{name}  {root}\n")),
+        (false, _) => out.push_str(&format!("{name}  {root} (folder without git)\n")),
     }
     let services: Vec<&Service> = snapshot
         .services
@@ -10411,7 +10723,8 @@ fn worktree_tables(
             .unwrap_or(0);
         by_worktree.entry(index).or_default().push(service);
     }
-    if by_worktree.len() == 1 {
+    // The worktree is named unless everything runs in the main one.
+    if by_worktree.len() == 1 && by_worktree.contains_key(&0) {
         table(out, snapshot, services, indent, widths);
         return;
     }
@@ -10420,8 +10733,9 @@ fn worktree_tables(
         let worktree = &project.worktrees[index];
         let label = worktree.branch.clone().unwrap_or_else(|| "detached".into());
         out.push_str(&format!(
-            "{indent}{label}  {}\n",
-            tilde(&worktree.path, home)
+            "{indent}{}  {}\n",
+            printable(&label),
+            printable(&tilde(&worktree.path, home))
         ));
         table(out, snapshot, &group, &nested, widths);
     }
@@ -10442,17 +10756,15 @@ fn elsewhere_block(
             .push(service);
     }
     let widths = widths(snapshot, services);
-    for (project_id, group) in &by_project {
-        let Some(project_id) = project_id else {
-            continue;
-        };
-        let Some(project) = snapshot.projects.iter().find(|p| p.id == *project_id) else {
+    // Projects in the snapshot's order, which is by name.
+    for project in &snapshot.projects {
+        let Some(group) = by_project.get(&Some(project.id.as_str())) else {
             continue;
         };
         out.push_str(&format!(
             "  {}  {}\n",
-            project.name,
-            tilde(&project.root, home)
+            printable(&project.name),
+            printable(&tilde(&project.root, home))
         ));
         worktree_tables(out, snapshot, project, group, home, "    ", widths);
     }
@@ -10523,11 +10835,16 @@ fn row(snapshot: &Snapshot, service: &Service) -> [String; 4] {
     if let Some(url) = service.urls.first() {
         state.push_str(&format!("   {url}"));
     }
+    let framework = match (&service.framework, service.confidence) {
+        (Some(framework), Confidence::Probably) => format!("{framework}, probably"),
+        (Some(framework), Confidence::Sure) => framework.clone(),
+        (None, _) => "–".into(),
+    };
     [
-        service.name.clone(),
-        service.framework.clone().unwrap_or_else(|| "–".into()),
+        printable(&service.name),
+        printable(&framework),
         ports,
-        state,
+        printable(&state),
     ]
 }
 
@@ -10563,6 +10880,13 @@ fn system_groups(snapshot: &Snapshot) -> Vec<(String, String)> {
             (ports, label)
         })
         .collect()
+}
+
+/// A blank line between blocks, but not before the first one.
+fn separate(out: &mut String) {
+    if !out.is_empty() {
+        out.push('\n');
+    }
 }
 
 fn plural(count: usize, noun: &str) -> String {
@@ -10667,6 +10991,25 @@ fn why_accepts_names_and_project_names() {
 #[test]
 fn why_prefers_the_worktree_it_was_started_in() {
     assert!(stdout(&["why", "web"]).starts_with(":5173 → web (Vite)\n"));
+
+    // A linked worktree inside the main one: the deepest worktree is where it started.
+    let nested = "/Users/me/code/shop/.worktrees/feature";
+    let output = run_patched(
+        |scenario| {
+            let text = scenario
+                .to_string()
+                .replace("/Users/me/code/shop-feature", nested);
+            *scenario = serde_json::from_str(&text).unwrap();
+            scenario["launch_dir"] = nested.into();
+        },
+        &["why", "web"],
+    );
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .starts_with(":5174 → web (Vite)\n")
+    );
 }
 
 #[test]
@@ -10688,6 +11031,46 @@ fn why_an_unknown_name_fails_with_a_hint() {
     harbormap(&["why", "nope"])
         .code(1)
         .stderr(contains("nothing called \"nope\" is running"));
+
+    // Two services with one name, neither where Harbormap started: each is named by port.
+    let output = run_patched(
+        |scenario| scenario["launch_dir"] = "/Users/me".into(),
+        &["why", "web"],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    let hint = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        hint.contains("harbormap why :5173   shop/web  (~/code/shop)"),
+        "{hint}"
+    );
+    assert!(
+        hint.contains("harbormap why :5174   shop/web  (~/code/shop-feature)"),
+        "{hint}"
+    );
+}
+
+#[test]
+fn why_prints_no_control_characters() {
+    // Names and arguments come from other programs; they must not drive the terminal.
+    let output = run_patched(
+        |scenario| {
+            for process in scenario["inventory"]["processes"].as_array_mut().unwrap() {
+                if process["pid"] == 802 {
+                    process["name"] = "node\u{1b}[31m".into();
+                    process["argv"][1] = "\u{1b}]0;pwned\u{7}".into();
+                }
+            }
+        },
+        &["why", "5173", "--level", "expert"],
+    );
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        !text.contains('\u{1b}') && !text.contains('\u{7}'),
+        "{text:?}"
+    );
+    assert!(text.contains("\u{FFFD}]0;pwned\u{FFFD}"), "{text:?}");
 }
 ```
 
@@ -10706,7 +11089,7 @@ const WHY_BEGINNER: &str = r#"Port 5173: web
 - [ ] **Step 2: Run the test to see it fail**
 
 Run: `cargo test -p harbormap --test cli`
-Expected: FAIL — `test result: FAILED. 5 passed; 6 failed`. The binary from Task 15 exits with code 2 and `error: unrecognized subcommand 'why'`.
+Expected: FAIL — `test result: FAILED. 5 passed; 7 failed`. The binary from Task 15 exits with code 2 and `error: unrecognized subcommand 'why'`.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -10728,6 +11111,7 @@ use hm_project::paths::within;
 
 use crate::cli::WhyArgs;
 use crate::source::Input;
+use crate::status::{printable, write_stdout};
 
 #[derive(Serialize)]
 struct WhyOutput<'a> {
@@ -10743,48 +11127,65 @@ pub fn run(input: &Input, args: &WhyArgs, json: bool, level: Level) -> anyhow::R
         level,
         home: input.home.as_deref(),
     };
-    let cards = match args.target.trim_start_matches(':').parse::<u16>() {
-        Ok(port) => port_cards(&ctx, port),
-        Err(_) => match find_service(input, &args.target) {
+    let target = printable(&args.target);
+    let digits = args.target.strip_prefix(':').unwrap_or(&args.target);
+    let cards = if !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        match digits.parse::<u16>() {
+            Ok(port) if port > 0 => port_cards(&ctx, port),
+            _ => {
+                eprintln!("harbormap: {target} is not a port number (1 to 65535).");
+                return Ok(ExitCode::from(1));
+            }
+        }
+    } else {
+        match find_service(input, &args.target) {
             Found::One(service) => vec![service_card(&ctx, service)],
             Found::None => {
                 eprintln!(
-                    "harbormap: nothing called \"{}\" is running. Run `harbormap status` to see the names.",
-                    args.target
+                    "harbormap: nothing called \"{target}\" is running. Run `harbormap status` to see the names."
                 );
                 return Ok(ExitCode::from(1));
             }
             Found::Many(services) => {
                 eprintln!(
-                    "harbormap: several services are called \"{}\". Use one of:",
-                    args.target
+                    "harbormap: several services are called \"{target}\". Ask for one by its port:"
                 );
                 for service in services {
-                    eprintln!("  {}", qualified_name(input, service));
+                    let ports: Vec<String> = service
+                        .ports
+                        .iter()
+                        .map(|port| format!(":{port}"))
+                        .collect();
+                    let name = printable(&qualified_name(input, service));
+                    match ports.first() {
+                        Some(port) => eprintln!("  harbormap why {port}   {name}"),
+                        None => eprintln!("  {name}"),
+                    }
                 }
                 return Ok(ExitCode::from(1));
             }
-        },
+        }
     };
-    if json {
+    let text = if json {
         let output = WhyOutput {
             target: &args.target,
             cards,
         };
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        format!("{}\n", serde_json::to_string_pretty(&output)?)
     } else {
         let blocks: Vec<String> = cards
             .iter()
             .map(|card| {
-                let mut block = format!("{}\n", card.title);
+                let mut block = format!("{}\n", printable(&card.title));
                 for line in &card.lines {
-                    block.push_str(&format!("  {line}\n"));
+                    block.push_str(&format!("  {}\n", printable(line)));
                 }
                 block
             })
             .collect();
-        print!("{}", blocks.join("\n"));
-    }
+        blocks.join("\n")
+    };
+    write_stdout(&text)?;
     Ok(ExitCode::SUCCESS)
 }
 
@@ -10813,6 +11214,10 @@ fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
             None => true,
         })
         .collect();
+    // `Web` and `web` can both exist; the exact spelling wins.
+    if matches.len() > 1 && matches.iter().any(|service| service.name == name) {
+        matches.retain(|service| service.name == name);
+    }
     if matches.len() > 1 {
         let in_project: Vec<&Service> = matches
             .iter()
@@ -10825,7 +11230,7 @@ fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
     }
     if matches.len() > 1 {
         let windows = input.snapshot.host.os == "windows";
-        let here: Vec<&Service> = matches
+        let mut here: Vec<&Service> = matches
             .iter()
             .copied()
             .filter(|service| {
@@ -10835,6 +11240,19 @@ fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
                     .is_some_and(|worktree| within(&input.launch_dir, worktree, windows))
             })
             .collect();
+        // A worktree can sit inside another; the deepest one is where Harbormap started.
+        let deepest = here
+            .iter()
+            .filter_map(|service| service.worktree.as_deref())
+            .map(|worktree| worktree.as_os_str().len())
+            .max();
+        here.retain(|service| {
+            service
+                .worktree
+                .as_deref()
+                .map(|worktree| worktree.as_os_str().len())
+                == deepest
+        });
         if here.len() == 1 {
             matches = here;
         }
@@ -10857,14 +11275,13 @@ fn project_of<'a>(input: &'a Input, service: &Service) -> Option<&'a str> {
 }
 
 fn qualified_name(input: &Input, service: &Service) -> String {
-    let project = project_of(input, service).unwrap_or("(no project)");
+    let name = match project_of(input, service) {
+        Some(project) => format!("{project}/{}", service.name),
+        None => service.name.clone(),
+    };
     match &service.worktree {
-        Some(worktree) => format!(
-            "{project}/{}  ({})",
-            service.name,
-            tilde(worktree, input.home.as_deref())
-        ),
-        None => format!("{project}/{}", service.name),
+        Some(worktree) => format!("{name}  ({})", tilde(worktree, input.home.as_deref())),
+        None => name,
     }
 }
 ```
@@ -11012,7 +11429,7 @@ pub fn load() -> anyhow::Result<Input> {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p harbormap --test cli`
-Expected: PASS — `test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`
+Expected: PASS — `test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`
 
 - [ ] **Step 5: Commit**
 
@@ -11932,7 +12349,7 @@ Change it back to `"e2e-vite"` and run the same command again: PASS.
 
 - [ ] **Step 9: Run the harness in CI**
 
-The `e2e` job runs after `test` passes, on all three runners. Only the Linux runner can run the Postgres container (macOS runners have no Docker, and Windows runners only run Windows containers), so `HM_E2E_DOCKER=1` is set there only.
+The `e2e` job runs after `test` passes, on all three runners. The workflow now also passes `--locked` to clippy, the tests and cargo-deny, so CI builds exactly the committed `Cargo.lock` and fails when it is out of date. Only the Linux runner can run the Postgres container (macOS runners have no Docker, and Windows runners only run Windows containers), so `HM_E2E_DOCKER=1` is set there only.
 
 Replace the whole content of `.github/workflows/ci.yml` with:
 
@@ -11989,8 +12406,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      # --locked: CI builds exactly the committed Cargo.lock and fails if it is stale.
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
 
   deny:
     runs-on: ubuntu-24.04
@@ -11999,9 +12417,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      # Runs `cargo deny --all-features check` (advisories, bans, licenses and
+      # Runs `cargo deny --all-features --locked check` (advisories, bans, licenses and
       # sources) with deny.toml from the repository root.
       - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          arguments: --all-features --locked
 
   e2e:
     # Starts real dev servers, so it runs only after the unit tests pass.
@@ -12054,7 +12474,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: echo "HM_E2E_DOCKER=1" >> "$GITHUB_ENV"
-      - run: cargo test -p harbormap --test e2e -- --ignored --nocapture
+      - run: cargo test --locked -p harbormap --test e2e -- --ignored --nocapture
 ```
 
 - [ ] **Step 10: Run the workspace checks**
@@ -12066,7 +12486,7 @@ Run: `cargo clippy --workspace --all-targets -- -D warnings`
 Expected: ``Finished `dev` profile [unoptimized + debuginfo] target(s)`` with no warnings.
 
 Run: `cargo test --workspace`
-Expected: PASS — 98 tests pass across the workspace (on Windows 95, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
+Expected: PASS — 99 tests pass across the workspace (on Windows 96, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
 
 Run: `git status --short`
 Expected: only the files of this task. `node_modules/`, `.venv/`, `bin/` and `obj/` under `tests/e2e/apps` are ignored.
