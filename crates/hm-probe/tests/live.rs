@@ -1,0 +1,87 @@
+//! Probes the real machine: sockets and processes this test creates must show up.
+
+use std::process::{Child, Command};
+use std::time::{Duration, Instant};
+
+use hm_probe::processes::read_processes;
+
+/// Spawned by other tests as a long-lived child; does nothing when run normally.
+#[test]
+#[ignore = "helper process for other tests"]
+fn child_sleeper() {
+    if std::env::var_os("HM_CHILD").is_some() {
+        std::thread::sleep(Duration::from_secs(30));
+    }
+}
+
+struct KillOnDrop(Child);
+
+impl Drop for KillOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn spawn_child(cwd: &std::path::Path) -> KillOnDrop {
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args(["child_sleeper", "--exact", "--ignored", "--nocapture"])
+        .current_dir(cwd)
+        .env("HM_CHILD", "1")
+        .env("PORT", "5999")
+        .env("DATABASE_URL", "postgres://app:pw12345@db.local:5432/shop")
+        .env("HM_TEST_SECRET", "topsecret123")
+        .spawn()
+        .unwrap();
+    KillOnDrop(child)
+}
+
+fn wait_until<T>(mut check: impl FnMut() -> Option<T>) -> T {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Some(value) = check() {
+            return value;
+        }
+        assert!(Instant::now() < deadline, "condition not met within 10 s");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+#[test]
+fn processes_include_cwd_and_env_facts_but_no_secret_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let child = spawn_child(dir.path());
+    let pid = child.0.id();
+    let process = wait_until(|| {
+        read_processes()
+            .processes
+            .into_iter()
+            .find(|process| process.pid == pid && process.cwd.is_some())
+    });
+    assert_eq!(
+        dunce::canonicalize(process.cwd.as_ref().unwrap()).unwrap(),
+        dunce::canonicalize(dir.path()).unwrap()
+    );
+    assert!(
+        process
+            .env
+            .names
+            .iter()
+            .any(|name| name == "HM_TEST_SECRET")
+    );
+    assert!(
+        process
+            .env
+            .ports
+            .iter()
+            .any(|p| p.name == "PORT" && p.port == 5999)
+    );
+    assert!(
+        process.env.urls.iter().any(|url| url.name == "DATABASE_URL"
+            && url.host == "db.local"
+            && url.port == Some(5432))
+    );
+    let json = serde_json::to_string(&process).unwrap();
+    assert!(!json.contains("topsecret123"));
+    assert!(!json.contains("pw12345"));
+}
