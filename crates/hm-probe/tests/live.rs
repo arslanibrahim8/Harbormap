@@ -1,8 +1,10 @@
 //! Probes the real machine: sockets and processes this test creates must show up.
 
+use std::net::TcpListener;
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
+use hm_probe::listeners::read_listeners;
 use hm_probe::processes::read_processes;
 
 /// Spawned by other tests as a long-lived child; does nothing when run normally.
@@ -45,6 +47,23 @@ fn wait_until<T>(mut check: impl FnMut() -> Option<T>) -> T {
         assert!(Instant::now() < deadline, "condition not met within 10 s");
         std::thread::sleep(Duration::from_millis(100));
     }
+}
+
+#[test]
+fn listeners_include_a_socket_this_process_holds() {
+    let socket = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = socket.local_addr().unwrap().port();
+    let listeners = read_listeners().unwrap();
+    let ours = listeners
+        .iter()
+        .find(|listener| listener.port == port)
+        .expect("our port is listed");
+    assert_eq!(ours.addr, "127.0.0.1".parse::<std::net::IpAddr>().unwrap());
+    assert!(
+        ours.pids.contains(&std::process::id()),
+        "pids: {:?}",
+        ours.pids
+    );
 }
 
 #[test]
