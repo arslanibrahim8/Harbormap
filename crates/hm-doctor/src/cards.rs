@@ -29,9 +29,9 @@ pub struct CardContext<'a> {
     pub home: Option<&'a Path>,
 }
 
-/// Cards for everything listening on `port`. When nothing listens but a container
-/// publishes the port (Docker without a userland proxy), that container's card is
-/// returned; otherwise a "free" card.
+/// Cards for everything listening on `port`. When nothing listens but a service claims
+/// the port (a container Docker publishes without a userland proxy), that service's card
+/// is returned; otherwise a "free" card.
 pub fn port_cards(ctx: &CardContext<'_>, port: u16) -> Vec<Card> {
     let mut groups: Vec<(&Owner, Vec<&Listener>)> = Vec::new();
     for listener in ctx.snapshot.listeners.iter().filter(|l| l.port == port) {
@@ -139,7 +139,7 @@ fn service_card_at(
     listeners: &[&Listener],
 ) -> Card {
     let mut facts = socket_facts(ctx, port, listeners);
-    add_service_facts(ctx, &mut facts, service);
+    add_service_facts(ctx, &mut facts, service, port);
     let lines = match &service.source {
         ServiceSource::Process { main_pid, pids, .. } => {
             if let Some(process) = find_process(ctx, *main_pid) {
@@ -202,10 +202,14 @@ fn socket_facts(ctx: &CardContext<'_>, port: Option<u16>, listeners: &[&Listener
             })
             .collect();
         facts.insert("addr", addrs.join(", "));
-        let scope = match listeners[0].bind {
-            hm_core::model::BindScope::Loopback => "loopback",
-            hm_core::model::BindScope::All => "all",
-            hm_core::model::BindScope::Specific => "specific",
+        // One card covers every socket of its owner, so it states the widest reach.
+        let reaches = |scope| listeners.iter().any(|listener| listener.bind == scope);
+        let scope = if reaches(hm_core::model::BindScope::All) {
+            "all"
+        } else if reaches(hm_core::model::BindScope::Specific) {
+            "specific"
+        } else {
+            "loopback"
         };
         if let Some(reach) = ctx.texts.reach.get(scope) {
             facts.insert("reach", reach.get(ctx.level).to_string());
@@ -214,7 +218,12 @@ fn socket_facts(ctx: &CardContext<'_>, port: Option<u16>, listeners: &[&Listener
     facts
 }
 
-fn add_service_facts(ctx: &CardContext<'_>, facts: &mut Facts, service: &Service) {
+fn add_service_facts(
+    ctx: &CardContext<'_>,
+    facts: &mut Facts,
+    service: &Service,
+    port: Option<u16>,
+) {
     facts.insert("name", service.name.clone());
     if let Some(framework) = &service.framework {
         let framework = match service.confidence {
@@ -235,7 +244,14 @@ fn add_service_facts(ctx: &CardContext<'_>, facts: &mut Facts, service: &Service
     );
     facts.insert("role", snake(&service.role));
     facts.insert("kind", snake(&service.kind));
-    if let Some(url) = service.urls.first() {
+    // The URL of the port asked about, else the service's first one.
+    let url = port
+        .and_then(|port| {
+            let suffix = format!(":{port}");
+            service.urls.iter().find(|url| url.ends_with(&suffix))
+        })
+        .or_else(|| service.urls.first());
+    if let Some(url) = url {
         facts.insert("url", url.clone());
     }
     add_signature_text(ctx, facts, service.signature.as_deref(), service.confidence);

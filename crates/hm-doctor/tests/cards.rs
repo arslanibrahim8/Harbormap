@@ -69,6 +69,46 @@ fn builders_see_the_process_folder_and_environment() {
         card.lines
             .contains(&"Talks to: VITE_API_URL → http://localhost:8000".to_string())
     );
+
+    // One card covers both sockets of a program and states the wider reach.
+    let mut wide = snapshot();
+    let mut all = wide
+        .listeners
+        .iter()
+        .find(|listener| listener.port == 5173)
+        .unwrap()
+        .clone();
+    all.addr = "::".parse().unwrap();
+    all.bind = BindScope::All;
+    wide.listeners.push(all);
+    let card = one(&wide, 5173, Level::Builder);
+    assert!(
+        card.lines
+            .contains(&"Listening on [::1]:5173, [::]:5173 (every network interface).".to_string())
+    );
+
+    // A service on two ports links the one asked about.
+    let mut two = snapshot();
+    let mut debug = two
+        .listeners
+        .iter()
+        .find(|listener| listener.port == 8000)
+        .unwrap()
+        .clone();
+    debug.port = 9229;
+    two.listeners.push(debug);
+    let api = two
+        .services
+        .iter_mut()
+        .find(|service| service.name == "shop-api")
+        .unwrap();
+    api.ports.push(9229);
+    api.urls.push("http://localhost:9229".into());
+    let card = one(&two, 9229, Level::Builder);
+    assert!(
+        card.lines
+            .contains(&"Open: http://localhost:9229".to_string())
+    );
 }
 
 #[test]
@@ -112,6 +152,14 @@ fn a_compose_database_is_described_as_a_container() {
         beginner
             .lines
             .contains(&"Docker says it is healthy.".to_string())
+    );
+
+    // Without a health check the container line still says what runs.
+    let redis = one(&snapshot(), 6380, Level::Builder);
+    assert!(
+        redis
+            .lines
+            .contains(&"Container lonely-redis from image redis:7: running.".to_string())
     );
 }
 
