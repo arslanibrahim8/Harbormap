@@ -19,14 +19,14 @@ pub struct EnvFacts {
     pub urls: Vec<EnvUrl>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct EnvPort {
     pub name: String,
     pub port: u16,
 }
 
 /// A URL-like value reduced to where it points.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct EnvUrl {
     pub name: String,
     /// Empty when the value had no scheme (for example `DB_HOST=db:5432`).
@@ -79,9 +79,10 @@ where
     }
     facts.names.sort();
     facts.names.dedup();
-    facts.ports.sort_by(|a, b| a.name.cmp(&b.name));
+    // Sorted by name first, then by value, so repeated names cannot change the order.
+    facts.ports.sort();
     facts.ports.dedup();
-    facts.urls.sort_by(|a, b| a.name.cmp(&b.name));
+    facts.urls.sort();
     facts.urls.dedup();
     facts
 }
@@ -96,7 +97,8 @@ where
         .into_iter()
         .filter_map(|entry| {
             let entry = entry.as_ref();
-            // Windows keeps hidden per-drive variables such as "=C:=C:\\"; skip them.
+            // Windows keeps hidden per-drive variables such as "=C:=C:\\". Their name is
+            // empty, so `extract` skips them.
             let (name, value) = entry.split_once('=')?;
             Some((name.to_string(), value.to_string()))
         })
@@ -123,11 +125,15 @@ fn parse_target(value: &str) -> Option<(String, String, Option<u16>)> {
             url.port_or_known_default(),
         ));
     }
-    // host, host:port or [v6]:port without a scheme.
-    let without_user = value.rsplit_once('@').map_or(value, |(_, rest)| rest);
-    let hostport = without_user.split('/').next()?;
+    // host, host:port or [v6]:port without a scheme. The authority ends at the first
+    // `/`, `?` or `#`, so an `@` in a path or query is never taken for userinfo.
+    let authority = value.split(['/', '?', '#']).next()?;
+    let hostport = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, rest)| rest);
     if let Some(rest) = hostport.strip_prefix('[') {
         let (host, after) = rest.split_once(']')?;
+        host.parse::<std::net::Ipv6Addr>().ok()?;
         let port = after.strip_prefix(':').and_then(|p| p.parse().ok());
         return Some((String::new(), host.to_string(), port));
     }
@@ -194,6 +200,9 @@ mod tests {
             ("API_HOST", "api.internal:8080"),
             ("DB_HOST", "db"),
             ("BROKEN_URL", "not a url"),
+            ("QUERY_URL", "localhost:5432/db?password=p@ss"),
+            ("V6_HOST", "[::1]:5432"),
+            ("BRACKET_HOST", "[hunter2 and more]"),
         ]);
         assert_eq!(
             facts.urls,
@@ -217,10 +226,22 @@ mod tests {
                     port: None
                 },
                 EnvUrl {
+                    name: "QUERY_URL".into(),
+                    scheme: String::new(),
+                    host: "localhost".into(),
+                    port: Some(5432)
+                },
+                EnvUrl {
                     name: "REDIS_URL".into(),
                     scheme: "redis".into(),
                     host: "cache".into(),
                     port: None
+                },
+                EnvUrl {
+                    name: "V6_HOST".into(),
+                    scheme: String::new(),
+                    host: "::1".into(),
+                    port: Some(5432)
                 },
             ]
         );
@@ -228,6 +249,8 @@ mod tests {
         assert!(!json.contains("s3cret"));
         assert!(!json.contains("pw"));
         assert!(!json.contains("sslmode"));
+        assert!(!json.contains("p@ss"));
+        assert!(!json.contains("hunter2"));
     }
 
     #[test]
@@ -246,8 +269,11 @@ mod tests {
             secret in "[A-Za-z]{3,10}[0-9][A-Za-z0-9]{4,20}",
         ) {
             let url = format!("postgres://{user}:{pass}@db.local:5432/app?token={secret}");
+            // Without a scheme, and with an `@` in the query.
+            let bare = format!("{user}:{pass}@db.local:5432/app?next=x@{secret}");
             let facts = extract([
                 ("DATABASE_URL", url.as_str()),
+                ("BARE_DSN", bare.as_str()),
                 ("API_TOKEN", secret.as_str()),
                 ("PASSWORD", pass.as_str()),
             ]);
