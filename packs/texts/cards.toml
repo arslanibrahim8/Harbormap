@@ -1,0 +1,172 @@
+# Sentences for `harbormap why` cards, one list per level. Licensed CC0-1.0.
+#
+# {fact} placeholders are filled from what Harbormap observed. A sentence whose fact
+# is missing is left out, so nothing is ever guessed. "a || b" uses b when a has a
+# missing fact. {what} is the signature's own text at the same level; {reach},
+# {health} and {guess} come from the tables at the end.
+
+# A program that belongs to a project.
+[process]
+title.beginner = "Port {port}: {name} || {name}"
+title.builder = ":{port} → {name} ({framework}) || {name} ({framework}) || {name}"
+title.expert = ":{port}/tcp → {name} [{signature}] || {name} [{signature}] || {name}"
+beginner = [
+  "{name} is part of the project {project}.",
+  "{what}",
+  "{guess}",
+  "Open it in your browser: {url}",
+  "{reach}",
+  "It has been running for {uptime}.",
+]
+builder = [
+  "{what}",
+  "{guess}",
+  "Process {process}, pid {pid}, started {uptime} ago by {user}.",
+  "Folder: {cwd_rel} (project {project}, branch {branch})",
+  "Listening on {addr} ({reach}).",
+  "Open: {url}",
+  "Port settings: {env_ports}",
+  "Talks to: {env_urls}",
+]
+expert = [
+  "Signature: {signature} ({confidence}) · role {role} · kind {kind}",
+  "{what}",
+  "Socket: {addr} ({reach}) · owner pid {pid} ({process})",
+  "Project: {project} ({project_id}) · worktree {worktree} ({branch})",
+  "argv: {argv}",
+  "exe: {exe}",
+  "cwd: {cwd}",
+  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss}",
+  "Service pids: {pids}",
+  "Env ports: {env_ports}",
+  "Env targets: {env_urls}",
+]
+
+# A container of a project, or a container outside any project.
+[container]
+title.beginner = "Port {port}: {name} || {name}"
+title.builder = ":{port} → {name} ({framework}) · Docker || {name} ({framework}) · Docker || {name} · Docker"
+title.expert = ":{port}/tcp → container {container} [{signature}] || container {container} [{signature}] || container {container}"
+beginner = [
+  "{name} is part of the project {project}. It runs inside Docker. || {name} runs inside Docker.",
+  "{what}",
+  "{health}",
+  "{reach}",
+]
+builder = [
+  "{what}",
+  "Container {container} from image {image}: {state}, {health}.",
+  "Ports: {mapping}",
+  "Engine: {engine}",
+  "Compose: service {compose_service} from {compose_files}",
+]
+expert = [
+  "Signature: {signature} ({confidence}) · role {role} · kind {kind}",
+  "{what}",
+  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc}",
+  "Ports: {mapping}",
+  "Networks: {networks}",
+  "Volumes: {volumes}",
+  "Compose project {compose_project}, service {compose_service}, files {compose_files}, working dir {working_dir}",
+  "Engine: {engine} at {engine_endpoint}",
+]
+
+# Added to items that belong to another project.
+[elsewhere]
+beginner = [
+  "This belongs to another project, {project} ({project_root}). Harbormap only shows it here. To manage it, open that folder and run harbormap there.",
+]
+builder = [
+  "Read-only here: it belongs to {project} at {project_root}. Run harbormap in that folder to manage it.",
+]
+expert = ["Read-only: project {project_id} at {project_root}."]
+
+# A program outside any project, such as a browser or an editor.
+[app]
+title.beginner = "Port {port}: {program}"
+title.builder = ":{port} → {program} (pid {pid})"
+title.expert = ":{port}/tcp → pid {pid} ({program})"
+beginner = [
+  "{program} is a program on your computer. It is not part of a project.",
+  "{what}",
+  "{reach}",
+]
+builder = [
+  "{what}",
+  "Program {program}, pid {pid}, user {user}; not part of a project.",
+  "Executable: {exe}",
+  "Listening on {addr} ({reach}).",
+]
+expert = [
+  "Signature: {signature}",
+  "{what}",
+  "Socket: {addr} ({reach}) · owner pid {pid} ({program}), user {user}",
+  "argv: {argv}",
+  "exe: {exe}",
+  "cwd: {cwd}",
+  "Started {started_utc} · ppid {ppid} ({parent})",
+]
+
+# The operating system or a container engine holds the port.
+[system]
+title.beginner = "Port {port}: {reason}"
+title.builder = ":{port} → {reason}"
+title.expert = ":{port}/tcp → {reason}"
+beginner = ["{reason} holds this port. It is part of your computer, not of your project.", "{what}"]
+builder = ["{what}", "Held by {reason} (pid {pid}, {program})."]
+expert = ["Socket: {addr} ({reach}) · system owner: {reason}", "{what}", "pid {pid} ({program}) · exe {exe}"]
+
+# The owner is not visible to Harbormap.
+[unknown]
+title.beginner = "Port {port}: a program Harbormap can't see"
+title.builder = ":{port} → unknown owner"
+title.expert = ":{port}/tcp → unknown owner"
+beginner = [
+  "Something is using this port, but Harbormap can't see which program: {reason}.",
+]
+builder = ["Owner not visible: {reason}."]
+expert = ["Socket: {addr} ({reach}) · owner unknown: {reason}"]
+
+# Nothing listens on the port.
+[free]
+title.beginner = "Port {port} is free"
+title.builder = ":{port} → free"
+title.expert = ":{port}/tcp → no listener"
+beginner = ["Nothing is using port {port} right now."]
+builder = [":{port} is free."]
+expert = [":{port}/tcp has no listener in this snapshot."]
+
+[reach.loopback]
+beginner = "Only this computer can open it."
+builder = "this computer only"
+expert = "loopback"
+
+[reach.all]
+beginner = "Other devices on your network can open it too."
+builder = "every network interface"
+expert = "all interfaces"
+
+[reach.specific]
+beginner = "It is reachable only through one network address of this computer."
+builder = "one network interface"
+expert = "specific interface"
+
+[health.healthy]
+beginner = "Docker says it is healthy."
+builder = "healthy"
+expert = "healthy"
+
+[health.unhealthy]
+beginner = "Docker says it is not healthy."
+builder = "unhealthy"
+expert = "unhealthy"
+
+[health.starting]
+beginner = "Docker says it is still starting."
+builder = "starting"
+expert = "starting"
+
+[guess]
+beginner = "Harbormap is guessing this from the project's files."
+builder = "Guessed from the project's dependencies (probably)."
+expert = "Match confidence: probably (inferred from dependencies)."
