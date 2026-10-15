@@ -2,6 +2,7 @@
 //! by `HARBORMAP_FIXTURE` instead of probing this computer.
 
 use assert_cmd::Command;
+use predicates::str::contains;
 
 fn fixture() -> String {
     format!(
@@ -70,6 +71,48 @@ fn status_json_is_the_snapshot() {
     );
 }
 
+#[test]
+fn why_a_port_explains_it_for_beginners() {
+    same_text(
+        &stdout(&["why", "5173", "--level", "beginner"]),
+        WHY_BEGINNER,
+    );
+}
+
+#[test]
+fn why_accepts_names_and_project_names() {
+    let by_port = stdout(&["why", "55432"]);
+    assert_eq!(stdout(&["why", "db"]), by_port);
+    assert_eq!(stdout(&["why", "shop/db"]), by_port);
+    assert!(by_port.starts_with(":55432 → db (PostgreSQL) · Docker\n"));
+}
+
+#[test]
+fn why_prefers_the_worktree_it_was_started_in() {
+    assert!(stdout(&["why", "web"]).starts_with(":5173 → web (Vite)\n"));
+}
+
+#[test]
+fn why_json_has_title_and_lines() {
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout(&["why", ":5000", "--json"])).unwrap();
+    assert_eq!(json["target"], ":5000");
+    assert_eq!(json["cards"][0]["title"], ":5000 → AirPlay Receiver");
+    assert!(json["cards"][0]["lines"].as_array().unwrap().len() >= 2);
+}
+
+#[test]
+fn why_a_free_port_says_so() {
+    assert_eq!(stdout(&["why", "4321"]), ":4321 → free\n  :4321 is free.\n");
+}
+
+#[test]
+fn why_an_unknown_name_fails_with_a_hint() {
+    harbormap(&["why", "nope"])
+        .code(1)
+        .stderr(contains("nothing called \"nope\" is running"));
+}
+
 const STATUS: &str = r#"shop  ~/code/shop · main
   main  ~/code/shop
     Billing          ASP.NET Core  :5280   running · pid 951   http://localhost:5280
@@ -112,4 +155,12 @@ System & unknown
 
 Docker: Docker Desktop 29.2.1
 Note: 1 listening port belongs to a program Harbormap can't see without admin rights.
+"#;
+
+const WHY_BEGINNER: &str = r#"Port 5173: web
+  web is part of the project shop.
+  This is the live preview of your website while you work on it. It updates as soon as you save a file.
+  Open it in your browser: http://localhost:5173
+  Only this computer can open it.
+  It has been running for 2 hours.
 "#;

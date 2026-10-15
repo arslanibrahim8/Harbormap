@@ -7,17 +7,24 @@ use std::path::PathBuf;
 use anyhow::Context;
 
 use hm_core::model::Snapshot;
+use hm_core::signature::SignatureSet;
+use hm_doctor::texts::CardTexts;
 use hm_probe::ProbeOptions;
 use hm_project::git::RealWorld;
 use hm_project::{ResolveInput, World, build_snapshot};
 
 pub struct Input {
     pub snapshot: Snapshot,
+    pub signatures: SignatureSet,
+    pub texts: CardTexts,
     pub home: Option<PathBuf>,
+    /// The folder Harbormap was started in.
+    pub launch_dir: PathBuf,
 }
 
 pub fn load() -> anyhow::Result<Input> {
     let packs = hm_doctor::packs::load_embedded();
+    let (texts, _) = hm_doctor::texts::load_embedded();
 
     #[cfg(debug_assertions)]
     if let Some(path) = std::env::var_os("HARBORMAP_FIXTURE") {
@@ -33,7 +40,10 @@ pub fn load() -> anyhow::Result<Input> {
         });
         return Ok(Input {
             snapshot,
+            signatures: packs.signatures,
+            texts,
             home: scenario.world.home.clone(),
+            launch_dir: scenario.launch_dir,
         });
     }
 
@@ -49,6 +59,9 @@ pub fn load() -> anyhow::Result<Input> {
     });
     Ok(Input {
         snapshot,
+        signatures: packs.signatures,
+        texts,
         home: world.home(),
+        launch_dir,
     })
 }

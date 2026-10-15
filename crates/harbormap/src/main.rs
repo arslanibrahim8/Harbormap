@@ -3,6 +3,7 @@
 mod cli;
 mod source;
 mod status;
+mod why;
 
 use std::process::ExitCode;
 
@@ -23,10 +24,12 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     let input = source::load()?;
+    let level = cli.level.into();
     match cli
         .command
         .unwrap_or(Command::Status(StatusArgs::default()))
     {
         Command::Status(args) => status::run(&input, &args, cli.json),
+        Command::Why(args) => why::run(&input, &args, cli.json, level),
     }
 }
