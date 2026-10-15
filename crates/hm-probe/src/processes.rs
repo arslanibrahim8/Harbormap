@@ -96,9 +96,9 @@ pub fn clean_cwd(cwd: &Path) -> PathBuf {
 /// On macOS, a process that renamed itself (node, which runs npm and Next.js, or perl)
 /// keeps its new title in argv[0] and blanks the rest of its original arguments. The
 /// argument reader skips the blanks and returns the first environment entries in their
-/// place, values included. Environment values must never leave the probe (spec §15), so
-/// a run of `NAME=value` or blank arguments at the end is dropped. Real argument lists
-/// rarely end that way, and dropping one loses only display detail.
+/// place, values included. Environment values must not leave the probe (spec §15), so a
+/// run of `name=value` or blank arguments at the end is dropped. Real argument lists
+/// rarely end that way; when one does, only that display detail is lost.
 fn drop_environment_tail(argv: &mut Vec<String>) {
     while argv
         .last()
@@ -108,11 +108,14 @@ fn drop_environment_tail(argv: &mut Vec<String>) {
     }
 }
 
-/// `NAME=value`, where NAME is a letter or `_` followed by letters, digits or `_`.
+/// `name=value` as an environment block holds it. Names are loose in practice
+/// (`BASH_FUNC_f%%`, `npm_config_@scope:registry`), so anything that is not an option
+/// (`--port=5173`) or a path or URL (`http://x/?a=b`) counts.
 fn is_environment_entry(arg: &str) -> bool {
     arg.split_once('=').is_some_and(|(name, _)| {
-        name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
-            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        !name.is_empty()
+            && !name.starts_with('-')
+            && !name.chars().any(|c| c.is_whitespace() || c == '/')
     })
 }
 
@@ -164,6 +167,16 @@ mod tests {
         let mut kept = vite.clone();
         drop_environment_tail(&mut kept);
         assert_eq!(kept, vite);
+
+        // Environment names need not be identifiers.
+        let mut odd = args(&[
+            "node",
+            "DB_PASS=hunter2",
+            "BASH_FUNC_ml%%=() { :; }",
+            "npm_config_@acme:registry=https://r.example/",
+        ]);
+        drop_environment_tail(&mut odd);
+        assert_eq!(odd, args(&["node"]));
     }
 
     fn args(list: &[&str]) -> Vec<String> {
