@@ -1,0 +1,72 @@
+{
+  "Id": "4f1c2a9e8b7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a3928170f6e5d4c",
+  "Created": "2026-10-15T07:00:01.987654321Z",
+  "Path": "docker-entrypoint.sh",
+  "Args": ["postgres"],
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 4242,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-15T07:00:03.123456789Z",
+    "FinishedAt": "0001-01-01T00:00:00Z",
+    "Health": {
+      "Status": "healthy",
+      "FailingStreak": 0,
+      "Log": []
+    }
+  },
+  "Image": "sha256:9d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e",
+  "Name": "/shop-db-1",
+  "RestartCount": 0,
+  "Mounts": [
+    {
+      "Type": "volume",
+      "Name": "shop_pgdata",
+      "Source": "/var/lib/docker/volumes/shop_pgdata/_data",
+      "Destination": "/var/lib/postgresql/data",
+      "Driver": "local",
+      "Mode": "z",
+      "RW": true,
+      "Propagation": ""
+    }
+  ],
+  "Config": {
+    "Hostname": "4f1c2a9e8b7d",
+    "Env": [
+      "POSTGRES_PASSWORD=example-secret",
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    ],
+    "Image": "postgres:16-alpine",
+    "Labels": {
+      "com.docker.compose.config-hash": "8c3e1f0a",
+      "com.docker.compose.container-number": "1",
+      "com.docker.compose.oneoff": "False",
+      "com.docker.compose.project": "shop",
+      "com.docker.compose.project.config_files": "/work/shop/compose.yaml",
+      "com.docker.compose.project.working_dir": "/work/shop",
+      "com.docker.compose.service": "db",
+      "org.opencontainers.image.version": "16.4"
+    }
+  },
+  "NetworkSettings": {
+    "Ports": {
+      "5432/tcp": [
+        { "HostIp": "0.0.0.0", "HostPort": "55432" },
+        { "HostIp": "::", "HostPort": "55432" }
+      ]
+    },
+    "Networks": {
+      "shop_default": {
+        "Aliases": ["shop-db-1", "db"],
+        "NetworkID": "a1b2c3",
+        "IPAddress": "172.18.0.2"
+      }
+    }
+  }
+}

@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use hm_probe::listeners::read_listeners;
 use hm_probe::processes::read_processes;
+use hm_probe::{ProbeOptions, probe};
 
 /// Spawned by other tests as a long-lived child; does nothing when run normally.
 #[test]
@@ -103,4 +104,23 @@ fn processes_include_cwd_and_env_facts_but_no_secret_values() {
     let json = serde_json::to_string(&process).unwrap();
     assert!(!json.contains("topsecret123"));
     assert!(!json.contains("pw12345"));
+}
+
+#[test]
+fn probe_reports_itself_and_its_socket() {
+    let socket = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = socket.local_addr().unwrap().port();
+    let inventory = probe(&ProbeOptions {
+        docker_timeout: Duration::from_secs(2),
+    });
+    assert_eq!(inventory.self_pid, std::process::id());
+    assert!(inventory.current_uid.is_some());
+    assert!(
+        inventory
+            .processes
+            .iter()
+            .any(|p| p.pid == inventory.self_pid)
+    );
+    assert!(inventory.listeners.iter().any(|l| l.port == port));
+    assert_eq!(inventory.os, std::env::consts::OS);
 }
