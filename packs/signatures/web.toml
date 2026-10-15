@@ -1,0 +1,170 @@
+# Front-end dev servers: what people see. Licensed CC0-1.0 (see packs/LICENSE).
+# Schema: crates/hm-core/src/signature.rs. Every entry needs at least one fixture.
+
+[[signature]]
+id = "vite"
+name = "Vite"
+role = "see"
+kind = "dev_server"
+default_port = 5173
+http = true
+[[signature.when]]
+argv_basename = ["vite"]
+[signature.texts]
+beginner = "This is the live preview of your website while you work on it. It updates as soon as you save a file."
+builder = "Vite dev server: serves the front end with hot module replacement. Default port 5173; when 5173 is busy it moves to the next free port unless server.strictPort is set."
+expert = "Vite dev server (native ESM, esbuild pre-bundling). Port from --port or server.port (default 5173), host from --host (default localhost)."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/apps/web/node_modules/.bin/vite", "--port", "5173"]
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "C:\\work\\shop\\node_modules\\vite\\bin\\vite.js"]
+
+[[signature]]
+id = "sveltekit"
+name = "SvelteKit"
+role = "see"
+kind = "dev_server"
+default_port = 5173
+http = true
+priority = 60
+[[signature.when]]
+argv_basename = ["vite"]
+package = ["@sveltejs/kit"]
+[signature.texts]
+beginner = "This is the live preview of your SvelteKit website. It updates as soon as you save a file."
+builder = "SvelteKit dev server (vite dev with the SvelteKit plugin). Default port 5173."
+expert = "SvelteKit on Vite; port from --port or server.port in vite.config (default 5173)."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/blog/node_modules/.bin/vite", "dev"]
+packages = ["@sveltejs/kit", "vite"]
+
+[[signature]]
+id = "next"
+name = "Next.js"
+role = "see"
+kind = "dev_server"
+default_port = 3000
+http = true
+[[signature.when]]
+argv_basename = ["next"]
+[[signature.when]]
+argv_prefix = ["next-server"]
+[[signature.when]]
+exe = ["node"]
+package = ["next"]
+probably = true
+[signature.texts]
+beginner = "This is the live preview of your website, built with Next.js. It updates as soon as you save a file."
+builder = "Next.js dev server (next dev): pages, API routes and hot reload. Default port 3000."
+expert = "Next.js server; the process renames itself to next-server (vX). Port from -p/--port or PORT (default 3000). Changes to next.config.* restart it automatically."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/apps/web/node_modules/.bin/next", "dev"]
+[[signature.fixture]]
+exe = "node"
+argv = ["next-server (v15.5.4)"]
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "server.js"]
+packages = ["next", "react"]
+
+[[signature]]
+id = "webpack"
+name = "webpack dev server"
+role = "see"
+kind = "dev_server"
+default_port = 3000
+http = true
+[[signature.when]]
+argv_contains = ["react-scripts", "webpack-dev-server"]
+[[signature.when]]
+argv_basename = ["webpack", "webpack-cli"]
+argv_contains = ["serve"]
+[signature.texts]
+beginner = "This is the live preview of your website while you work on it. It reloads the page when you save a file."
+builder = "webpack-dev-server, often started by Create React App (react-scripts start). Default port 3000 for Create React App, 8080 for plain webpack."
+expert = "webpack-dev-server; Create React App reads PORT and HOST from the environment, and proxy settings from package.json \"proxy\" or src/setupProxy.js."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/react-scripts/scripts/start.js"]
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/.bin/webpack", "serve", "--port", "8080"]
+
+[[signature]]
+id = "angular"
+name = "Angular"
+role = "see"
+kind = "dev_server"
+default_port = 4200
+http = true
+[[signature.when]]
+argv_basename = ["ng"]
+[signature.texts]
+beginner = "This is the live preview of your Angular website. It updates as soon as you save a file."
+builder = "Angular CLI dev server (ng serve). Default port 4200."
+expert = "ng serve; port from --port or the serve options in angular.json (default 4200)."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/.bin/ng", "serve"]
+
+[[signature]]
+id = "nuxt"
+name = "Nuxt"
+role = "see"
+kind = "dev_server"
+default_port = 3000
+http = true
+[[signature.when]]
+argv_basename = ["nuxt", "nuxi"]
+[[signature.when]]
+exe = ["node"]
+package = ["nuxt"]
+probably = true
+[signature.texts]
+beginner = "This is the live preview of your Nuxt website. It updates as soon as you save a file."
+builder = "Nuxt dev server (nuxi dev): Vue pages, server routes and hot reload. Default port 3000."
+expert = "Nuxt dev server with Nitro for server routes; port from --port, NUXT_PORT or PORT (default 3000)."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/.bin/nuxi", "dev"]
+
+[[signature]]
+id = "remix"
+name = "Remix / React Router"
+role = "see"
+kind = "dev_server"
+default_port = 5173
+http = true
+[[signature.when]]
+argv_basename = ["remix", "react-router"]
+[signature.texts]
+beginner = "This is the live preview of your website, built with Remix (React Router). It updates as soon as you save a file."
+builder = "Remix or React Router framework dev server (remix vite:dev or react-router dev). Default port 5173."
+expert = "Remix / React Router framework mode on Vite; port from --port or server.port in vite.config."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/.bin/react-router", "dev"]
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/.bin/remix", "vite:dev"]
+
+[[signature]]
+id = "astro"
+name = "Astro"
+role = "see"
+kind = "dev_server"
+default_port = 4321
+http = true
+[[signature.when]]
+argv_basename = ["astro"]
+[signature.texts]
+beginner = "This is the live preview of your Astro website. It updates as soon as you save a file."
+builder = "Astro dev server (astro dev). Default port 4321."
+expert = "Astro dev server on Vite; port from --port or server.port in astro.config (default 4321)."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/site/node_modules/.bin/astro", "dev"]

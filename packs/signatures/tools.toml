@@ -1,0 +1,123 @@
+# Editors, AI coding agents and test browsers. Licensed CC0-1.0 (see packs/LICENSE).
+# Editor and agent ports are never treated as project services, even when the
+# program's working folder is inside a project.
+
+[[signature]]
+id = "claude-code"
+name = "Claude Code"
+role = "unknown"
+kind = "agent_cli"
+[[signature.when]]
+exe = ["claude"]
+[signature.texts]
+beginner = "This is Claude Code, an AI coding assistant. It is not part of your project's app."
+builder = "Claude Code CLI session; it may listen on localhost to talk to your editor."
+expert = "Claude Code CLI; local ports are used for IDE integration."
+[[signature.fixture]]
+exe = "claude"
+argv = ["claude"]
+
+[[signature]]
+id = "codex"
+name = "Codex CLI"
+role = "unknown"
+kind = "agent_cli"
+[[signature.when]]
+exe = ["codex"]
+[[signature.when]]
+argv_basename = ["codex"]
+[signature.texts]
+beginner = "This is Codex, an AI coding assistant. It is not part of your project's app."
+builder = "OpenAI Codex CLI session."
+expert = "Codex CLI process (native binary or the npm launcher)."
+[[signature.fixture]]
+exe = "codex"
+argv = ["codex"]
+
+[[signature]]
+id = "gemini-cli"
+name = "Gemini CLI"
+role = "unknown"
+kind = "agent_cli"
+[[signature.when]]
+argv_basename = ["gemini"]
+[signature.texts]
+beginner = "This is Gemini CLI, an AI coding assistant. It is not part of your project's app."
+builder = "Google Gemini CLI session."
+expert = "Gemini CLI running on Node.js."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/usr/local/bin/gemini"]
+
+[[signature]]
+id = "vscode"
+name = "Visual Studio Code"
+role = "unknown"
+kind = "ide"
+[[signature.when]]
+exe = ["code", "code helper*", "code - insiders", "code-insiders"]
+[signature.texts]
+beginner = "This belongs to your code editor, Visual Studio Code. It is not part of your project's app."
+builder = "VS Code or one of its helper processes (extensions, language servers, debuggers)."
+expert = "VS Code Electron process; extension hosts and debug adapters open localhost ports."
+[[signature.fixture]]
+exe = "Code Helper (Plugin)"
+argv = ["/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)"]
+
+[[signature]]
+id = "cursor"
+name = "Cursor"
+role = "unknown"
+kind = "ide"
+[[signature.when]]
+exe = ["cursor", "cursor helper*"]
+[signature.texts]
+beginner = "This belongs to your code editor, Cursor. It is not part of your project's app."
+builder = "Cursor editor or one of its helper processes."
+expert = "Cursor Electron process; extension hosts open localhost ports."
+[[signature.fixture]]
+exe = "Cursor Helper (Plugin)"
+
+[[signature]]
+id = "jetbrains"
+name = "JetBrains IDE"
+role = "unknown"
+kind = "ide"
+[[signature.when]]
+exe = ["idea", "pycharm", "webstorm", "goland", "rider", "clion", "phpstorm", "rubymine", "datagrip", "rustrover", "fleet"]
+[signature.texts]
+beginner = "This belongs to your code editor (a JetBrains IDE). It is not part of your project's app."
+builder = "JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, ...)."
+expert = "JetBrains IDE JVM; port 63342 is its built-in web server."
+[[signature.fixture]]
+exe = "pycharm"
+
+[[signature]]
+id = "zed"
+name = "Zed"
+role = "unknown"
+kind = "ide"
+[[signature.when]]
+exe = ["zed", "zed-editor"]
+[signature.texts]
+beginner = "This belongs to your code editor, Zed. It is not part of your project's app."
+builder = "Zed editor process."
+expert = "Zed editor; language servers it starts may open local ports."
+[[signature.fixture]]
+exe = "zed"
+
+[[signature]]
+id = "headless-browser"
+name = "Headless browser"
+role = "unknown"
+kind = "unknown"
+[[signature.when]]
+exe = ["google chrome", "chromium", "chrome", "chrome-headless-shell", "msedge", "microsoft edge"]
+argv_contains = ["--headless", "--remote-debugging-port"]
+[signature.texts]
+beginner = "This is a web browser running without a window. Tests or an AI agent usually start it to check your app, and sometimes forget to close it."
+builder = "Headless Chrome, Chromium or Edge with a remote-debugging port, typically started by Playwright, Puppeteer or an agent's browser tool."
+expert = "Browser started with --headless and/or --remote-debugging-port; the port speaks the Chrome DevTools Protocol."
+[[signature.fixture]]
+exe = "Google Chrome"
+argv = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "--headless=new", "--remote-debugging-port=9877", "about:blank"]

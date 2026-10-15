@@ -1,0 +1,314 @@
+# Back-end servers, workers and language runtimes: what does the work.
+# Licensed CC0-1.0 (see packs/LICENSE). Generic runtimes use priority 10 so any
+# framework signature wins over them.
+
+[[signature]]
+id = "nestjs"
+name = "NestJS"
+role = "work"
+kind = "dev_server"
+default_port = 3000
+http = true
+priority = 40
+[[signature.when]]
+argv_basename = ["nest"]
+[[signature.when]]
+exe = ["node", "bun"]
+package = ["@nestjs/core"]
+probably = true
+[signature.texts]
+beginner = "This is your app's server program, built with NestJS. It answers requests from your website or app."
+builder = "NestJS server (nest start). Default port 3000."
+expert = "NestJS application on Node.js; the port is set by app.listen() in main.ts, often from PORT."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/apps/api/node_modules/.bin/nest", "start", "--watch"]
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "dist/main.js"]
+packages = ["@nestjs/core", "express"]
+
+[[signature]]
+id = "express"
+name = "Express"
+role = "work"
+kind = "dev_server"
+default_port = 3000
+http = true
+priority = 30
+[[signature.when]]
+exe = ["node", "bun"]
+package = ["express"]
+probably = true
+[signature.texts]
+beginner = "This is your app's server program, written in JavaScript with Express. It answers requests from your website or app."
+builder = "Node.js server using Express (found in the package.json dependencies)."
+expert = "Node.js process; Express inferred from package.json dependencies. The port usually comes from PORT or app.listen()."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "server.js"]
+packages = ["express"]
+
+[[signature]]
+id = "node"
+name = "Node.js"
+role = "work"
+kind = "dev_server"
+priority = 10
+[[signature.when]]
+exe = ["node", "bun", "deno"]
+[signature.texts]
+beginner = "This is a program written in JavaScript."
+builder = "Node.js (or Bun/Deno) process. Harbormap could not tell which framework it uses."
+expert = "Generic JavaScript runtime process; no framework marker in its arguments or dependencies."
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "index.js"]
+
+[[signature]]
+id = "django"
+name = "Django"
+role = "work"
+kind = "dev_server"
+default_port = 8000
+http = true
+priority = 55
+[[signature.when]]
+argv_basename = ["manage", "django-admin"]
+argv_contains = ["runserver"]
+[signature.texts]
+beginner = "This is your app's server program, built with Django (Python). It answers requests from your website."
+builder = "Django development server (manage.py runserver). Default port 8000; it reloads when Python files change."
+expert = "Django runserver: an autoreloader parent and a worker child share the socket. Address from the runserver argument (default 127.0.0.1:8000)."
+[[signature.fixture]]
+exe = "python3"
+argv = ["python3", "manage.py", "runserver", "8000"]
+cwd_files = ["manage.py"]
+
+[[signature]]
+id = "flask"
+name = "Flask"
+role = "work"
+kind = "dev_server"
+default_port = 5000
+http = true
+priority = 40
+[[signature.when]]
+argv_basename = ["flask"]
+argv_contains = ["run"]
+[[signature.when]]
+exe = ["python*"]
+package = ["flask"]
+probably = true
+[signature.texts]
+beginner = "This is your app's server program, built with Flask (Python). It answers requests from your website."
+builder = "Flask development server (flask run). Default port 5000, which AirPlay Receiver often holds on macOS."
+expert = "Flask/Werkzeug development server; port from --port or FLASK_RUN_PORT (default 5000)."
+[[signature.fixture]]
+exe = "python3"
+argv = ["python3", "-m", "flask", "run"]
+[[signature.fixture]]
+exe = "python3.12"
+argv = ["python3.12", "app.py"]
+packages = ["flask"]
+
+[[signature]]
+id = "fastapi"
+name = "FastAPI"
+role = "work"
+kind = "dev_server"
+default_port = 8000
+http = true
+priority = 60
+[[signature.when]]
+argv_basename = ["fastapi"]
+[[signature.when]]
+argv_basename = ["uvicorn", "hypercorn", "granian"]
+package = ["fastapi"]
+[signature.texts]
+beginner = "This is your app's server program, built with FastAPI (Python). It answers requests from your website or app."
+builder = "FastAPI app served by Uvicorn. Default port 8000; interactive API docs at /docs."
+expert = "FastAPI (ASGI) under uvicorn or the fastapi CLI; with --reload the reloader parent holds the socket and a worker child serves it."
+[[signature.fixture]]
+exe = "python3"
+argv = ["python3", "-m", "uvicorn", "main:app", "--reload"]
+packages = ["fastapi", "uvicorn"]
+[[signature.fixture]]
+exe = "python"
+argv = ["/work/api/.venv/bin/python", "/work/api/.venv/bin/fastapi", "dev", "main.py"]
+
+[[signature]]
+id = "uvicorn"
+name = "Uvicorn"
+role = "work"
+kind = "dev_server"
+default_port = 8000
+http = true
+[[signature.when]]
+argv_basename = ["uvicorn"]
+[signature.texts]
+beginner = "This is a Python server program that answers requests from your website or app."
+builder = "Uvicorn ASGI server (Starlette, Litestar or another ASGI app). Default port 8000."
+expert = "uvicorn; port from --port (default 8000), host from --host (default 127.0.0.1)."
+[[signature.fixture]]
+exe = "python3"
+argv = ["python3", "-m", "uvicorn", "app:app"]
+
+[[signature]]
+id = "gunicorn"
+name = "Gunicorn"
+role = "work"
+kind = "dev_server"
+default_port = 8000
+http = true
+[[signature.when]]
+argv_basename = ["gunicorn"]
+[signature.texts]
+beginner = "This is a Python server program that runs your web app."
+builder = "Gunicorn WSGI server: one master process and several workers. Default port 8000."
+expert = "gunicorn master with forked workers sharing the listening socket; bind from -b/--bind (default 127.0.0.1:8000)."
+[[signature.fixture]]
+exe = "python3"
+argv = ["python3", "/work/shop/.venv/bin/gunicorn", "shop.wsgi"]
+
+[[signature]]
+id = "rails"
+name = "Ruby on Rails"
+role = "work"
+kind = "dev_server"
+default_port = 3000
+http = true
+[[signature.when]]
+argv_basename = ["rails"]
+[[signature.when]]
+argv_prefix = ["puma "]
+[signature.texts]
+beginner = "This is your app's server program, built with Ruby on Rails. It answers requests from your website."
+builder = "Rails server (Puma). Default port 3000."
+expert = "Puma serving a Rails app; port from -p or PORT (default 3000)."
+[[signature.fixture]]
+exe = "ruby"
+argv = ["ruby", "bin/rails", "server"]
+[[signature.fixture]]
+exe = "ruby"
+argv = ["puma 6.4.3 (tcp://localhost:3000) [shop]"]
+
+[[signature]]
+id = "dotnet"
+name = "ASP.NET Core"
+role = "work"
+kind = "dev_server"
+default_port = 5000
+http = true
+[[signature.when]]
+ancestor_exe = ["dotnet"]
+cwd_files = ["*.csproj", "*.fsproj"]
+[[signature.when]]
+exe = ["dotnet"]
+argv_contains = [".dll"]
+[[signature.when]]
+ancestor_exe = ["dotnet"]
+probably = true
+[signature.texts]
+beginner = "This is your app's server program, built with .NET (ASP.NET Core). It answers requests from your website or app."
+builder = "ASP.NET Core app (Kestrel), usually started with dotnet run. Its URLs come from Properties/launchSettings.json or --urls."
+expert = "Kestrel; URLs from --urls, ASPNETCORE_URLS / ASPNETCORE_HTTP_PORTS or launchSettings.json applicationUrl (default http://localhost:5000)."
+[[signature.fixture]]
+exe = "DotnetApp"
+argv = ["/work/shop/api/bin/Debug/net8.0/DotnetApp"]
+ancestors = ["dotnet"]
+cwd_files = ["DotnetApp.csproj", "Program.cs"]
+[[signature.fixture]]
+exe = "dotnet"
+argv = ["dotnet", "bin/Debug/net8.0/DotnetApp.dll"]
+
+[[signature]]
+id = "spring"
+name = "Spring Boot"
+role = "work"
+kind = "dev_server"
+default_port = 8080
+http = true
+[[signature.when]]
+exe = ["java", "javaw"]
+argv_contains = ["org.springframework.boot", "spring-boot"]
+[signature.texts]
+beginner = "This is your app's server program, built with Spring Boot (Java). It answers requests from your website or app."
+builder = "Spring Boot application with an embedded web server. Default port 8080."
+expert = "Spring Boot JVM; port from server.port in application.properties/yml, SERVER_PORT or --server.port (default 8080)."
+[[signature.fixture]]
+exe = "java"
+argv = ["java", "-cp", "/work/api/target/classes:/home/me/.m2/repository/org/springframework/boot/spring-boot/3.3.4/spring-boot-3.3.4.jar", "com.example.Application"]
+[[signature.fixture]]
+exe = "java"
+argv = ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+
+[[signature]]
+id = "java"
+name = "Java"
+role = "work"
+kind = "dev_server"
+priority = 10
+[[signature.when]]
+exe = ["java", "javaw"]
+[signature.texts]
+beginner = "This is a program written in Java."
+builder = "Java process. Harbormap could not tell which framework it uses."
+expert = "Generic JVM process; no framework marker in its arguments."
+[[signature.fixture]]
+exe = "java"
+argv = ["java", "-jar", "app.jar"]
+
+[[signature]]
+id = "go"
+name = "Go"
+role = "work"
+kind = "dev_server"
+[[signature.when]]
+ancestor_exe = ["go", "air"]
+[[signature.when]]
+argv_contains = ["/go-build", "\\go-build"]
+[signature.texts]
+beginner = "This is a program written in Go, started from your project."
+builder = "Go program, started with go run or a live-reload tool such as air."
+expert = "Go binary; go run builds it into a go-build temporary directory and runs it as a child of the go tool."
+[[signature.fixture]]
+exe = "main"
+argv = ["/var/folders/zz/T/go-build3456789012/b001/exe/main"]
+ancestors = ["go"]
+[[signature.fixture]]
+exe = "server"
+argv = ["./tmp/server"]
+ancestors = ["air"]
+
+[[signature]]
+id = "celery"
+name = "Celery"
+role = "work"
+kind = "worker"
+[[signature.when]]
+argv_basename = ["celery"]
+argv_contains = ["worker"]
+[signature.texts]
+beginner = "This is a background worker. It does slow jobs, like sending emails, so your app stays fast."
+builder = "Celery worker: runs background tasks taken from a broker such as Redis or RabbitMQ."
+expert = "Celery worker (prefork pool by default); broker from CELERY_BROKER_URL or the app configuration."
+[[signature.fixture]]
+exe = "python3"
+argv = ["python3", "/work/shop/.venv/bin/celery", "-A", "shop", "worker", "-l", "info"]
+
+[[signature]]
+id = "python"
+name = "Python"
+role = "work"
+kind = "dev_server"
+priority = 10
+[[signature.when]]
+exe = ["python*", "pythonw*"]
+[signature.texts]
+beginner = "This is a program written in Python."
+builder = "Python process. Harbormap could not tell which framework it uses."
+expert = "Generic Python interpreter process; no framework marker in its arguments or dependencies."
+[[signature.fixture]]
+exe = "python3.13"
+argv = ["python3.13", "worker.py"]

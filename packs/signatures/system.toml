@@ -1,0 +1,109 @@
+# Container engine forwarders and operating-system owners of ports.
+# Licensed CC0-1.0 (see packs/LICENSE). `forwarder = true` means published container
+# ports appear through this program; Harbormap then names the container instead.
+
+[[signature]]
+id = "docker-forwarder"
+name = "Docker port forwarder"
+role = "unknown"
+kind = "system"
+forwarder = true
+[[signature.when]]
+exe = ["com.docker.backend", "com.docker.vpnkit", "vpnkit-bridge", "com.docker.proxy", "docker-proxy", "rootlessport", "rootlesskit", "pasta", "slirp4netns", "gvproxy"]
+[signature.texts]
+beginner = "This is Docker passing a port from a container to your computer."
+builder = "Container engine port forwarder: a container's published port (docker run -p or compose ports) appears on this computer through it."
+expert = "Engine port forwarder (Docker Desktop backend, docker-proxy, rootlesskit/pasta or gvproxy); Harbormap resolves the container by its published port."
+[[signature.fixture]]
+exe = "com.docker.backend"
+argv = ["/Applications/Docker.app/Contents/MacOS/com.docker.backend", "services"]
+[[signature.fixture]]
+exe = "docker-proxy"
+argv = ["/usr/bin/docker-proxy", "-proto", "tcp", "-host-ip", "0.0.0.0", "-host-port", "5432", "-container-ip", "172.17.0.2", "-container-port", "5432"]
+
+[[signature]]
+id = "orbstack"
+name = "OrbStack"
+role = "unknown"
+kind = "system"
+forwarder = true
+os = "macos"
+[[signature.when]]
+exe = ["orbstack helper", "orbstack"]
+[signature.texts]
+beginner = "This is OrbStack passing a port from a container or Linux machine to your Mac."
+builder = "OrbStack port forwarder for containers and Linux machines."
+expert = "OrbStack Helper forwards published container ports and machine ports to macOS."
+[[signature.fixture]]
+exe = "OrbStack Helper"
+argv = ["/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper", "vmgr"]
+os = "macos"
+
+[[signature]]
+id = "lima"
+name = "Colima / Lima"
+role = "unknown"
+kind = "system"
+forwarder = true
+[[signature.when]]
+exe = ["limactl"]
+[[signature.when]]
+exe = ["ssh"]
+argv_contains = ["/.lima/", "/.colima/"]
+[signature.texts]
+beginner = "This is Colima (or Lima) passing a port from a container to your computer."
+builder = "Lima host agent forwarding ports from the Colima/Lima virtual machine."
+expert = "limactl hostagent (or an ssh tunnel in older Lima) forwards guest ports to the host."
+[[signature.fixture]]
+exe = "limactl"
+argv = ["limactl", "hostagent", "--pidfile", "/Users/me/.colima/_lima/colima/ha.pid", "colima"]
+
+[[signature]]
+id = "wslrelay"
+name = "WSL port relay"
+role = "unknown"
+kind = "system"
+os = "windows"
+[[signature.when]]
+exe = ["wslrelay"]
+[signature.texts]
+beginner = "This is Windows passing a port from a Linux program running inside WSL."
+builder = "wslrelay forwards localhost ports from a WSL 2 distribution to Windows."
+expert = "wslrelay.exe relays a WSL 2 guest listener to the Windows loopback interface."
+[[signature.fixture]]
+exe = "wslrelay.exe"
+argv = ["C:\\Program Files\\WSL\\wslrelay.exe", "--mode", "1"]
+os = "windows"
+
+[[signature]]
+id = "airplay"
+name = "AirPlay Receiver"
+role = "unknown"
+kind = "system"
+os = "macos"
+[[signature.when]]
+exe = ["controlcenter"]
+[signature.texts]
+beginner = "This is AirPlay Receiver, a macOS feature that lets other devices play music or video on this Mac. It is not part of your project. To free this port, turn off AirPlay Receiver in System Settings → General → AirDrop & Handoff."
+builder = "macOS AirPlay Receiver (ControlCenter) listens on 5000 and 7000. Turn it off in System Settings → General → AirDrop & Handoff, or use another port."
+expert = "ControlCenter.app (AirPlay Receiver) binds *:5000 and *:7000 since macOS 12."
+[[signature.fixture]]
+exe = "ControlCenter"
+argv = ["/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter"]
+os = "macos"
+
+[[signature]]
+id = "http-sys"
+name = "Windows HTTP service"
+role = "unknown"
+kind = "system"
+os = "windows"
+[[signature.when]]
+exe = ["system"]
+[signature.texts]
+beginner = "This port is held by Windows itself (its web service), not by a program you started."
+builder = "Windows HTTP Server API (http.sys, PID 4). IIS, WinRM and URL reservations register ports through it."
+expert = "http.sys kernel driver under PID 4; inspect with netsh http show servicestate."
+[[signature.fixture]]
+exe = "System"
+os = "windows"

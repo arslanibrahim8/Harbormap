@@ -1,0 +1,175 @@
+# Databases, caches, storage, brokers and web servers. Licensed CC0-1.0 (see packs/LICENSE).
+# `image` compares the last path segment of a container image without tag or digest.
+
+[[signature]]
+id = "postgres"
+name = "PostgreSQL"
+role = "keep"
+kind = "database"
+default_port = 5432
+[[signature.when]]
+exe = ["postgres", "postmaster"]
+[[signature.when]]
+image = ["postgres", "postgresql", "postgis", "pgvector", "timescaledb", "timescaledb-ha"]
+[signature.texts]
+beginner = "This is your project's database. It stores your app's data, such as users and orders."
+builder = "PostgreSQL database server. Default port 5432."
+expert = "PostgreSQL postmaster; data lives in PGDATA, or in the /var/lib/postgresql/data volume of a container."
+[[signature.fixture]]
+exe = "postgres"
+argv = ["/opt/homebrew/opt/postgresql@16/bin/postgres", "-D", "/opt/homebrew/var/postgresql@16"]
+[[signature.fixture]]
+image = "postgres:16-alpine"
+[[signature.fixture]]
+image = "docker.io/bitnami/postgresql:16"
+
+[[signature]]
+id = "mysql"
+name = "MySQL / MariaDB"
+role = "keep"
+kind = "database"
+default_port = 3306
+[[signature.when]]
+exe = ["mysqld", "mariadbd"]
+[[signature.when]]
+image = ["mysql", "mariadb", "percona-server"]
+[signature.texts]
+beginner = "This is your project's database (MySQL or MariaDB). It stores your app's data."
+builder = "MySQL or MariaDB server. Default port 3306."
+expert = "mysqld / mariadbd; classic protocol on 3306, X protocol on 33060 for MySQL 8."
+[[signature.fixture]]
+exe = "mysqld"
+argv = ["/usr/sbin/mysqld"]
+[[signature.fixture]]
+image = "mysql:8.4"
+[[signature.fixture]]
+image = "mariadb:11"
+
+[[signature]]
+id = "mongo"
+name = "MongoDB"
+role = "keep"
+kind = "database"
+default_port = 27017
+[[signature.when]]
+exe = ["mongod", "mongos"]
+[[signature.when]]
+image = ["mongo", "mongodb-community-server"]
+[signature.texts]
+beginner = "This is your project's database (MongoDB). It stores your app's data as documents."
+builder = "MongoDB server. Default port 27017."
+expert = "mongod; wire protocol on 27017, data in --dbpath or the container's /data/db volume."
+[[signature.fixture]]
+exe = "mongod"
+argv = ["mongod", "--dbpath", "/data/db"]
+[[signature.fixture]]
+image = "mongo:7"
+
+[[signature]]
+id = "redis"
+name = "Redis"
+role = "keep"
+kind = "cache"
+default_port = 6379
+[[signature.when]]
+exe = ["redis-server", "valkey-server", "keydb-server"]
+[[signature.when]]
+image = ["redis", "valkey", "redis-stack", "redis-stack-server", "keydb"]
+[signature.texts]
+beginner = "This is a fast memory store. Your app keeps short-lived data here, such as logins or a queue of jobs."
+builder = "Redis-compatible in-memory store (Redis, Valkey or KeyDB). Default port 6379."
+expert = "RESP protocol on 6379; data persists only when RDB or AOF persistence is configured."
+[[signature.fixture]]
+exe = "redis-server"
+argv = ["redis-server *:6379"]
+[[signature.fixture]]
+image = "redis:7-alpine"
+[[signature.fixture]]
+image = "valkey/valkey:8"
+
+[[signature]]
+id = "search"
+name = "Elasticsearch / OpenSearch"
+role = "keep"
+kind = "database"
+default_port = 9200
+http = true
+[[signature.when]]
+image = ["elasticsearch", "opensearch"]
+[[signature.when]]
+exe = ["java"]
+argv_contains = ["org.elasticsearch.bootstrap", "org.opensearch.bootstrap"]
+[signature.texts]
+beginner = "This is a search engine for your app's data. It powers search boxes and filters."
+builder = "Elasticsearch or OpenSearch. HTTP API on 9200, node-to-node transport on 9300."
+expert = "JVM search node; REST on 9200, transport on 9300, heap from ES_JAVA_OPTS or OPENSEARCH_JAVA_OPTS."
+[[signature.fixture]]
+image = "docker.elastic.co/elasticsearch/elasticsearch:8.15.0"
+[[signature.fixture]]
+image = "opensearchproject/opensearch:2"
+[[signature.fixture]]
+exe = "java"
+argv = ["java", "-Xms1g", "org.elasticsearch.bootstrap.Elasticsearch"]
+
+[[signature]]
+id = "minio"
+name = "MinIO"
+role = "keep"
+kind = "database"
+default_port = 9000
+http = true
+[[signature.when]]
+exe = ["minio"]
+[[signature.when]]
+image = ["minio"]
+[signature.texts]
+beginner = "This stores files for your app, like an online drive."
+builder = "MinIO S3-compatible object storage. API on 9000; the web console usually runs on 9001."
+expert = "MinIO server; S3 API on 9000, console from --console-address (often :9001)."
+[[signature.fixture]]
+exe = "minio"
+argv = ["minio", "server", "/data"]
+[[signature.fixture]]
+image = "minio/minio:latest"
+
+[[signature]]
+id = "rabbitmq"
+name = "RabbitMQ"
+role = "keep"
+kind = "database"
+default_port = 5672
+[[signature.when]]
+exe = ["beam.smp", "beam"]
+argv_contains = ["rabbit"]
+[[signature.when]]
+image = ["rabbitmq"]
+[signature.texts]
+beginner = "This passes messages between parts of your app, so work can wait in line safely."
+builder = "RabbitMQ message broker. AMQP on 5672, management web UI on 15672."
+expert = "RabbitMQ on the Erlang VM (beam.smp); AMQP 5672, management 15672, epmd 4369."
+[[signature.fixture]]
+exe = "beam.smp"
+argv = ["/usr/lib/erlang/erts-15.0/bin/beam.smp", "-W", "w", "--", "-root", "/usr/lib/erlang", "-s", "rabbit", "boot"]
+[[signature.fixture]]
+image = "rabbitmq:3-management"
+
+[[signature]]
+id = "nginx"
+name = "nginx"
+role = "see"
+kind = "dev_server"
+default_port = 80
+http = true
+[[signature.when]]
+exe = ["nginx"]
+[[signature.when]]
+image = ["nginx", "nginx-unprivileged", "openresty"]
+[signature.texts]
+beginner = "This is a web server. It sends pages to the browser or passes requests on to your app."
+builder = "nginx web server or reverse proxy. Default port 80 (8080 in unprivileged images)."
+expert = "nginx master and worker processes; ports come from the listen directives in nginx.conf and conf.d."
+[[signature.fixture]]
+exe = "nginx"
+argv = ["nginx: master process nginx -g daemon off;"]
+[[signature.fixture]]
+image = "nginx:1.27-alpine"
