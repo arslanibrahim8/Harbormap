@@ -1029,7 +1029,7 @@ git commit -s -m "feat(core): add program-name helpers and environment-value rul
 
 This task adds the redaction rules from spec §15. Every command line goes through `redact_argv` before it is stored or shown, so passwords, tokens, URL credentials, known key formats and long random-looking strings never leave the probe. Log lines will use `redact_text` from alpha.3 on.
 
-A variable or option name is secret when one of its parts (split at `-`, `_` and `.`) ends with `password`, `passwd`, `passphrase`, `secret`, `token` or `apikey`, digits aside, or when its last part is `key`, `pass` or `pwd` (qualifiers such as `2`, `v2` or `PROD` aside, and camelCase counted by its last word): `DB_PASSWORD`, `PGPASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2` and `apiKey` are secret, while `--key-file`, `--max-tokens` and `monkey` are not. The word after a flag is masked when the flag's last part names the secret, or when a secret word comes earlier and the last word names nothing else (`--secret-string`, `--token-value`, PowerShell's `-SecretString`); `--password-stdin`, `--password-file`, `--token-limit`, `--secret-id`, `--no-password` and `--ask-pass` keep the next argument, and a following flag is never masked. A bare `name=value` argument is one value, so `DB_PASSWORD=pa;ss` loses everything after `=`; any other argument (a URL, the command line that `sh -c` runs) is redacted as text, where a value ends at whitespace or `&`, `;`, `,`, `}` and `]`, and `:` separates a pair only before whitespace or a quote, so `cache-key:6379` stays a host and port. MySQL's `-pVALUE` is checked first, also after `sudo` and inside shell text where `mysql` is a command (at the start of a line, indentation aside, or after `;`, `&`, `|`, `(` or a wrapper). Ordinary flags such as `--max-old-space-size=4096` stay readable.
+A variable or option name is secret when one of its parts (split at `-`, `_` and `.`, and camelCase words such as `SecretString`) ends with `password`, `passwd`, `passphrase`, `secret`, `token` or `apikey`, or with the fused names `requirepass`, `masterauth`, `storepass`, `keypass` and `dbpass`, digits aside, or when its last part is `key`, `pass`, `pwd` or `auth` (qualifiers such as `2`, `v2` or `PROD` aside, and camelCase counted by its last word): `DB_PASSWORD`, `PGPASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2` and `apiKey` are secret, while `--key-file`, `--max-tokens` and `monkey` are not. The word after a flag is masked when the flag's last part names the secret, or when a secret word comes earlier and the last word names nothing else (`--secret-string`, `--token-value`, PowerShell's `-SecretString`); `--password-stdin`, `--password-file`, `--token-limit`, `--secret-id`, `--no-password` and `--ask-pass` keep the next argument, and a following flag is never masked. A bare `name=value` argument is one value, so `DB_PASSWORD=pa;ss` loses everything after `=`; any other argument (a URL, the command line that `sh -c` runs) is redacted as text, where a value ends at whitespace or `&`, `;`, `,`, `}` and `]`, and `:` separates a pair only before whitespace or a quote, or after a flag (`-Password:x`, `/TargetPassword:x`), so `cache-key:6379` stays a host and port. `Authorization: Basic` credentials are masked like bearer tokens. MySQL's `-pVALUE` is checked first, also after `sudo` and inside shell text where `mysql` is a command (at the start of a line, indentation aside, or after `;`, `&`, `|`, `(` or a wrapper). Ordinary flags such as `--max-old-space-size=4096` stay readable.
 
 **Files:**
 - Create: `crates/hm-core/src/redact.rs`
@@ -1221,6 +1221,35 @@ mod tests {
             redact_text("New-Secret -SecretString hunter2 -SecretName db"),
             "New-Secret -SecretString *** -SecretName db"
         );
+        // Names that fuse a secret word, and `auth` as a last word.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "redis-server",
+                "--requirepass",
+                "a1",
+                "--masterauth",
+                "a2",
+            ])),
+            argv(&[
+                "redis-server",
+                "--requirepass",
+                "***",
+                "--masterauth",
+                "***"
+            ])
+        );
+        assert_eq!(
+            redact_argv(&argv(&["keytool", "-storepass", "a1", "-keypass", "a2"])),
+            argv(&["keytool", "-storepass", "***", "-keypass", "***"])
+        );
+        assert_eq!(
+            redact_argv(&argv(&["ngrok", "http", "80", "--basic-auth", "me:a1"])),
+            argv(&["ngrok", "http", "80", "--basic-auth", "***"])
+        );
+        assert_eq!(
+            redact_text("curl -H 'Authorization: Basic dXNlcjpwYXNz' https://x"),
+            "curl -H 'Authorization: Basic ***' https://x"
+        );
         // Windows tools and PowerShell put the value after `:`; hosts and folders keep it.
         assert_eq!(
             redact_argv(&argv(&[
@@ -1233,6 +1262,10 @@ mod tests {
         assert_eq!(
             redact_argv(&argv(&["pwsh", "-Command", "Connect-Db -Password:hunter2"])),
             argv(&["pwsh", "-Command", "Connect-Db -Password:***"])
+        );
+        assert_eq!(
+            redact_text("Connect-Db `\n-Password:a1 (-SecretString:a2 -Force) -TokenValue=a3"),
+            "Connect-Db `\n-Password:*** (-SecretString:*** -Force) -TokenValue=***"
         );
         assert_eq!(
             redact_text("http://api-key:8080/x"),
@@ -1398,7 +1431,8 @@ use crate::names::exe_stem;
 pub const MASK: &str = "***";
 
 /// Words that make a name secret when one of its parts ends with them, digits aside
-/// (`DB_PASSWORD`, `PGPASSWORD`, `NGROK_AUTHTOKEN`, `client_secret`, `PASSWORD2`).
+/// (`DB_PASSWORD`, `PGPASSWORD`, `NGROK_AUTHTOKEN`, `client_secret`, `PASSWORD2`), and
+/// fused names well-known tools use (Redis `--requirepass`, keytool `-storepass`).
 const SECRET_WORDS: &[&str] = &[
     "password",
     "passwd",
@@ -1406,11 +1440,17 @@ const SECRET_WORDS: &[&str] = &[
     "secret",
     "token",
     "apikey",
+    "requirepass",
+    "masterauth",
+    "storepass",
+    "keypass",
+    "dbpass",
 ];
 
 /// Short words that make a name secret only as its last part (`API_KEY`, `--db-pass`,
-/// `apiKey`), so that `--key-file`, `monkey` and `--pass-with-no-tests` stay readable.
-const SECRET_LAST_WORDS: &[&str] = &["key", "pass", "pwd"];
+/// `apiKey`, ngrok's `--basic-auth`), so that `--key-file`, `monkey`,
+/// `--pass-with-no-tests` and `--auth-url` stay readable.
+const SECRET_LAST_WORDS: &[&str] = &["key", "pass", "pwd", "auth"];
 
 /// Last words of a flag that name something other than the secret before them
 /// (`--password-file`, `--token-limit`, `--secret-id`), so their value stays readable.
@@ -1460,6 +1500,10 @@ static URL_USERINFO: LazyLock<Regex> =
 
 static BEARER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=\-]+").unwrap());
+
+/// `Authorization: Basic <base64 of user:password>`.
+static BASIC_AUTH: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(authorization:\s*basic)\s+[A-Za-z0-9+/=]+").unwrap());
 
 static PREFIXED: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -1541,6 +1585,7 @@ pub fn redact_argv(argv: &[String]) -> Vec<String> {
 pub fn redact_text(text: &str) -> String {
     let text = URL_USERINFO.replace_all(text, format!("${{1}}{MASK}@"));
     let text = BEARER.replace_all(&text, format!("${{1}} {MASK}"));
+    let text = BASIC_AUTH.replace_all(&text, format!("${{1}} {MASK}"));
     let text = PREFIXED.replace_all(&text, format!("${{1}}{MASK}"));
     let text = mask_named_values(&text);
     let text = FLAG_AND_VALUE.replace_all(&text, |caps: &regex::Captures<'_>| {
@@ -1568,8 +1613,9 @@ pub fn redact_text(text: &str) -> String {
 /// one (`DB_PASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2`, `accessToken`).
 fn is_secret_name(name: &str) -> bool {
     let parts = secret_parts(name);
-    parts.iter().any(|part| ends_with_secret_word(part))
-        || parts.last().is_some_and(|last| is_short_secret_word(last))
+    parts.iter().any(|part| {
+        ends_with_secret_word(part) || camel_words(part).into_iter().any(ends_with_secret_word)
+    }) || parts.last().is_some_and(|last| is_short_secret_word(last))
 }
 
 /// True when the word after a flag is a secret: the flag's last part names it
@@ -1752,7 +1798,14 @@ fn is_flag(bytes: &[u8], name_start: usize) -> bool {
             .checked_sub(1)
             .filter(|&slash| bytes[slash] == b'/')
     };
-    flag_char.is_some_and(|at| at == 0 || matches!(bytes[at - 1], b' ' | b'\t' | b'"' | b'\''))
+    flag_char.is_some_and(|at| {
+        at == 0
+            || bytes[at - 1].is_ascii_whitespace()
+            || matches!(
+                bytes[at - 1],
+                b'"' | b'\'' | b'(' | b'[' | b'{' | b';' | b','
+            )
+    })
 }
 
 /// At least 24 characters (guaranteed by `CANDIDATE`), letters and digits mixed,
@@ -1812,7 +1865,7 @@ This task adds the rest of the shared types. `model` is the snapshot that `harbo
 
 **Interfaces:**
 - Consumes: `hm_core::env::EnvFacts` (Task 2). It also uses the `blake3` and `serde` dependencies and the `serde_json` dev-dependency from Task 1.
-- Produces, in `hm_core::model` (every struct field is `pub`; every type derives `Debug, Clone, PartialEq, Eq, Serialize, Deserialize`; every enum is `snake_case` in JSON):
+- Produces, in `hm_core::model` (every struct field is `pub`; every type derives `Debug, Clone, PartialEq, Eq, Serialize, Deserialize`; every enum is `snake_case` in JSON; every path field serializes as text, with bytes that are not UTF-8 replaced by U+FFFD, so one odd folder name cannot fail a snapshot):
   - `pub const SNAPSHOT_SCHEMA: u32 = 1;`
   - `pub enum Role { See, Work, Keep, Outside, Shared, Unknown }` (also `Copy, Hash, PartialOrd, Ord`)
   - `pub enum Kind { DevServer, Database, Cache, Worker, System, Ide, Terminal, AgentCli, Unknown }` (also `Copy, Hash, PartialOrd, Ord`)
@@ -1829,7 +1882,7 @@ This task adds the rest of the shared types. `model` is the snapshot that `harbo
   - `pub struct Service { id: String, name: String, section: Section, project_id: Option<String>, worktree: Option<PathBuf>, signature: Option<String>, framework: Option<String>, confidence: Confidence, role: Role, kind: Kind, source: ServiceSource, ports: Vec<u16>, urls: Vec<String>, state: String, health: Option<String> }`
   - `pub enum ServiceSource { Process { main_pid: u32, root_pid: u32, pids: Vec<u32> }, Container { container_id: String } }` (JSON tag `"type"`)
   - `pub struct Listener { proto: Proto, addr: IpAddr, port: u16, bind: BindScope, owner: Owner, section: Section, project_id: Option<String>, service_id: Option<String>, label: String }`
-  - `pub struct Process { pid: u32, ppid: Option<u32>, start_time: u64, name: String, exe: Option<PathBuf>, argv: Vec<String>, cwd: Option<PathBuf>, user: Option<String>, own: bool, signature: Option<String>, kind: Kind, project_id: Option<String>, worktree: Option<PathBuf>, rss_bytes: u64, uptime_s: u64, env: EnvFacts }`
+  - `pub struct Process { pid: u32, ppid: Option<u32>, start_time: u64, name: String, exe: Option<PathBuf>, argv: Vec<String>, cwd: Option<PathBuf>, user: Option<String>, own: bool, signature: Option<String>, confidence: Confidence, kind: Kind, project_id: Option<String>, worktree: Option<PathBuf>, rss_bytes: u64, uptime_s: u64, env: EnvFacts }`
   - `pub struct Container { id: String, engine: String, name: String, image: String, state: String, health: Option<String>, exit_code: Option<i64>, oom_killed: bool, restart_count: i64, started_at: Option<String>, ports: Vec<PortBinding>, networks: Vec<String>, mounts: Vec<Mount>, compose: Option<Compose>, signature: Option<String>, section: Section, project_id: Option<String> }`
   - `pub struct PortBinding { container_port: u16, proto: String, host_ip: Option<IpAddr>, host_port: Option<u16> }` (also `Hash`)
   - `pub struct Mount { kind: String, name: Option<String>, source: Option<PathBuf>, destination: String }`
@@ -1855,7 +1908,7 @@ This task adds the rest of the shared types. `model` is the snapshot that `harbo
 
 - [ ] **Step 1: Write the failing test for the model**
 
-The tests check how bind addresses are classified and how the JSON looks, because the output of `harbormap status --json` is a public contract.
+The tests check how bind addresses are classified and how the JSON looks, also for a path that is not valid UTF-8, because the output of `harbormap status --json` is a public contract.
 
 Add `pub mod model;` after `pub mod env;` in `crates/hm-core/src/lib.rs`. Then create `crates/hm-core/src/model.rs` with only its test module:
 
@@ -1895,6 +1948,40 @@ mod tests {
             json,
             serde_json::json!({"kind": "container_forwarder", "container_id": "abc"})
         );
+    }
+
+    #[test]
+    fn paths_that_are_not_utf8_still_serialize() {
+        #[cfg(unix)]
+        let odd = {
+            use std::os::unix::ffi::OsStrExt;
+            PathBuf::from(std::ffi::OsStr::from_bytes(b"/srv/caf\xe9"))
+        };
+        #[cfg(windows)]
+        let odd = {
+            use std::os::windows::ffi::OsStringExt;
+            PathBuf::from(std::ffi::OsString::from_wide(&[0x43, 0x3a, 0x5c, 0xd800]))
+        };
+        let worktree = Worktree {
+            path: odd.clone(),
+            branch: None,
+            head: None,
+        };
+        let compose = Compose {
+            project: "shop".into(),
+            service: "db".into(),
+            working_dir: Some(odd.clone()),
+            config_files: vec![odd],
+            config_hash: None,
+            oneoff: false,
+            number: None,
+        };
+        for json in [
+            serde_json::to_string(&worktree).unwrap(),
+            serde_json::to_string(&compose).unwrap(),
+        ] {
+            assert!(json.contains('\u{FFFD}'), "{json}");
+        }
     }
 
     #[test]
@@ -1939,6 +2026,29 @@ use crate::env::EnvFacts;
 
 /// Bumped when a field is renamed or removed. Adding a field does not bump it.
 pub const SNAPSHOT_SCHEMA: u32 = 1;
+
+/// Paths print as text even when they are not valid UTF-8 (a Linux folder with a Latin-1
+/// name): such bytes become U+FFFD, so one odd path cannot fail a whole snapshot.
+mod lossy {
+    use std::path::{Path, PathBuf};
+
+    use serde::Serializer;
+
+    pub fn path<S: Serializer>(path: &Path, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&path.to_string_lossy())
+    }
+
+    pub fn option<S: Serializer>(path: &Option<PathBuf>, serializer: S) -> Result<S::Ok, S::Error> {
+        match path {
+            Some(path) => serializer.serialize_some(&*path.to_string_lossy()),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn list<S: Serializer>(paths: &[PathBuf], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_seq(paths.iter().map(|path| path.to_string_lossy()))
+    }
+}
 
 /// Lane on the Harbor map (Product design §8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -2078,6 +2188,7 @@ pub struct Host {
 pub struct Project {
     pub id: String,
     pub name: String,
+    #[serde(serialize_with = "lossy::path")]
     pub root: PathBuf,
     pub opened: bool,
     /// False for a plain folder without a git repository.
@@ -2087,6 +2198,7 @@ pub struct Project {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Worktree {
+    #[serde(serialize_with = "lossy::path")]
     pub path: PathBuf,
     pub branch: Option<String>,
     pub head: Option<String>,
@@ -2099,6 +2211,7 @@ pub struct Service {
     pub section: Section,
     /// `None` for containers that belong to no project.
     pub project_id: Option<String>,
+    #[serde(serialize_with = "lossy::option")]
     pub worktree: Option<PathBuf>,
     pub signature: Option<String>,
     pub framework: Option<String>,
@@ -2148,16 +2261,21 @@ pub struct Process {
     /// Unix seconds. Together with `pid` this is the process identity.
     pub start_time: u64,
     pub name: String,
+    #[serde(serialize_with = "lossy::option")]
     pub exe: Option<PathBuf>,
     /// Redacted before it ever reaches this struct.
     pub argv: Vec<String>,
+    #[serde(serialize_with = "lossy::option")]
     pub cwd: Option<PathBuf>,
     pub user: Option<String>,
     /// True when the current OS user owns the process.
     pub own: bool,
     pub signature: Option<String>,
+    /// How sure the signature match is; `sure` when nothing matched.
+    pub confidence: Confidence,
     pub kind: Kind,
     pub project_id: Option<String>,
+    #[serde(serialize_with = "lossy::option")]
     pub worktree: Option<PathBuf>,
     pub rss_bytes: u64,
     pub uptime_s: u64,
@@ -2201,6 +2319,7 @@ pub struct Mount {
     /// Volume name, for volumes.
     pub name: Option<String>,
     /// Host path, for bind mounts.
+    #[serde(serialize_with = "lossy::option")]
     pub source: Option<PathBuf>,
     pub destination: String,
 }
@@ -2209,7 +2328,9 @@ pub struct Mount {
 pub struct Compose {
     pub project: String,
     pub service: String,
+    #[serde(serialize_with = "lossy::option")]
     pub working_dir: Option<PathBuf>,
+    #[serde(serialize_with = "lossy::list")]
     pub config_files: Vec<PathBuf>,
     pub config_hash: Option<String>,
     pub oneoff: bool,
@@ -2240,7 +2361,7 @@ pub struct Note {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-core model`
-Expected: PASS — `test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out`
+Expected: PASS — `test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out`
 
 - [ ] **Step 5: Write the failing test for IDs**
 
@@ -2323,7 +2444,7 @@ pub fn engine_id(key: &str) -> String {
 - [ ] **Step 8: Run the tests to see them pass**
 
 Run: `cargo test -p hm-core ids`
-Expected: PASS — `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out`
+Expected: PASS — `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out`
 
 - [ ] **Step 9: Write the raw inventory types**
 
@@ -2614,7 +2735,7 @@ pub mod signature;
 - [ ] **Step 13: Run every `hm-core` test**
 
 Run: `cargo test -p hm-core`
-Expected: PASS — `test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` (2 `names`, 5 `env`, 9 `redact`, 3 `model` and 1 `ids` test), followed by the doc-test run with `0 passed`.
+Expected: PASS — `test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` (2 `names`, 5 `env`, 9 `redact`, 4 `model` and 1 `ids` test), followed by the doc-test run with `0 passed`.
 
 - [ ] **Step 14: Check formatting**
 
@@ -3926,7 +4047,7 @@ fn context_host(env: &DiscoverEnv) -> Option<String> {
 }
 
 /// Sockets and pipes are local; a TCP endpoint counts only on a loopback address.
-fn is_local(endpoint: &str) -> bool {
+pub(crate) fn is_local(endpoint: &str) -> bool {
     match endpoint.split_once("://") {
         Some(("unix" | "npipe", _)) => true,
         Some(("tcp" | "http", rest)) => {
@@ -4269,6 +4390,15 @@ mod tests {
         let error = report.engines[0].error.as_deref().unwrap();
         assert!(error.to_lowercase().contains("refused"), "{error}");
         assert_eq!(report.notes[0].code, "docker_not_running");
+
+        // A DOCKER_HOST on another computer is skipped and named in a note of its own.
+        let remote = DiscoverEnv {
+            docker_host: Some("tcp://10.0.0.5:2375".into()),
+            ..DiscoverEnv::default()
+        };
+        let report = probe_docker(&remote, Duration::from_millis(200));
+        let codes: Vec<&str> = report.notes.iter().map(|note| note.code.as_str()).collect();
+        assert_eq!(codes, ["docker_remote"]);
     }
 
     #[cfg(unix)]
@@ -4523,15 +4653,30 @@ impl DockerReport {
 /// Probes every candidate engine at the same time, giving each at most `timeout`.
 pub fn probe_docker(env: &DiscoverEnv, timeout: Duration) -> DockerReport {
     let candidates = discover::candidates(env);
+    // DOCKER_HOST on another computer is skipped (local only); say so instead of
+    // claiming Docker isn't running.
+    let remote = env
+        .docker_host
+        .as_deref()
+        .is_some_and(|host| !discover::is_local(host));
+    if remote && candidates.is_empty() {
+        return DockerReport {
+            notes: vec![remote_note()],
+            ..DockerReport::default()
+        };
+    }
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
         Ok(runtime) => {
-            let report = runtime.block_on(probe_all(candidates, timeout));
+            let mut report = runtime.block_on(probe_all(candidates, timeout));
             // Don't wait for blocking work left behind by a timed-out connect (a name
             // lookup cannot be cancelled); the timeout is the promise.
             runtime.shutdown_background();
+            if remote {
+                report.notes.push(remote_note());
+            }
             report
         }
         Err(error) => DockerReport::failed(&error.to_string()),
@@ -4774,6 +4919,13 @@ fn not_installed() -> Note {
     note(
         "docker_not_installed",
         "Docker isn't installed, so there are no containers to show.",
+    )
+}
+
+fn remote_note() -> Note {
+    note(
+        "docker_remote",
+        "DOCKER_HOST points to an engine on another computer. Harbormap only reads engines on this computer, so its containers are not shown.",
     )
 }
 
@@ -5480,7 +5632,7 @@ argv_contains = ["/go-build", "\\go-build"]
 ancestor_exe = ["go", "air"]
 probably = true
 [signature.texts]
-beginner = "This is a program written in Go, started from your project."
+beginner = "This is a program written in Go."
 builder = "Go program, started with go run or a live-reload tool such as air."
 expert = "Go binary; go run builds it into a go-build temporary directory and runs it as a child of the go tool."
 [[signature.fixture]]
@@ -5542,7 +5694,7 @@ exe = ["postgres", "postmaster"]
 [[signature.when]]
 image = ["postgres", "postgresql", "postgis", "pgvector", "timescaledb", "timescaledb-ha"]
 [signature.texts]
-beginner = "This is your project's database. It stores your app's data, such as users and orders."
+beginner = "This is a database (PostgreSQL). It stores an app's data, such as users and orders."
 builder = "PostgreSQL database server. Default port 5432."
 expert = "PostgreSQL postmaster; data lives in PGDATA, or in the /var/lib/postgresql/data volume of a container."
 [[signature.fixture]]
@@ -5564,7 +5716,7 @@ exe = ["mysqld", "mariadbd"]
 [[signature.when]]
 image = ["mysql", "mariadb", "percona-server"]
 [signature.texts]
-beginner = "This is your project's database (MySQL or MariaDB). It stores your app's data."
+beginner = "This is a database (MySQL or MariaDB). It stores an app's data."
 builder = "MySQL or MariaDB server. Default port 3306."
 expert = "mysqld / mariadbd; classic protocol on 3306, X protocol on 33060 for MySQL 8."
 [[signature.fixture]]
@@ -5586,7 +5738,7 @@ exe = ["mongod", "mongos"]
 [[signature.when]]
 image = ["mongo", "mongodb-community-server"]
 [signature.texts]
-beginner = "This is your project's database (MongoDB). It stores your app's data as documents."
+beginner = "This is a database (MongoDB). It stores an app's data as documents."
 builder = "MongoDB server. Default port 27017."
 expert = "mongod; wire protocol on 27017, data in --dbpath or the container's /data/db volume."
 [[signature.fixture]]
@@ -6097,7 +6249,7 @@ git commit -s -m "feat(doctor): embed and validate the signature packs"
 
 ### Task 10: Paths, worlds and git
 
-Resolution has to decide which project a folder belongs to, and its tests must run on any OS without touching the real disk. This task adds path rules that work for macOS, Linux and Windows paths alike (Windows paths compare without case), the `World` trait with a JSON-recorded `FixtureWorld` (plus the `Scenario` recording format that later tests load), and `RealWorld`, which reads the filesystem and finds git repositories and their linked worktrees through gix.
+Resolution has to decide which project a folder belongs to, and its tests must run on any OS without touching the real disk. This task adds path rules that work for macOS, Linux and Windows paths alike (Windows paths compare without case), the `World` trait with a JSON-recorded `FixtureWorld` (plus the `Scenario` recording format that later tests load), and `RealWorld`, which reads the filesystem and finds git repositories and their linked worktrees through gix. A bare repository holds no files, so it is the root of its linked worktrees (`shop.git` is named `shop`).
 
 **Files:**
 - Create: `crates/hm-project/src/paths.rs`
@@ -6313,6 +6465,24 @@ mod tests {
 
         let from_linked = discover(&temp.path().join("shop-feature")).unwrap();
         assert_eq!(from_linked.root, info.root);
+
+        // A bare repository holds no files itself: it is the root, its linked worktrees
+        // are the worktrees.
+        let bare = temp.path().join("shop.git");
+        let (from, to) = (repo.to_str().unwrap(), bare.to_str().unwrap());
+        assert!(git(temp.path(), &["clone", "-q", "--bare", from, to]));
+        assert!(git(
+            &bare,
+            &["worktree", "add", "-q", "../shop-main", "main"]
+        ));
+        let from_bare = discover(&temp.path().join("shop-main")).unwrap();
+        assert_eq!(from_bare.root, canonical(&bare));
+        assert_eq!(from_bare.worktrees.len(), 1);
+        assert_eq!(
+            from_bare.worktrees[0].path,
+            canonical(&temp.path().join("shop-main"))
+        );
+        assert_eq!(from_bare.worktrees[0].branch.as_deref(), Some("main"));
     }
 
     #[test]
@@ -6551,13 +6721,21 @@ impl World for RealWorld {
 pub fn discover(dir: &Path) -> Option<RepoInfo> {
     let repo = gix::discover(dir).ok()?;
     let main = repo.main_repo().ok()?;
-    // A bare main repository has no root folder to call the project.
-    let root = canonical(main.workdir()?);
-    let mut worktrees = vec![Worktree {
-        path: root.clone(),
-        branch: branch(&main),
-        head: head(&main),
-    }];
+    let mut worktrees = Vec::new();
+    let root = match main.workdir() {
+        Some(workdir) => {
+            let root = canonical(workdir);
+            worktrees.push(Worktree {
+                path: root.clone(),
+                branch: branch(&main),
+                head: head(&main),
+            });
+            root
+        }
+        // A bare repository holds no files: it is the root, and only its linked
+        // worktrees are worktrees.
+        None => bare_root(main.git_dir()),
+    };
     for proxy in main.worktrees().ok()? {
         let Ok(base) = proxy.base() else {
             continue;
@@ -6569,7 +6747,19 @@ pub fn discover(dir: &Path) -> Option<RepoInfo> {
             head: linked.as_ref().and_then(head),
         });
     }
-    Some(RepoInfo { root, worktrees })
+    (!worktrees.is_empty()).then_some(RepoInfo { root, worktrees })
+}
+
+/// `shop.git` is its own root; a `.bare` or `.git` folder stands for the folder holding it
+/// (the layout where worktrees sit next to it).
+fn bare_root(git_dir: &Path) -> PathBuf {
+    let git_dir = canonical(git_dir);
+    match git_dir.file_name().and_then(|name| name.to_str()) {
+        Some(".bare" | ".git") => git_dir
+            .parent()
+            .map_or_else(|| git_dir.clone(), Path::to_path_buf),
+        _ => git_dir,
+    }
 }
 
 fn canonical(path: &Path) -> PathBuf {
@@ -7235,7 +7425,7 @@ git commit -s -m "feat(project): read manifests and match signatures"
 
 ### Task 12: Snapshot resolution
 
-This task, the heart of the plan, turns a raw inventory into the `Snapshot` that `harbormap status` shows, and tests it on `tests/fixtures/shop.json`, a recorded Mac where Harbormap starts in `/Users/me/code/shop/apps/web`. That folder is inside the git project `shop`, whose linked worktree `/Users/me/code/shop-feature` runs a second Vite on port 5174, while the main worktree runs `npm run dev → sh -c → vite` (5173), FastAPI under uvicorn with a reload child (8000), `dotnet run` (5280), a Celery worker without a port, and a compose Postgres that Docker Desktop's `com.docker.backend` forwards on port 55432. Besides the shop's own programs, the machine has a second project `blog` (Next.js on 3000), a loose Redis container, AirPlay Receiver (5000 and 7000), cupsd, Chrome, Claude Code (an AI agent started in the shop folder, listening on 41234), and port 6000, whose owner is hidden. Resolution decides membership (a process belongs to the project whose worktree contains its working folder; a container, to the project that contains its compose `working_dir`, after resolving symlinks, because compose records the folder as it was typed) and who owns each listening port (a process, a container behind an engine forwarder, the system, or unknown). Listener owners and workers inside a project become services, and so does every container; a process service spans its whole wrapper chain, so `npm run dev → sh -c → vite` is one service with root PID 800 and main PID 802. Services are named after the nearest manifest or folder for the project's own servers, databases, caches and workers (`@shop/web` → `web`, `shop-api`, `Billing.csproj` → `Billing`), after the compose service or container name for containers (`db`, `lonely-redis`), and after their signature or program name otherwise; editors, AI agents, system owners and Harbormap itself never become services.
+This task, the heart of the plan, turns a raw inventory into the `Snapshot` that `harbormap status` shows, and tests it on `tests/fixtures/shop.json`, a recorded Mac where Harbormap starts in `/Users/me/code/shop/apps/web`. That folder is inside the git project `shop`, whose linked worktree `/Users/me/code/shop-feature` runs a second Vite on port 5174, while the main worktree runs `npm run dev → sh -c → vite` (5173), FastAPI under uvicorn with a reload child (8000), `dotnet run` (5280), a Celery worker without a port, and a compose Postgres that Docker Desktop's `com.docker.backend` forwards on port 55432. Besides the shop's own programs, the machine has a second project `blog` (Next.js on 3000), a loose Redis container, AirPlay Receiver (5000 and 7000), cupsd, Chrome, Claude Code (an AI agent started in the shop folder, listening on 41234), and port 6000, whose owner is hidden. Resolution decides membership (a process belongs to the project whose worktree contains its working folder; a container, to the project that contains its compose `working_dir`, after resolving symlinks, because compose records the folder as it was typed; the repository around a folder is always looked up, so a repository stays its own project inside a folder opened without git or inside another repository, whatever order processes come in) and who owns each listening port (a process, a container behind an engine forwarder, the system, or unknown). Listener owners and workers inside a project become services, and so does every container; a process service spans its whole wrapper chain, so `npm run dev → sh -c → vite` is one service with root PID 800 and main PID 802 (`bash -lc` and Yarn 2+'s `node .yarn/releases/yarn-4.x.cjs` are wrappers too). A program outside every project that matches a signature only probably is labelled with ", probably". Services are named after the nearest manifest or folder for the project's own servers, databases, caches and workers (`@shop/web` → `web`, `shop-api`, `Billing.csproj` → `Billing`), after the compose service or container name for containers (`db`, `lonely-redis`), and after their signature or program name otherwise; editors, AI agents, system owners and Harbormap itself never become services.
 
 **Files:**
 - Create: `crates/hm-project/src/resolve.rs`
@@ -7583,10 +7773,42 @@ fn project_services_get_names_frameworks_and_process_trees() {
         process(2000, 500, "python3", &celery, "apps/api"),
         process(1990, 2000, "python3", &celery, "apps/api"),
         process(1991, 2000, "python3", &celery, "apps/api"),
+        // Wrappers in other spellings: a login shell's `-lc`, and Yarn 2+ run by node.
+        process(
+            1500,
+            500,
+            "bash",
+            &["bash", "-lc", "node server.js"],
+            "apps/web",
+        ),
+        process(1501, 1500, "node", &["node", "server.js"], "apps/web"),
+        process(
+            1502,
+            500,
+            "node",
+            &[
+                "node",
+                "/Users/me/code/shop/.yarn/releases/yarn-4.5.1.cjs",
+                "run",
+                "dev",
+            ],
+            "apps/web",
+        ),
+        process(
+            1503,
+            1502,
+            "node",
+            &["node", "node_modules/.bin/vite", "--port", "5178"],
+            "apps/web",
+        ),
     ]);
-    busy.inventory
-        .listeners
-        .extend([socket(5176, 1402), socket(8001, 1403), socket(7777, 805)]);
+    busy.inventory.listeners.extend([
+        socket(5176, 1402),
+        socket(8001, 1403),
+        socket(7777, 805),
+        socket(5177, 1501),
+        socket(5178, 1503),
+    ]);
     let snapshot = resolve(&busy);
     let owner_service = |port: u16| {
         let id = listener(&snapshot, port).service_id.clone().unwrap();
@@ -7607,6 +7829,13 @@ fn project_services_get_names_frameworks_and_process_trees() {
         &service(&snapshot, "web", SHOP).source,
         ServiceSource::Process { pids, .. } if pids == &vec![800, 801, 802]
     ));
+    for (port, root) in [(5177, 1500), (5178, 1502)] {
+        assert!(
+            matches!(owner_service(port).source, ServiceSource::Process { root_pid, .. } if root_pid == root),
+            "port {port}: {:?}",
+            owner_service(port).source
+        );
+    }
     let pool: Vec<&ServiceSource> = snapshot
         .services
         .iter()
@@ -7731,6 +7960,60 @@ fn launching_from_the_home_folder_opens_no_project() {
 }
 
 #[test]
+fn a_folder_without_git_never_swallows_the_repositories_below_it() {
+    // Opened in ~/code, a plain folder that holds the shop and blog repositories, with a
+    // clone nested inside shop whose server has a higher pid than shop's own.
+    let mut scenario = scenario();
+    scenario.launch_dir = PathBuf::from("/Users/me/code");
+    let nested = "/Users/me/code/shop/tools/lib";
+    scenario.world.repos.push(hm_project::RepoInfo {
+        root: PathBuf::from(nested),
+        worktrees: vec![hm_core::model::Worktree {
+            path: PathBuf::from(nested),
+            branch: Some("main".into()),
+            head: None,
+        }],
+    });
+    scenario.inventory.processes.push(
+        serde_json::from_value(serde_json::json!({
+            "pid": 2100, "ppid": 500, "start_time": 1760490000, "name": "node",
+            "exe": "/opt/homebrew/bin/node",
+            "argv": ["node", format!("{nested}/node_modules/.bin/vite"), "--port", "5190"],
+            "cwd": nested, "uid": "501", "user": "me",
+        }))
+        .unwrap(),
+    );
+    scenario.inventory.listeners.push(
+        serde_json::from_value(serde_json::json!({
+            "proto": "tcp", "addr": "127.0.0.1", "port": 5190, "pids": [2100],
+        }))
+        .unwrap(),
+    );
+    let snapshot = resolve(&scenario);
+
+    let opened = snapshot.projects.iter().find(|p| p.opened).unwrap();
+    assert_eq!(opened.root, PathBuf::from("/Users/me/code"));
+    assert!(!opened.git);
+    for (port, root) in [
+        (5173, SHOP),
+        (5174, SHOP),
+        (55432, SHOP),
+        (3000, "/Users/me/code/blog"),
+        (5190, nested),
+    ] {
+        let id = listener(&snapshot, port).service_id.clone().unwrap();
+        let service = snapshot.services.iter().find(|s| s.id == id).unwrap();
+        let project = snapshot
+            .projects
+            .iter()
+            .find(|p| Some(&p.id) == service.project_id.as_ref())
+            .unwrap();
+        assert_eq!(project.root, PathBuf::from(root), "port {port}");
+        assert_eq!(service.section, Section::Elsewhere, "port {port}");
+    }
+}
+
+#[test]
 fn a_git_repository_at_home_is_ignored() {
     let mut scenario = scenario();
     // Some people keep their whole home folder in git.
@@ -7765,6 +8048,14 @@ fn hidden_linux_owners_map_to_containers_by_published_port() {
         pids: vec![],
         uid: Some(0),
     });
+    // A hidden socket of the user running Harbormap is not "another user's".
+    scenario.inventory.listeners.push(RawListener {
+        proto: Default::default(),
+        addr: "127.0.0.1".parse().unwrap(),
+        port: 6100,
+        pids: vec![],
+        uid: Some(501),
+    });
     let snapshot = resolve(&scenario);
     assert!(matches!(
         listener(&snapshot, 55432).owner,
@@ -7773,6 +8064,10 @@ fn hidden_linux_owners_map_to_containers_by_published_port() {
     assert!(matches!(
         listener(&snapshot, 6000).owner,
         Owner::Unknown { .. }
+    ));
+    assert!(matches!(
+        &listener(&snapshot, 6100).owner,
+        Owner::Unknown { reason } if reason.starts_with("it belongs to your own user (uid 501)")
     ));
 }
 
@@ -7879,6 +8174,33 @@ fn programs_that_are_not_the_projects_own_are_named_after_what_they_are() {
         "headless-browser (2) (Headless browser)"
     );
     assert_eq!(listener(&snapshot, 7777).label, "mystery");
+
+    // A program outside any project that is only probably what it looks like says so.
+    let mut outside = scenario;
+    outside.inventory.processes.push(RawProcess {
+        pid: 4200,
+        ppid: Some(1),
+        start_time: 1760495000,
+        name: "ruby".into(),
+        exe: Some("/usr/bin/ruby".into()),
+        argv: vec!["puma 6.4.3 (tcp://0.0.0.0:3300) [app]".into()],
+        cwd: Some("/srv/app".into()),
+        uid: Some("501".into()),
+        user: Some("me".into()),
+        ..RawProcess::default()
+    });
+    outside.inventory.listeners.push(RawListener {
+        proto: Default::default(),
+        addr: "0.0.0.0".parse().unwrap(),
+        port: 3300,
+        pids: vec![4200],
+        uid: None,
+    });
+    let snapshot = resolve(&outside);
+    assert_eq!(
+        listener(&snapshot, 3300).label,
+        "Ruby on Rails, probably (pid 4200)"
+    );
 }
 
 #[cfg(unix)]
@@ -8194,12 +8516,23 @@ impl<'a> Resolver<'a> {
             }
         }
         // A dev program outside git but under the home folder gets a folder project.
-        let owners: BTreeSet<u32> = self
+        // Shallow folders first, so a folder inside another joins it whatever the pids.
+        let mut owners: Vec<u32> = self
             .inv
             .listeners
             .iter()
             .flat_map(|l| l.pids.iter().copied())
+            .collect::<BTreeSet<u32>>()
+            .into_iter()
             .collect();
+        owners.sort_by_key(|pid| {
+            let depth = self
+                .procs
+                .get(pid)
+                .and_then(|process| process.cwd.as_ref())
+                .map_or(0, |cwd| cwd.components().count());
+            (depth, *pid)
+        });
         for pid in owners {
             if self.places.contains_key(&pid) || pid == self.inv.self_pid {
                 continue;
@@ -8300,6 +8633,11 @@ impl<'a> Resolver<'a> {
                 None => Owner::Unknown {
                     reason: match listener.uid {
                         Some(0) => format!("it belongs to the system (root); {NEEDS_ADMIN}"),
+                        Some(uid) if self.inv.current_uid.as_deref() == Some(&*uid.to_string()) => {
+                            format!(
+                                "it belongs to your own user (uid {uid}), but its program is hidden; {NEEDS_ADMIN}"
+                            )
+                        }
                         Some(uid) => {
                             format!("it belongs to another user (uid {uid}); {NEEDS_ADMIN}")
                         }
@@ -8719,7 +9057,12 @@ impl<'a> Resolver<'a> {
                     (Owner::Process { pid }, None) => {
                         let what = self.matches.get(pid).map_or_else(
                             || self.procs[pid].name.clone(),
-                            |found| found.signature.name.clone(),
+                            |found| match found.confidence {
+                                Confidence::Probably => {
+                                    format!("{}, probably", found.signature.name)
+                                }
+                                Confidence::Sure => found.signature.name.clone(),
+                            },
                         );
                         format!("{what} (pid {pid})")
                     }
@@ -8780,6 +9123,7 @@ impl<'a> Resolver<'a> {
                     user: raw.user.clone(),
                     own: raw.uid.is_some() && raw.uid == self.inv.current_uid,
                     signature: found.map(|found| found.signature.id.clone()),
+                    confidence: found.map_or(Confidence::Sure, |found| found.confidence),
                     kind: found.map_or(Kind::Unknown, |found| found.signature.kind),
                     project_id: place.map(|place| self.projects[place.project].id.clone()),
                     worktree: place.map(|place| place.worktree.clone()),
@@ -8881,16 +9225,21 @@ impl<'a> Resolver<'a> {
 
     // ----- helpers -----
 
+    /// The project and worktree of `dir`. The repository around `dir` is always looked
+    /// up, so a repository is its own project even inside a folder opened without git or
+    /// inside another repository (a nested clone), whatever order processes come in.
     fn locate(&mut self, dir: &Path) -> Option<Place> {
-        if let Some(place) = self.find_known(dir) {
-            return Some(place);
+        if let Some(repo) = self.world.repo_for(dir)
+            && !is_boundary(&repo.root, self.home.as_deref(), self.windows)
+            && !self.projects.iter().any(|project| {
+                project.git
+                    && within(&project.root, &repo.root, self.windows)
+                    && within(&repo.root, &project.root, self.windows)
+            })
+        {
+            self.projects
+                .push(ProjectCtx::new(repo.root, true, false, repo.worktrees));
         }
-        let repo = self.world.repo_for(dir)?;
-        if is_boundary(&repo.root, self.home.as_deref(), self.windows) {
-            return None;
-        }
-        self.projects
-            .push(ProjectCtx::new(repo.root, true, false, repo.worktrees));
         self.find_known(dir)
     }
 
@@ -9023,12 +9372,21 @@ fn is_wrapper(process: &RawProcess) -> bool {
     ]
     .iter()
     .any(|name| WRAPPER_EXES.contains(name))
-        || args().any(|arg| WRAPPER_SCRIPTS.contains(&script_stem(arg).as_str()))
+        || args().any(|arg| {
+            // Yarn 2+ runs as `node .yarn/releases/yarn-4.5.1.cjs`.
+            let script = script_stem(arg);
+            WRAPPER_SCRIPTS.contains(&script.as_str()) || script.starts_with("yarn-")
+        })
         || (SHELLS.contains(&stem.as_str())
             && args().any(|arg| {
-                arg == "-c"
-                    || arg.eq_ignore_ascii_case("/c")
+                arg.eq_ignore_ascii_case("/c")
                     || arg.eq_ignore_ascii_case("-command")
+                    // `-c`, also in a cluster such as `bash -lc` or `sh -ec`.
+                    || arg.strip_prefix('-').is_some_and(|flags| {
+                        flags.contains('c')
+                            && flags.len() <= 4
+                            && flags.bytes().all(|byte| byte.is_ascii_lowercase())
+                    })
             }))
         || (stem == "java" && args().any(|arg| arg.contains(MAVEN_LAUNCHER)))
 }
@@ -9091,10 +9449,15 @@ fn compose_of(container: &RawContainer) -> Option<Compose> {
 }
 
 /// Last folder name, for paths of any OS: `C:\\work\\shop\\` → `shop`.
+/// The last folder name; a bare repository's `shop.git` reads `shop`.
 fn folder_name(path: &Path) -> String {
     let text = path.to_string_lossy();
     let trimmed = text.trim_end_matches(['/', '\\']);
     let name = hm_core::names::basename(trimmed);
+    let name = name
+        .strip_suffix(".git")
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(name);
     if name.is_empty() {
         text.into_owned()
     } else {
@@ -9136,10 +9499,10 @@ pub use world::{FixtureWorld, RepoInfo, Scenario, World};
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-project --test resolve`
-Expected: PASS — `test result: ok. 13 passed` (on Windows 12 passed, because the `#[cfg(unix)]` symlink test does not exist there)
+Expected: PASS — `test result: ok. 14 passed` (on Windows 13 passed, because the `#[cfg(unix)]` symlink test does not exist there)
 
 Run: `cargo test -p hm-project`
-Expected: PASS — the unit tests report `test result: ok. 15 passed`, `tests/pack_fixtures.rs` reports `test result: ok. 2 passed` and `tests/resolve.rs` reports `test result: ok. 13 passed` (12 on Windows)
+Expected: PASS — the unit tests report `test result: ok. 15 passed`, `tests/pack_fixtures.rs` reports `test result: ok. 2 passed` and `tests/resolve.rs` reports `test result: ok. 14 passed` (13 on Windows)
 
 - [ ] **Step 5: Commit**
 
@@ -9377,16 +9740,18 @@ title.expert = ":{port}/tcp → pid {pid} ({program})"
 beginner = [
   "{program} is a program on your computer. It is not part of a project.",
   "{what}",
+  "{guess}",
   "{reach}",
 ]
 builder = [
   "{what}",
+  "{guess}",
   "Program {program}, pid {pid}, user {user}; not part of a project. || Program {program}, pid {pid}; not part of a project.",
   "Executable: {exe}",
   "Listening on {addr} ({reach}).",
 ]
 expert = [
-  "Signature: {signature}",
+  "Signature: {signature} ({confidence})",
   "{what}",
   "Socket: {addr} ({reach}) · owner pid {pid} ({program}), user {user} || Socket: {addr} ({reach}) · owner pid {pid} ({program})",
   "argv: {argv}",
@@ -9723,7 +10088,7 @@ git commit -s -m "feat(doctor): card text templates and rendering helpers"
 
 ### Task 14: Cards
 
-A card is a title plus a few sentences that explain one owner of a port, or one service, at the chosen level. This task collects the facts for a card from the snapshot (process, folder, branch, ports, container, engine) and renders the templates from Task 13. One card is made per distinct owner of a port, so the IPv4 and IPv6 sockets of one program share a card, while two programs that split a port get one card each. A card that covers several sockets states the widest reach among them, and a service on several ports links the port that was asked about.
+A card is a title plus a few sentences that explain one owner of a port, or one service, at the chosen level. This task collects the facts for a card from the snapshot (process, folder, branch, ports, container, engine) and renders the templates from Task 13. One card is made per distinct owner of a port, so the IPv4 and IPv6 sockets of one program share a card, while two programs that split a port get one card each. A card that covers several sockets states the widest reach among them, and a service on several ports links the port that was asked about. A program recognised only probably gets the guess sentence and its confidence, like a service.
 
 **Files:**
 - Create: `crates/hm-doctor/tests/fixtures/shop-snapshot.json`
@@ -9778,24 +10143,24 @@ Create `crates/hm-doctor/tests/fixtures/shop-snapshot.json` with:
     {"proto": "tcp", "addr": "::", "port": 55432, "bind": "all", "owner": {"kind": "container_forwarder", "container_id": "4f1c2a9e8b7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a3928170f6e5d4c"}, "section": "project", "project_id": "p_1a812fe5ce48", "service_id": "s_4419dc4ed284", "label": "db (PostgreSQL)"}
   ],
   "processes": [
-    {"pid": 1, "ppid": null, "start_time": 1760400000, "name": "launchd", "exe": "/sbin/launchd", "argv": ["/sbin/launchd"], "cwd": "/", "user": "root", "own": false, "signature": null, "kind": "unknown", "project_id": null, "worktree": null, "rss_bytes": 52428800, "uptime_s": 100000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 412, "ppid": 1, "start_time": 1760490000, "name": "cupsd", "exe": null, "argv": ["cupsd"], "cwd": null, "user": null, "own": false, "signature": null, "kind": "unknown", "project_id": null, "worktree": null, "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 500, "ppid": 1, "start_time": 1760490000, "name": "zsh", "exe": "/bin/zsh", "argv": ["-zsh"], "cwd": "/Users/me/code/shop", "user": "me", "own": true, "signature": null, "kind": "unknown", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 640, "ppid": 1, "start_time": 1760490000, "name": "ControlCenter", "exe": "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter", "argv": ["/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter"], "cwd": "/", "user": "me", "own": true, "signature": "airplay", "kind": "system", "project_id": null, "worktree": null, "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 800, "ppid": 500, "start_time": 1760490000, "name": "npm", "exe": "/opt/homebrew/bin/node", "argv": ["npm run dev"], "cwd": "/Users/me/code/shop/apps/web", "user": "me", "own": true, "signature": "node", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 801, "ppid": 800, "start_time": 1760490000, "name": "sh", "exe": "/bin/sh", "argv": ["sh", "-c", "vite"], "cwd": "/Users/me/code/shop/apps/web", "user": "me", "own": true, "signature": "vite", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 802, "ppid": 801, "start_time": 1760492600, "name": "node", "exe": "/opt/homebrew/bin/node", "argv": ["node", "/Users/me/code/shop/apps/web/node_modules/.bin/vite"], "cwd": "/Users/me/code/shop/apps/web", "user": "me", "own": true, "signature": "vite", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 7400, "env": {"names": ["PATH", "PORT", "VITE_API_URL"], "ports": [{"name": "PORT", "port": 5173}], "urls": [{"name": "VITE_API_URL", "scheme": "http", "host": "localhost", "port": 8000}]}},
-    {"pid": 900, "ppid": 500, "start_time": 1760490000, "name": "python3.13", "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "-m", "uvicorn", "main:app", "--reload", "--port", "8000"], "cwd": "/Users/me/code/shop/apps/api", "user": "me", "own": true, "signature": "fastapi", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 901, "ppid": 900, "start_time": 1760490000, "name": "python3.13", "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "-c", "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=5, pipe_handle=7)", "--multiprocessing-fork"], "cwd": "/Users/me/code/shop/apps/api", "user": "me", "own": true, "signature": "python", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 950, "ppid": 500, "start_time": 1760490000, "name": "dotnet", "exe": "/usr/local/share/dotnet/dotnet", "argv": ["dotnet", "run"], "cwd": "/Users/me/code/shop/services/billing", "user": "me", "own": true, "signature": null, "kind": "unknown", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 951, "ppid": 950, "start_time": 1760490000, "name": "Billing", "exe": "/Users/me/code/shop/services/billing/bin/Debug/net8.0/Billing", "argv": ["/Users/me/code/shop/services/billing/bin/Debug/net8.0/Billing"], "cwd": "/Users/me/code/shop/services/billing", "user": "me", "own": true, "signature": "dotnet", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 970, "ppid": 500, "start_time": 1760490000, "name": "python3.13", "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "/Users/me/code/shop/apps/api/.venv/bin/celery", "-A", "shop", "worker"], "cwd": "/Users/me/code/shop/apps/api", "user": "me", "own": true, "signature": "celery", "kind": "worker", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 1100, "ppid": 1, "start_time": 1760490000, "name": "zsh", "exe": "/bin/zsh", "argv": ["-zsh"], "cwd": "/Users/me/code/blog", "user": "me", "own": true, "signature": null, "kind": "unknown", "project_id": "p_a491c21bbcd9", "worktree": "/Users/me/code/blog", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 1200, "ppid": 1100, "start_time": 1760490000, "name": "node", "exe": "/opt/homebrew/bin/node", "argv": ["next-server (v15.5.4)"], "cwd": "/Users/me/code/blog", "user": "me", "own": true, "signature": "next", "kind": "dev_server", "project_id": "p_a491c21bbcd9", "worktree": "/Users/me/code/blog", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 1250, "ppid": 1, "start_time": 1760490000, "name": "zsh", "exe": "/bin/zsh", "argv": ["-zsh"], "cwd": "/Users/me/code/shop-feature", "user": "me", "own": true, "signature": null, "kind": "unknown", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop-feature", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 1300, "ppid": 1250, "start_time": 1760490000, "name": "node", "exe": "/opt/homebrew/bin/node", "argv": ["node", "/Users/me/code/shop-feature/apps/web/node_modules/.bin/vite", "--port", "5174"], "cwd": "/Users/me/code/shop-feature/apps/web", "user": "me", "own": true, "signature": "vite", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop-feature", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 3000, "ppid": 500, "start_time": 1760490000, "name": "claude", "exe": "/Users/me/.local/bin/claude", "argv": ["claude"], "cwd": "/Users/me/code/shop", "user": "me", "own": true, "signature": "claude-code", "kind": "agent_cli", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
-    {"pid": 76915, "ppid": 1, "start_time": 1760490000, "name": "Google Chrome", "exe": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "argv": ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"], "cwd": "/", "user": "me", "own": true, "signature": null, "kind": "unknown", "project_id": null, "worktree": null, "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}}
+    {"pid": 1, "ppid": null, "start_time": 1760400000, "name": "launchd", "exe": "/sbin/launchd", "argv": ["/sbin/launchd"], "cwd": "/", "user": "root", "own": false, "signature": null, "confidence": "sure", "kind": "unknown", "project_id": null, "worktree": null, "rss_bytes": 52428800, "uptime_s": 100000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 412, "ppid": 1, "start_time": 1760490000, "name": "cupsd", "exe": null, "argv": ["cupsd"], "cwd": null, "user": null, "own": false, "signature": null, "confidence": "sure", "kind": "unknown", "project_id": null, "worktree": null, "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 500, "ppid": 1, "start_time": 1760490000, "name": "zsh", "exe": "/bin/zsh", "argv": ["-zsh"], "cwd": "/Users/me/code/shop", "user": "me", "own": true, "signature": null, "confidence": "sure", "kind": "unknown", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 640, "ppid": 1, "start_time": 1760490000, "name": "ControlCenter", "exe": "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter", "argv": ["/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter"], "cwd": "/", "user": "me", "own": true, "signature": "airplay", "confidence": "sure", "kind": "system", "project_id": null, "worktree": null, "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 800, "ppid": 500, "start_time": 1760490000, "name": "npm", "exe": "/opt/homebrew/bin/node", "argv": ["npm run dev"], "cwd": "/Users/me/code/shop/apps/web", "user": "me", "own": true, "signature": "node", "confidence": "sure", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 801, "ppid": 800, "start_time": 1760490000, "name": "sh", "exe": "/bin/sh", "argv": ["sh", "-c", "vite"], "cwd": "/Users/me/code/shop/apps/web", "user": "me", "own": true, "signature": "vite", "confidence": "sure", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 802, "ppid": 801, "start_time": 1760492600, "name": "node", "exe": "/opt/homebrew/bin/node", "argv": ["node", "/Users/me/code/shop/apps/web/node_modules/.bin/vite"], "cwd": "/Users/me/code/shop/apps/web", "user": "me", "own": true, "signature": "vite", "confidence": "sure", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 7400, "env": {"names": ["PATH", "PORT", "VITE_API_URL"], "ports": [{"name": "PORT", "port": 5173}], "urls": [{"name": "VITE_API_URL", "scheme": "http", "host": "localhost", "port": 8000}]}},
+    {"pid": 900, "ppid": 500, "start_time": 1760490000, "name": "python3.13", "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "-m", "uvicorn", "main:app", "--reload", "--port", "8000"], "cwd": "/Users/me/code/shop/apps/api", "user": "me", "own": true, "signature": "fastapi", "confidence": "probably", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 901, "ppid": 900, "start_time": 1760490000, "name": "python3.13", "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "-c", "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=5, pipe_handle=7)", "--multiprocessing-fork"], "cwd": "/Users/me/code/shop/apps/api", "user": "me", "own": true, "signature": "python", "confidence": "sure", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 950, "ppid": 500, "start_time": 1760490000, "name": "dotnet", "exe": "/usr/local/share/dotnet/dotnet", "argv": ["dotnet", "run"], "cwd": "/Users/me/code/shop/services/billing", "user": "me", "own": true, "signature": null, "confidence": "sure", "kind": "unknown", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 951, "ppid": 950, "start_time": 1760490000, "name": "Billing", "exe": "/Users/me/code/shop/services/billing/bin/Debug/net8.0/Billing", "argv": ["/Users/me/code/shop/services/billing/bin/Debug/net8.0/Billing"], "cwd": "/Users/me/code/shop/services/billing", "user": "me", "own": true, "signature": "dotnet", "confidence": "sure", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 970, "ppid": 500, "start_time": 1760490000, "name": "python3.13", "exe": "/Users/me/code/shop/apps/api/.venv/bin/python3.13", "argv": ["/Users/me/code/shop/apps/api/.venv/bin/python3", "/Users/me/code/shop/apps/api/.venv/bin/celery", "-A", "shop", "worker"], "cwd": "/Users/me/code/shop/apps/api", "user": "me", "own": true, "signature": "celery", "confidence": "sure", "kind": "worker", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 1100, "ppid": 1, "start_time": 1760490000, "name": "zsh", "exe": "/bin/zsh", "argv": ["-zsh"], "cwd": "/Users/me/code/blog", "user": "me", "own": true, "signature": null, "confidence": "sure", "kind": "unknown", "project_id": "p_a491c21bbcd9", "worktree": "/Users/me/code/blog", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 1200, "ppid": 1100, "start_time": 1760490000, "name": "node", "exe": "/opt/homebrew/bin/node", "argv": ["next-server (v15.5.4)"], "cwd": "/Users/me/code/blog", "user": "me", "own": true, "signature": "next", "confidence": "sure", "kind": "dev_server", "project_id": "p_a491c21bbcd9", "worktree": "/Users/me/code/blog", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 1250, "ppid": 1, "start_time": 1760490000, "name": "zsh", "exe": "/bin/zsh", "argv": ["-zsh"], "cwd": "/Users/me/code/shop-feature", "user": "me", "own": true, "signature": null, "confidence": "sure", "kind": "unknown", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop-feature", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 1300, "ppid": 1250, "start_time": 1760490000, "name": "node", "exe": "/opt/homebrew/bin/node", "argv": ["node", "/Users/me/code/shop-feature/apps/web/node_modules/.bin/vite", "--port", "5174"], "cwd": "/Users/me/code/shop-feature/apps/web", "user": "me", "own": true, "signature": "vite", "confidence": "sure", "kind": "dev_server", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop-feature", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 3000, "ppid": 500, "start_time": 1760490000, "name": "claude", "exe": "/Users/me/.local/bin/claude", "argv": ["claude"], "cwd": "/Users/me/code/shop", "user": "me", "own": true, "signature": "claude-code", "confidence": "sure", "kind": "agent_cli", "project_id": "p_1a812fe5ce48", "worktree": "/Users/me/code/shop", "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}},
+    {"pid": 76915, "ppid": 1, "start_time": 1760490000, "name": "Google Chrome", "exe": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "argv": ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"], "cwd": "/", "user": "me", "own": true, "signature": null, "confidence": "sure", "kind": "unknown", "project_id": null, "worktree": null, "rss_bytes": 52428800, "uptime_s": 10000, "env": {"names": [], "ports": [], "urls": []}}
   ],
   "containers": [
     {"id": "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b", "engine": "e_1", "name": "lonely-redis", "image": "redis:7", "state": "running", "health": null, "exit_code": 0, "oom_killed": false, "restart_count": 0, "started_at": "2026-10-15T06:00:00Z", "ports": [{"container_port": 6379, "proto": "tcp", "host_ip": "0.0.0.0", "host_port": 6380}], "networks": ["bridge"], "mounts": [], "compose": null, "signature": "redis", "section": "elsewhere", "project_id": null},
@@ -9818,7 +10183,7 @@ Then create `crates/hm-doctor/tests/cards.rs`. It checks each kind of card at th
 
 use std::path::Path;
 
-use hm_core::model::{BindScope, Listener, Owner, Proto, Section, Snapshot};
+use hm_core::model::{BindScope, Confidence, Listener, Owner, Proto, Section, Snapshot};
 use hm_core::signature::Level;
 use hm_doctor::cards::{Card, CardContext, port_cards, service_card};
 use hm_doctor::packs::{self, Packs};
@@ -10026,6 +10391,28 @@ fn system_apps_unknown_and_free_ports_have_their_own_cards() {
 
     let chrome = one(&snapshot, 9820, Level::Builder);
     assert_eq!(chrome.title, ":9820 → Google Chrome (pid 76915)");
+    // A program recognised only probably says so, as services do.
+    let mut guessed = snapshot.clone();
+    for process in &mut guessed.processes {
+        if process.pid == 76915 {
+            process.signature = Some("rails".into());
+            process.confidence = Confidence::Probably;
+        }
+    }
+    let rails = one(&guessed, 9820, Level::Builder);
+    assert!(
+        rails.lines.contains(
+            &"A good guess from what Harbormap can see, not a certainty (probably).".to_string()
+        ),
+        "{rails:#?}"
+    );
+    let rails = one(&guessed, 9820, Level::Expert);
+    assert!(
+        rails
+            .lines
+            .contains(&"Signature: rails (probably)".to_string()),
+        "{rails:#?}"
+    );
 
     let agent = one(&snapshot, 41234, Level::Beginner);
     assert_eq!(agent.title, "Port 41234: Claude Code");
@@ -10207,7 +10594,7 @@ fn owner_card(ctx: &CardContext<'_>, owner: &Owner, listeners: &[&Listener]) -> 
                     ctx,
                     &mut facts,
                     process.signature.as_deref(),
-                    Confidence::Sure,
+                    process.confidence,
                 );
             }
             card(ctx, &ctx.texts.app, &facts)
@@ -10224,7 +10611,7 @@ fn owner_card(ctx: &CardContext<'_>, owner: &Owner, listeners: &[&Listener]) -> 
                     ctx,
                     &mut facts,
                     process.signature.as_deref(),
-                    Confidence::Sure,
+                    process.confidence,
                 );
             }
             card(ctx, &ctx.texts.system, &facts)
@@ -10396,6 +10783,13 @@ fn add_signature_text(
     if let Some(signature) = signature.and_then(|id| ctx.signatures.get(id)) {
         facts.insert("what", signature.texts.get(ctx.level).to_string());
         facts.insert("signature", signature.id.clone());
+        facts.insert(
+            "confidence",
+            match confidence {
+                Confidence::Sure => "sure".into(),
+                Confidence::Probably => "probably".into(),
+            },
+        );
         if confidence == Confidence::Probably
             && let Some(guess) = &ctx.texts.guess
         {
@@ -10730,6 +11124,12 @@ fn status_json_is_the_snapshot() {
             .iter()
             .all(|listener| !listener.label.is_empty())
     );
+    // hm-doctor's card tests read a saved copy of this snapshot; the two must not drift.
+    let saved: hm_core::model::Snapshot = serde_json::from_str(include_str!(
+        "../../hm-doctor/tests/fixtures/shop-snapshot.json"
+    ))
+    .unwrap();
+    assert_eq!(snapshot, saved);
 }
 
 const STATUS: &str = r#"shop  ~/code/shop · main
@@ -12064,7 +12464,14 @@ fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
     let scratch = Scratch::new();
     let logs = scratch.dir("logs");
     let other = scratch.dir("other");
-    run(Command::new("git").args(["init", "-q"]), &other);
+    // Not the repository a git hook running this test points at.
+    run(
+        Command::new("git")
+            .args(["init", "-q"])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE"),
+        &other,
+    );
 
     let mut vite = Command::new(if cfg!(windows) { "npm.cmd" } else { "npm" });
     vite.args(["run", "dev"]);
@@ -12151,9 +12558,8 @@ fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
 
 /// A port the opened project must own: listener and service in section "project", with
 /// the expected service name and signature, in the worktree this test runs from (the
-/// repository root, `repo`). For
-/// host programs, the service's process tree must start at the process this test
-/// started (`npm run dev`, not only the `node vite` it runs).
+/// repository root, `repo`). For host programs, the service's process tree must start
+/// at the process this test started (`npm run dev`, not only the `node vite` it runs).
 fn check_in_project(
     snapshot: &Snapshot,
     repo: &Path,
@@ -12556,9 +12962,14 @@ impl Drop for Server {
 #[cfg(unix)]
 fn stop_tree(child: &mut Child) {
     let group = format!("-{}", child.id());
-    if signal_group(&group, "-TERM") && !group_gone(child, &group, Duration::from_secs(10)) {
-        signal_group(&group, "-KILL");
-        group_gone(child, &group, Duration::from_secs(5));
+    if signal_group(&group, "-TERM")
+        && !group_gone(child, &group, Duration::from_secs(10))
+        && !(signal_group(&group, "-KILL") && group_gone(child, &group, Duration::from_secs(5)))
+    {
+        eprintln!(
+            "process group {} survived KILL; stop it by hand",
+            child.id()
+        );
     }
     // Without a working `kill`, at least the process this test started stops.
     let _ = child.kill();
@@ -12600,6 +13011,8 @@ fn stop_tree(child: &mut Child) {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
+    // Without taskkill, at least the process this test started stops.
+    let _ = child.kill();
     let _ = child.wait();
 }
 
@@ -12862,7 +13275,7 @@ Run: `cargo clippy --workspace --all-targets -- -D warnings`
 Expected: ``Finished `dev` profile [unoptimized + debuginfo] target(s)`` with no warnings.
 
 Run: `cargo test --workspace`
-Expected: PASS — 101 tests pass across the workspace (on Windows 98, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
+Expected: PASS — 103 tests pass across the workspace (on Windows 100, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
 
 Run: `git status --short`
 Expected: only the files of this task. `node_modules/`, `.venv/`, `bin/` and `obj/` under `tests/e2e/apps` are ignored.
