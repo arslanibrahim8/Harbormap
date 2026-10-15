@@ -34,6 +34,14 @@
       "Mode": "z",
       "RW": true,
       "Propagation": ""
+    },
+    {
+      "Type": "bind",
+      "Source": "/Users/me/code/shop/db/init",
+      "Destination": "/docker-entrypoint-initdb.d",
+      "Mode": "",
+      "RW": false,
+      "Propagation": "rprivate"
     }
   ],
   "Config": {

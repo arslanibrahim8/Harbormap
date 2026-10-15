@@ -4,10 +4,12 @@
 pub mod convert;
 pub mod discover;
 
+use std::io::ErrorKind;
 use std::time::Duration;
 
 use bollard::query_parameters::ListContainersOptions;
 use bollard::{API_DEFAULT_VERSION, Docker};
+use tokio::task::JoinSet;
 
 use hm_core::ids::engine_id;
 use hm_core::model::{Engine, Note};
@@ -17,6 +19,9 @@ use discover::{Candidate, DiscoverEnv};
 
 /// Seconds bollard waits for a single API request.
 const REQUEST_TIMEOUT_SECS: u64 = 5;
+
+/// Containers inspected at the same time on one engine.
+const PARALLEL_INSPECTS: usize = 16;
 
 #[derive(Debug, Default)]
 pub struct DockerReport {
@@ -37,37 +42,67 @@ impl DockerReport {
     }
 }
 
-/// Probes every candidate engine, giving each at most `timeout`.
+/// Probes every candidate engine at the same time, giving each at most `timeout`.
 pub fn probe_docker(env: &DiscoverEnv, timeout: Duration) -> DockerReport {
     let candidates = discover::candidates(env);
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
-        Ok(runtime) => runtime.block_on(probe_all(candidates, timeout)),
+        Ok(runtime) => {
+            let report = runtime.block_on(probe_all(candidates, timeout));
+            // Don't wait for blocking work left behind by a timed-out connect (a name
+            // lookup cannot be cancelled); the timeout is the promise.
+            runtime.shutdown_background();
+            report
+        }
         Err(error) => DockerReport::failed(&error.to_string()),
+    }
+}
+
+/// Why an engine could not be read.
+struct ProbeError {
+    text: String,
+    kind: Option<ErrorKind>,
+}
+
+impl ProbeError {
+    fn new(error: &bollard::errors::Error) -> Self {
+        ProbeError {
+            text: describe(error),
+            kind: io_kind(error),
+        }
     }
 }
 
 async fn probe_all(candidates: Vec<Candidate>, timeout: Duration) -> DockerReport {
     let mut report = DockerReport::default();
+    let installed = on_path("docker") || on_path("podman");
     if candidates.is_empty() {
-        report
-            .notes
-            .push(if on_path("docker") || on_path("podman") {
-                not_running()
-            } else {
-                note(
-                    "docker_not_installed",
-                    "Docker isn't installed, so there are no containers to show.",
-                )
-            });
+        report.notes.push(if installed {
+            not_running()
+        } else {
+            not_installed()
+        });
         return report;
     }
+    let mut tasks = JoinSet::new();
+    for (index, candidate) in candidates.iter().cloned().enumerate() {
+        tasks.spawn(async move {
+            let result = tokio::time::timeout(timeout, probe_one(&candidate)).await;
+            (index, result)
+        });
+    }
+    let mut results: Vec<Option<_>> = candidates.iter().map(|_| None).collect();
+    while let Some(Ok((index, result))) = tasks.join_next().await {
+        results[index] = Some(result);
+    }
     let mut timed_out = false;
-    for candidate in candidates {
-        match tokio::time::timeout(timeout, probe_one(&candidate)).await {
-            Ok(Ok((engine, containers))) => {
+    let mut denied = None;
+    let mut missing_only = true;
+    for (candidate, result) in candidates.iter().zip(results) {
+        match result {
+            Some(Ok(Ok((engine, containers)))) => {
                 // Two sockets can reach the same daemon; keep the first.
                 if report.engines.iter().any(|known| known.id == engine.id) {
                     continue;
@@ -75,13 +110,26 @@ async fn probe_all(candidates: Vec<Candidate>, timeout: Duration) -> DockerRepor
                 report.engines.push(engine);
                 report.containers.extend(containers);
             }
-            Ok(Err(error)) => report.engines.push(unreachable(&candidate, error)),
-            Err(_) => {
+            Some(Ok(Err(error))) => {
+                if error.kind == Some(ErrorKind::PermissionDenied) && denied.is_none() {
+                    denied = Some(candidate.endpoint.clone());
+                }
+                missing_only &= error.kind == Some(ErrorKind::NotFound);
+                report.engines.push(unreachable(candidate, error.text));
+            }
+            Some(Err(_)) => {
                 timed_out = true;
+                missing_only = false;
                 report.engines.push(unreachable(
-                    &candidate,
+                    candidate,
                     format!("no answer within {} ms", timeout.as_millis()),
                 ));
+            }
+            None => {
+                missing_only = false;
+                report
+                    .engines
+                    .push(unreachable(candidate, "the check stopped early".into()));
             }
         }
     }
@@ -91,6 +139,15 @@ async fn probe_all(candidates: Vec<Candidate>, timeout: Duration) -> DockerRepor
                 "docker_not_answering",
                 "Docker didn't answer in time. It may still be starting; try again in a moment.",
             )
+        } else if let Some(endpoint) = denied {
+            note(
+                "docker_unavailable",
+                &format!(
+                    "Harbormap couldn't check Docker: permission denied on {endpoint}. Your user may need access to the Docker socket."
+                ),
+            )
+        } else if missing_only && !installed {
+            not_installed()
         } else {
             not_running()
         });
@@ -98,12 +155,15 @@ async fn probe_all(candidates: Vec<Candidate>, timeout: Duration) -> DockerRepor
     report
 }
 
-async fn probe_one(candidate: &Candidate) -> Result<(Engine, Vec<RawContainer>), String> {
+async fn probe_one(candidate: &Candidate) -> Result<(Engine, Vec<RawContainer>), ProbeError> {
     let docker = connect(&candidate.endpoint)?
         .negotiate_version()
         .await
-        .map_err(|error| error.to_string())?;
-    let info = docker.info().await.map_err(|error| error.to_string())?;
+        .map_err(|error| ProbeError::new(&error))?;
+    let info = docker
+        .info()
+        .await
+        .map_err(|error| ProbeError::new(&error))?;
     let key = info
         .id
         .clone()
@@ -116,14 +176,25 @@ async fn probe_one(candidate: &Candidate) -> Result<(Engine, Vec<RawContainer>),
             ..ListContainersOptions::default()
         }))
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| ProbeError::new(&error))?;
+    // Inspect several containers at once, so hundreds of stopped containers still fit
+    // in the time budget.
+    let mut ids = summaries.into_iter().filter_map(|summary| summary.id);
+    let mut tasks = JoinSet::new();
     let mut containers = Vec::new();
-    for summary in summaries {
-        let Some(container_id) = summary.id else {
-            continue;
+    loop {
+        while tasks.len() < PARALLEL_INSPECTS {
+            let Some(container_id) = ids.next() else {
+                break;
+            };
+            let docker = docker.clone();
+            tasks.spawn(async move { docker.inspect_container(&container_id, None).await });
+        }
+        let Some(done) = tasks.join_next().await else {
+            break;
         };
         // A container can disappear between listing and inspecting; skip it then.
-        if let Ok(inspect) = docker.inspect_container(&container_id, None).await
+        if let Ok(Ok(inspect)) = done
             && let Some(container) = convert::from_inspect(&id, inspect)
         {
             containers.push(container);
@@ -141,13 +212,40 @@ async fn probe_one(candidate: &Candidate) -> Result<(Engine, Vec<RawContainer>),
     Ok((engine, containers))
 }
 
-fn connect(endpoint: &str) -> Result<Docker, String> {
+fn connect(endpoint: &str) -> Result<Docker, ProbeError> {
     let docker = if endpoint.starts_with("tcp://") || endpoint.starts_with("http://") {
         Docker::connect_with_http(endpoint, REQUEST_TIMEOUT_SECS, API_DEFAULT_VERSION)
     } else {
-        connect_local(endpoint)?
+        connect_local(endpoint).map_err(|text| ProbeError { text, kind: None })?
     };
-    docker.map_err(|error| error.to_string())
+    docker.map_err(|error| ProbeError::new(&error))
+}
+
+/// The error with its causes, so the OS reason ("permission denied") is not lost.
+fn describe(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut text = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        let cause_text = cause.to_string();
+        if !text.contains(&cause_text) {
+            text.push_str(": ");
+            text.push_str(&cause_text);
+        }
+        source = cause.source();
+    }
+    text
+}
+
+/// The kind of the first I/O error among the causes.
+fn io_kind(error: &(dyn std::error::Error + 'static)) -> Option<ErrorKind> {
+    let mut current: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(cause) = current {
+        if let Some(io) = cause.downcast_ref::<std::io::Error>() {
+            return Some(io.kind());
+        }
+        current = cause.source();
+    }
+    None
 }
 
 #[cfg(unix)]
@@ -192,6 +290,13 @@ fn unreachable(candidate: &Candidate, error: String) -> Engine {
         reachable: false,
         error: Some(error),
     }
+}
+
+fn not_installed() -> Note {
+    note(
+        "docker_not_installed",
+        "Docker isn't installed, so there are no containers to show.",
+    )
 }
 
 fn not_running() -> Note {
@@ -246,11 +351,14 @@ mod tests {
                 endpoint: "tcp://127.0.0.1:1".into(),
                 label: "Docker".into(),
             }],
-            Duration::from_secs(2),
+            // A refused connection returns at once; the budget only covers slow systems.
+            Duration::from_secs(10),
         ));
         assert_eq!(report.engines.len(), 1);
         assert!(!report.engines[0].reachable);
-        assert!(report.engines[0].error.is_some());
+        // The OS reason survives, not only "client error (Connect)".
+        let error = report.engines[0].error.as_deref().unwrap();
+        assert!(error.to_lowercase().contains("refused"), "{error}");
         assert_eq!(report.notes[0].code, "docker_not_running");
     }
 

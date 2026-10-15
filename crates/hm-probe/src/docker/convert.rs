@@ -61,7 +61,7 @@ pub fn from_inspect(engine: &str, inspect: ContainerInspectResponse) -> Option<R
     let mut networks: Vec<String> = network.networks.unwrap_or_default().into_keys().collect();
     networks.sort();
 
-    let mounts = inspect
+    let mut mounts: Vec<Mount> = inspect
         .mounts
         .unwrap_or_default()
         .into_iter()
@@ -80,6 +80,15 @@ pub fn from_inspect(engine: &str, inspect: ContainerInspectResponse) -> Option<R
             }
         })
         .collect();
+    // Docker lists mounts in no fixed order; sort them so snapshots stay stable.
+    mounts.sort_by(|a, b| {
+        (&a.destination, &a.kind, &a.name, &a.source).cmp(&(
+            &b.destination,
+            &b.kind,
+            &b.name,
+            &b.source,
+        ))
+    });
 
     let labels: BTreeMap<String, String> = config
         .labels
@@ -156,9 +165,15 @@ mod tests {
             ]
         );
         assert_eq!(container.networks, vec!["shop_default"]);
-        assert_eq!(container.mounts[0].kind, "volume");
-        assert_eq!(container.mounts[0].name.as_deref(), Some("shop_pgdata"));
-        assert_eq!(container.mounts[0].source, None);
+        // Sorted by destination; a bind mount keeps its host path, a volume its name.
+        assert_eq!(container.mounts[0].kind, "bind");
+        assert_eq!(
+            container.mounts[0].source,
+            Some(PathBuf::from("/Users/me/code/shop/db/init"))
+        );
+        assert_eq!(container.mounts[1].kind, "volume");
+        assert_eq!(container.mounts[1].name.as_deref(), Some("shop_pgdata"));
+        assert_eq!(container.mounts[1].source, None);
         assert_eq!(
             container
                 .labels
