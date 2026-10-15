@@ -61,7 +61,7 @@ P2, P3 and P4 are written after P1 lands, against the real code.
 The spec does not list these inputs, but a person using Harbormap will meet them. Each has a test in the task that owns the code.
 
 1. A port split between IPv4 and IPv6 by two different programs (common on macOS: `::1` vs `127.0.0.1`): `why` shows both owners, one card each (Task 14, `two_programs_splitting_a_port_get_two_cards`).
-2. A dev server whose working folder was deleted (Linux reports `/path (deleted)`): it stays in its project (Task 5, `deleted_working_folders_keep_their_original_path`).
+2. A program that renames itself, as npm and Next.js do through node (`npm run dev`): on macOS the OS then reports the first environment entries, values included, as its last arguments. They are dropped, so no environment value reaches a snapshot (Task 5, `environment_entries_left_by_a_renamed_process_are_dropped`).
 3. A Docker engine that accepts the connection but never answers: `status` still finishes within the timeout and says Docker is not answering (Task 8, `a_hanging_engine_times_out_with_a_note`).
 4. Windows paths that differ in case or end with a backslash, and PID 4 holding port 80: the project still matches and port 80 reads "Windows HTTP service" (Task 12, `windows_paths_match_without_case_and_pid_4_is_the_http_service`).
 5. A home folder that is itself a git repository (dotfiles): it never swallows every process as one project (Task 12, `a_git_repository_at_home_is_ignored`).
@@ -2156,13 +2156,13 @@ git commit -s -m "feat(core): add snapshot model, stable IDs, raw inventory and 
 
 ### Task 5: Process table probe
 
-This task starts the `hm-probe` crate with its first OS adapter: one read of the process table through `sysinfo`. Each process is reduced to what Harbormap may keep: redacted argv, environment variable *names*, and only the values the secrets rule allows (`PORT`-like integers and `*_URL`-like targets, spec §15). A live test starts a child process with known environment variables and checks that the probe sees its working folder and those facts, but never a secret value.
+This task starts the `hm-probe` crate with its first OS adapter: one read of the process table through `sysinfo`. Each process is reduced to what Harbormap may keep: redacted argv, environment variable *names*, and only the values the secrets rule allows (`PORT`-like integers and `*_URL`-like targets, spec §15). On macOS, a process that renamed itself (npm and Next.js do, through node) leaves environment entries, values included, at the end of its argv as the OS reports it; the probe drops that tail, so no environment value leaves the probe. A live test starts a child process with known environment variables and checks that the probe sees its working folder and those facts, but never a secret value.
 
 **Files:**
 - Create: `crates/hm-probe/src/processes.rs`
 - Create: `crates/hm-probe/tests/live.rs`
 - Modify: `crates/hm-probe/src/lib.rs` (replace the Task 1 placeholder with the crate doc comment and `pub mod processes;`)
-- Test: `crates/hm-probe/src/processes.rs` (unit test in the same file), `crates/hm-probe/tests/live.rs` (live test on the real machine)
+- Test: `crates/hm-probe/src/processes.rs` (unit tests in the same file), `crates/hm-probe/tests/live.rs` (live test on the real machine)
 
 **Interfaces:**
 - Consumes: `hm_core::env::extract_from_pairs<I, S>(entries: I) -> EnvFacts where I: IntoIterator<Item = S>, S: AsRef<str>` (Task 2); `hm_core::env::{EnvFacts, EnvPort, EnvUrl}` (Task 2, checked by the live test); `hm_core::redact::redact_argv(argv: &[String]) -> Vec<String>` (Task 3); `hm_core::raw::RawProcess` (Task 4)
@@ -2195,6 +2195,39 @@ mod tests {
             clean_cwd(Path::new("/work/shop")),
             PathBuf::from("/work/shop")
         );
+    }
+
+    #[test]
+    fn environment_entries_left_by_a_renamed_process_are_dropped() {
+        // What macOS returns for node after `process.title = "npm run dev"`, and for perl
+        // after `$0 = "worker"`: the title, perhaps a blank, then environment entries.
+        let mut node = args(&[
+            "npm run dev",
+            "COMMAND_MODE=unix2003",
+            "HOME=/Users/me",
+            "API_TOKEN=s3cr3t",
+        ]);
+        drop_environment_tail(&mut node);
+        assert_eq!(node, args(&["npm run dev"]));
+
+        let mut perl = args(&["worker", "        ", "HOME=/Users/me"]);
+        drop_environment_tail(&mut perl);
+        assert_eq!(perl, args(&["worker"]));
+
+        // Ordinary arguments stay, including a `NAME=value` that is not last.
+        let make = args(&["make", "CC=clang", "-j4"]);
+        let mut kept = make.clone();
+        drop_environment_tail(&mut kept);
+        assert_eq!(kept, make);
+
+        let vite = args(&["node", "vite", "--port=5173", "http://localhost/?a=b"]);
+        let mut kept = vite.clone();
+        drop_environment_tail(&mut kept);
+        assert_eq!(kept, vite);
+    }
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|arg| arg.to_string()).collect()
     }
 }
 ```
@@ -2294,7 +2327,7 @@ fn processes_include_cwd_and_env_facts_but_no_secret_values() {
 - [ ] **Step 2: Run the test to see it fail**
 
 Run: `cargo test -p hm-probe processes`
-Expected: FAIL — compile errors such as `` error[E0425]: cannot find function `clean_cwd` in this scope `` and `` error[E0432]: unresolved import `hm_probe::processes::read_processes` ``.
+Expected: FAIL — compile errors such as `` error[E0425]: cannot find function `clean_cwd` in this scope ``, the same for `drop_environment_tail`, and `` error[E0432]: unresolved import `hm_probe::processes::read_processes` ``.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -2347,6 +2380,9 @@ pub fn read_processes() -> ProcessTable {
                 .iter()
                 .map(|arg| arg.to_string_lossy().into_owned())
                 .collect();
+            if cfg!(target_os = "macos") {
+                drop_environment_tail(&mut argv);
+            }
             if argv.is_empty() {
                 argv.push(name.clone());
             }
@@ -2393,6 +2429,29 @@ pub fn clean_cwd(cwd: &Path) -> PathBuf {
     }
 }
 
+/// On macOS, a process that renamed itself (node, which runs npm and Next.js, or perl)
+/// keeps its new title in argv[0] and blanks the rest of its original arguments. The
+/// argument reader skips the blanks and returns the first environment entries in their
+/// place, values included. Environment values must never leave the probe (spec §15), so
+/// a run of `NAME=value` or blank arguments at the end is dropped. Real argument lists
+/// rarely end that way, and dropping one loses only display detail.
+fn drop_environment_tail(argv: &mut Vec<String>) {
+    while argv
+        .last()
+        .is_some_and(|arg| arg.trim().is_empty() || is_environment_entry(arg))
+    {
+        argv.pop();
+    }
+}
+
+/// `NAME=value`, where NAME is a letter or `_` followed by letters, digits or `_`.
+fn is_environment_entry(arg: &str) -> bool {
+    arg.split_once('=').is_some_and(|(name, _)| {
+        name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    })
+}
+
 /// The uid on Unix, the SID string on Windows.
 fn uid_key(uid: &Uid) -> String {
     (**uid).to_string()
@@ -2402,7 +2461,7 @@ fn uid_key(uid: &Uid) -> String {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-probe processes`
-Expected: PASS — unit tests `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`; `tests/live.rs` `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out`. The live output shows one extra `running 1 test` line: it is printed by the child process and is expected.
+Expected: PASS — unit tests `test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`; `tests/live.rs` `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out`. The live output shows one extra `running 1 test` line: it is printed by the child process and is expected.
 
 - [ ] **Step 5: Commit**
 
@@ -3011,7 +3070,7 @@ pub fn read() -> Result<Vec<RawListener>, String> {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-probe listeners`
-Expected: PASS — unit tests `test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out`; `tests/live.rs` `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out`.
+Expected: PASS — unit tests `test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out`; `tests/live.rs` `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out`.
 
 - [ ] **Step 5: Commit**
 
@@ -3346,7 +3405,7 @@ pub fn on_path(name: &str) -> bool {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-probe discover`
-Expected: PASS — unit tests `test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out` (on Windows 3 passed, because the `#[cfg(unix)]` symlink test does not exist there); `tests/live.rs` `test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out`.
+Expected: PASS — unit tests `test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out` (on Windows 3 passed, because the `#[cfg(unix)]` symlink test does not exist there); `tests/live.rs` `test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out`.
 
 - [ ] **Step 5: Commit**
 
@@ -4046,7 +4105,7 @@ pub fn probe(options: &ProbeOptions) -> RawInventory {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-probe`
-Expected: PASS — unit tests `test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` (on Windows 14 passed, because the two `#[cfg(unix)]` tests do not exist there); `tests/live.rs` `test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out` (the ignored test is the `child_sleeper` helper); doc-tests `test result: ok. 0 passed`. The live probe test makes no assertions about Docker, so it passes whether or not an engine is running.
+Expected: PASS — unit tests `test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` (on Windows 15 passed, because the two `#[cfg(unix)]` tests do not exist there); `tests/live.rs` `test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out` (the ignored test is the `child_sleeper` helper); doc-tests `test result: ok. 0 passed`. The live probe test makes no assertions about Docker, so it passes whether or not an engine is running.
 
 - [ ] **Step 5: Commit**
 
@@ -6317,7 +6376,7 @@ git commit -s -m "feat(project): read manifests and match signatures"
 
 ### Task 12: Snapshot resolution
 
-This task, the heart of the plan, turns a raw inventory into the `Snapshot` that `harbormap status` shows, and tests it on `tests/fixtures/shop.json`, a recorded Mac where Harbormap starts in `/Users/me/code/shop/apps/web`. That folder is inside the git project `shop`, whose linked worktree `/Users/me/code/shop-feature` runs a second Vite on port 5174, while the main worktree runs `npm run dev → sh -c → vite` (5173), FastAPI under uvicorn with a reload child (8000), `dotnet run` (5280), a Celery worker without a port, and a compose Postgres that Docker Desktop's `com.docker.backend` forwards on port 55432. Besides the shop's own programs, the machine has a second project `blog` (Next.js on 3000), a loose Redis container, AirPlay Receiver (5000 and 7000), cupsd, Chrome, Claude Code (an AI agent started in the shop folder, listening on 41234), and port 6000, whose owner is hidden. Resolution decides membership (a process belongs to the project whose worktree contains its working folder; a container, to the project that contains its compose `working_dir`) and who owns each listening port (a process, a container behind an engine forwarder, the system, or unknown). Listener owners and workers inside a project become services, and so does every container; a process service spans its whole wrapper chain, so `npm run dev → sh -c → vite` is one service with root PID 800 and main PID 802. Services are named after the nearest manifest or folder for the project's own servers, databases, caches and workers (`@shop/web` → `web`, `shop-api`, `Billing.csproj` → `Billing`), after the compose service or container name for containers (`db`, `lonely-redis`), and after their signature or program name otherwise; editors, AI agents, system owners and Harbormap itself never become services.
+This task, the heart of the plan, turns a raw inventory into the `Snapshot` that `harbormap status` shows, and tests it on `tests/fixtures/shop.json`, a recorded Mac where Harbormap starts in `/Users/me/code/shop/apps/web`. That folder is inside the git project `shop`, whose linked worktree `/Users/me/code/shop-feature` runs a second Vite on port 5174, while the main worktree runs `npm run dev → sh -c → vite` (5173), FastAPI under uvicorn with a reload child (8000), `dotnet run` (5280), a Celery worker without a port, and a compose Postgres that Docker Desktop's `com.docker.backend` forwards on port 55432. Besides the shop's own programs, the machine has a second project `blog` (Next.js on 3000), a loose Redis container, AirPlay Receiver (5000 and 7000), cupsd, Chrome, Claude Code (an AI agent started in the shop folder, listening on 41234), and port 6000, whose owner is hidden. Resolution decides membership (a process belongs to the project whose worktree contains its working folder; a container, to the project that contains its compose `working_dir`, after resolving symlinks, because compose records the folder as it was typed) and who owns each listening port (a process, a container behind an engine forwarder, the system, or unknown). Listener owners and workers inside a project become services, and so does every container; a process service spans its whole wrapper chain, so `npm run dev → sh -c → vite` is one service with root PID 800 and main PID 802. Services are named after the nearest manifest or folder for the project's own servers, databases, caches and workers (`@shop/web` → `web`, `shop-api`, `Billing.csproj` → `Billing`), after the compose service or container name for containers (`db`, `lonely-redis`), and after their signature or program name otherwise; editors, AI agents, system owners and Harbormap itself never become services.
 
 **Files:**
 - Create: `crates/hm-project/src/resolve.rs`
@@ -6329,7 +6388,7 @@ This task, the heart of the plan, turns a raw inventory into the `Snapshot` that
   - Task 2: `hm_core::names::exe_stem(path: &str) -> String`, `hm_core::names::basename(path: &str) -> &str`, `hm_core::env::EnvFacts` (copied from `RawProcess::env` to `Process::env`)
   - Task 4: `hm_core::ids::project_id(canonical_root: &Path) -> String`, `hm_core::ids::service_id(project_id: Option<&str>, worktree: Option<&Path>, name: &str) -> String`; `hm_core::model::{Snapshot, Host, Project, Worktree, Service, ServiceSource, Listener, Owner, Process, Container, Compose, Note, Section, Role, Kind, Confidence, BindScope, SNAPSHOT_SCHEMA}`, `BindScope::of(addr: IpAddr) -> BindScope`, `hm_core::model::canonical_ip(addr: IpAddr) -> IpAddr` (and `PortBinding` in the tests); `hm_core::raw::{RawInventory, RawProcess, RawListener, RawContainer}`; `hm_core::signature::{Signature, SignatureSet}`
   - Task 9: `hm_doctor::packs::load_embedded() -> Packs` (tests only)
-  - Task 10: `hm_project::world::World`, `hm_project::paths::{within, is_boundary}`, and in the tests `hm_project::{Scenario, RepoInfo}`
+  - Task 10: `hm_project::world::World` (including `World::canonicalize(&self, path: &Path) -> PathBuf`), `hm_project::paths::{within, is_boundary}`, and in the tests `hm_project::{Scenario, RepoInfo}` and `hm_project::git::RealWorld` (`RealWorld::new()`)
   - Task 11: `hm_project::manifest::{Manifest, read_manifest}`, `hm_project::matcher::{Match, ProcFacts, match_process, match_image, script_stem}`
 - Produces: `pub struct ResolveInput<'a> { pub inventory: &'a RawInventory, pub world: &'a dyn World, pub signatures: &'a SignatureSet, pub launch_dir: &'a Path }`, `pub fn build_snapshot(input: ResolveInput<'_>) -> Snapshot`, both re-exported at the crate root (`hm_project::{ResolveInput, build_snapshot}`).
 
@@ -6869,6 +6928,52 @@ fn programs_that_are_not_the_projects_own_are_named_after_what_they_are() {
     );
     assert_eq!(listener(&snapshot, 7777).label, "mystery");
 }
+
+#[cfg(unix)]
+#[test]
+fn a_compose_folder_reached_through_a_symlink_stays_in_its_project() {
+    use hm_core::raw::RawInventory;
+    use hm_project::git::RealWorld;
+
+    // Compose records `working_dir` as it was typed, symlinks included (on macOS, /tmp
+    // is a symlink to /private/tmp), while project roots are canonical.
+    let temp = tempfile::tempdir().unwrap();
+    let real = temp.path().join("shop");
+    std::fs::create_dir(&real).unwrap();
+    let link = temp.path().join("shop-link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let inventory: RawInventory = serde_json::from_value(serde_json::json!({
+        "os": std::env::consts::OS,
+        "containers": [{
+            "engine": "e_1",
+            "id": "c0ffee",
+            "name": "shop-db-1",
+            "image": "postgres:16-alpine",
+            "state": "running",
+            "labels": {
+                "com.docker.compose.project": "shop",
+                "com.docker.compose.service": "db",
+                "com.docker.compose.project.working_dir": link,
+            },
+        }],
+    }))
+    .unwrap();
+    let packs = load_embedded();
+    let snapshot = build_snapshot(ResolveInput {
+        inventory: &inventory,
+        world: &RealWorld::new(),
+        signatures: &packs.signatures,
+        launch_dir: &real,
+    });
+    let db = snapshot
+        .services
+        .iter()
+        .find(|service| service.name == "db")
+        .unwrap();
+    assert_eq!(db.section, Section::Project);
+    assert!(snapshot.opened.is_some());
+    assert_eq!(db.project_id, snapshot.opened);
+}
 ```
 
 - [ ] **Step 2: Run the test to see it fail**
@@ -7211,7 +7316,9 @@ impl<'a> Resolver<'a> {
             let working_dir = container
                 .labels
                 .get(&format!("{COMPOSE}project.working_dir"))
-                .map(PathBuf::from);
+                // Compose keeps the folder as it was typed, symlinks included (on macOS,
+                // /tmp is /private/tmp), while project roots are canonical.
+                .map(|dir| self.world.canonicalize(Path::new(dir)));
             let place = match working_dir {
                 Some(dir) => match self.locate(&dir) {
                     Some(place) => Some(place),
@@ -8026,10 +8133,10 @@ pub use world::{FixtureWorld, RepoInfo, Scenario, World};
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-project --test resolve`
-Expected: PASS — `test result: ok. 12 passed`
+Expected: PASS — `test result: ok. 13 passed` (on Windows 12 passed, because the `#[cfg(unix)]` symlink test does not exist there)
 
 Run: `cargo test -p hm-project`
-Expected: PASS — the unit tests report `test result: ok. 14 passed`, `tests/pack_fixtures.rs` reports `test result: ok. 2 passed` and `tests/resolve.rs` reports `test result: ok. 12 passed`
+Expected: PASS — the unit tests report `test result: ok. 14 passed`, `tests/pack_fixtures.rs` reports `test result: ok. 2 passed` and `tests/resolve.rs` reports `test result: ok. 13 passed` (12 on Windows)
 
 - [ ] **Step 5: Commit**
 
@@ -8680,7 +8787,7 @@ Create `crates/hm-doctor/tests/fixtures/shop-snapshot.json` with:
     {"id": "e_1", "name": "Docker Desktop", "endpoint": "unix:///Users/me/.docker/run/docker.sock", "version": "29.2.1", "reachable": true, "error": null}
   ],
   "notes": [
-    {"code": "owners_hidden", "text": "1 listening port(s) belong to programs Harbormap can't see without admin rights."}
+    {"code": "owners_hidden", "text": "1 listening port belongs to a program Harbormap can't see without admin rights."}
   ]
 }
 ```
@@ -10380,3 +10487,1048 @@ cargo run -p harbormap -- why 3000 --level beginner
 ```
 
 To look from one of your own projects, run the same commands in that folder and tell cargo where Harbormap is, for example `cargo run --manifest-path ~/code/harbormap/Cargo.toml -p harbormap -- status`. The output depends on what runs on your computer, so there is no expected output.
+
+### Task 17: Exit-criteria harness
+
+This task proves the first alpha.1 exit criterion (spec §2): a test harness starts a Vite server, a FastAPI server, a .NET server and a compose project with Postgres, and `harbormap status --json` maps every listener to the right project, service and framework. It adds four tiny apps under `tests/e2e/apps`, an ignored integration test that starts them, checks the snapshot and stops everything again, and a CI job that runs it on the three Tier-1 runners. A plain Python server in a second git repository must land under "elsewhere", so the test also checks that Harbormap does not pull other projects into the opened one.
+
+**Files:**
+- Create: `tests/e2e/apps/.gitignore`
+- Create: `tests/e2e/apps/vite/package.json`, `tests/e2e/apps/vite/index.html`, `tests/e2e/apps/vite/package-lock.json` (generated by npm)
+- Create: `tests/e2e/apps/fastapi/pyproject.toml`, `tests/e2e/apps/fastapi/requirements.txt`, `tests/e2e/apps/fastapi/main.py`
+- Create: `tests/e2e/apps/dotnet/E2eDotnet.csproj`, `tests/e2e/apps/dotnet/Program.cs`
+- Create: `tests/e2e/apps/compose/compose.yaml`
+- Create: `crates/harbormap/tests/e2e.rs`
+- Modify: `.github/workflows/ci.yml` (add the `e2e` job)
+
+**Interfaces:**
+- Consumes:
+  - `harbormap status --json` prints the `Snapshot` as JSON (Task 15); `HARBORMAP_FIXTURE` replays a recorded machine in debug builds (Task 15), so the harness removes it from the child's environment.
+  - `hm_core::model::{Listener, Section, Service, ServiceSource, Snapshot}` (Task 4): `Snapshot { opened, projects, services, listeners, notes, .. }`, `Service { id, name, signature, section, project_id, worktree, ports, source, .. }`, `ServiceSource::Process { main_pid, root_pid, pids }`, `Listener { addr, port, section, service_id, owner, label, .. }`, `Project { id, name, root, opened, git, .. }`, `Note { code, text }`.
+  - Names and signatures from resolution (Task 12) and the packs (Task 9): `e2e-vite` (package.json name, signature `vite`), `e2e-fastapi` (pyproject name, `fastapi`), `E2eDotnet` (csproj file stem, `dotnet`), `db` (compose service, `postgres`), and a bare `python -m http.server` (`python`).
+  - The `e2e` job uses the toolchain step and `Swatinem/rust-cache` from Task 1's workflow.
+- Produces: `cargo test -p harbormap --test e2e -- --ignored --nocapture` (the exit criterion). `HM_E2E_DOCKER=1` adds the Postgres container; `HM_E2E_PYTHON` names the Python that creates the FastAPI venv and runs the second project (default `python3`, or `python` on Windows). Ports 47173 (Vite), 47800 (FastAPI), 47280 (.NET), 47432 (Postgres) and 47900 (the other project) must be free.
+
+- [ ] **Step 1: Create the Vite app**
+
+Each app is the smallest one its framework runs. Every port is fixed and unusual (47xxx), so the harness never collides with your own dev servers. Dependencies installed by the harness stay out of git.
+
+Create `tests/e2e/apps/.gitignore`:
+
+```gitignore
+node_modules/
+.venv/
+bin/
+obj/
+__pycache__/
+```
+
+Create `tests/e2e/apps/vite/package.json`. The package name `e2e-vite` becomes the service name, and the `dev` script is what the harness starts (`npm run dev`), so the service's process tree runs from npm to Vite:
+
+```json
+{
+  "name": "e2e-vite",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 47173 --strictPort"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}
+```
+
+Create `tests/e2e/apps/vite/index.html`:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>e2e-vite</title>
+  </head>
+  <body>
+    <p>Harbormap end-to-end fixture: Vite.</p>
+  </body>
+</html>
+```
+
+Generate the lockfile, so `npm ci` installs exactly the same packages everywhere. It writes only `package-lock.json`, without installing anything:
+
+Run (in `tests/e2e/apps/vite`): `npm install --package-lock-only --no-audit --no-fund`
+Expected: `up to date in …s` and a new `package-lock.json` whose `packages["node_modules/vite"].version` is `8.3.4`.
+
+- [ ] **Step 2: Create the FastAPI app**
+
+Create `tests/e2e/apps/fastapi/pyproject.toml`. Its project name `e2e-fastapi` becomes the service name, and the `fastapi` dependency is what the signature looks for:
+
+```toml
+[project]
+name = "e2e-fastapi"
+version = "0.0.0"
+description = "Harbormap end-to-end fixture: FastAPI."
+requires-python = ">=3.11"
+dependencies = ["fastapi", "uvicorn"]
+```
+
+Create `tests/e2e/apps/fastapi/requirements.txt`, the exact versions the harness installs into the app's `.venv`:
+
+```text
+# `pip freeze` after `pip install fastapi==0.143.1 uvicorn==0.54.0` (Python 3.13).
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+fastapi==0.143.1
+h11==0.16.0
+idna==3.20
+opentelemetry-api==1.45.1
+pydantic==2.14.1
+pydantic_core==2.50.1
+starlette==1.8.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.54.0
+```
+
+Create `tests/e2e/apps/fastapi/main.py`:
+
+```python
+from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"app": "e2e-fastapi"}
+```
+
+- [ ] **Step 3: Create the .NET app**
+
+Create `tests/e2e/apps/dotnet/E2eDotnet.csproj`. The file stem `E2eDotnet` becomes the service name. `RollForward` lets a machine with only a newer .NET runtime run it:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Run on the newest installed runtime when the .NET 8 runtime itself is missing. -->
+    <RollForward>Major</RollForward>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
+```
+
+Create `tests/e2e/apps/dotnet/Program.cs`:
+
+```csharp
+var app = WebApplication.CreateBuilder(args).Build();
+
+app.MapGet("/", () => "Harbormap end-to-end fixture: .NET");
+
+app.Run();
+```
+
+- [ ] **Step 4: Create the compose project**
+
+Create `tests/e2e/apps/compose/compose.yaml`. Postgres publishes 47432 on `127.0.0.1` only, and the health check lets `docker compose up --wait` return once the database accepts connections:
+
+```yaml
+# Harbormap end-to-end fixture: a compose project with one Postgres service.
+# The password is a throwaway value for this local, short-lived test database.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: hm-e2e-throwaway
+    ports:
+      - "127.0.0.1:47432:5432"
+    healthcheck:
+      # Over TCP, so the temporary server that initdb runs (socket only) does not count.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+```
+
+- [ ] **Step 5: Write the harness**
+
+The test is `#[ignore]`d, so `cargo test --workspace` never starts servers; you run it on purpose with `--ignored`. It fails at once if a port is already taken, prepares the apps on the first run (`npm ci` and a venv with the pinned requirements), starts every server in its own process group, waits until each one accepts connections, runs `harbormap status --json` from the repository root and checks every port:
+
+- in the opened project: section `project` for the listener and the service, the expected service name and signature, the worktree that contains the repository, and, for the three host servers, a process tree rooted at the very process the test started (`npm run dev`, not only the `node vite` it runs);
+- the other project: section `elsewhere`, signature `python`, and a project whose root is that second repository.
+
+On failure it lists every problem and prints a summary of the whole snapshot. Servers, the compose project (`down -v`) and the temporary folder are removed when the test ends, also after a failed assertion.
+
+Create `crates/harbormap/tests/e2e.rs`:
+
+```rust
+//! The alpha.1 exit criterion (v0.1 design §2): a test harness starts a Vite server, a
+//! FastAPI server, a .NET server and a compose project with Postgres, and
+//! `harbormap status --json` maps every listener to the right project, service and
+//! framework. A plain Python server in another git repository must show up under
+//! "elsewhere".
+//!
+//! The apps live in `tests/e2e/apps`. A first run installs `node_modules` and the FastAPI
+//! `.venv` when they are missing (network needed), and `dotnet run` restores and builds,
+//! so it can take a few minutes. Needs npm, Python 3.11+, the .NET SDK and git on PATH;
+//! the Postgres part also needs Docker with compose:
+//!
+//! ```text
+//! cargo test -p harbormap --test e2e -- --ignored --nocapture
+//! HM_E2E_DOCKER=1 cargo test -p harbormap --test e2e -- --ignored --nocapture
+//! ```
+//!
+//! `HM_E2E_PYTHON` names the Python that creates the venv and runs the other project
+//! (default `python3`, or `python` on Windows).
+
+use std::fmt::Write as _;
+use std::fs::File;
+use std::net::{SocketAddr, TcpStream};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use hm_core::model::{Listener, Section, Service, ServiceSource, Snapshot};
+
+const VITE: u16 = 47173;
+const FASTAPI: u16 = 47800;
+const DOTNET: u16 = 47280;
+const POSTGRES: u16 = 47432;
+const OTHER: u16 = 47900;
+
+/// The first .NET start restores and builds the app.
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(180);
+const COMPOSE_PROJECT: &str = "hm-e2e";
+
+#[test]
+#[ignore = "starts real dev servers; needs npm, Python, the .NET SDK and git (and Docker with HM_E2E_DOCKER=1)"]
+fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
+    let repo = canonical(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."));
+    let apps = repo.join("tests").join("e2e").join("apps");
+    let docker = std::env::var("HM_E2E_DOCKER").is_ok_and(|value| value == "1");
+
+    let mut ports = vec![VITE, FASTAPI, DOTNET, OTHER];
+    if docker {
+        ports.push(POSTGRES);
+    }
+    let busy: Vec<u16> = ports
+        .iter()
+        .copied()
+        .filter(|port| accepts(*port))
+        .collect();
+    assert!(
+        busy.is_empty(),
+        "port(s) {busy:?} are already in use; stop whatever holds them and run again"
+    );
+
+    let vite_dir = apps.join("vite");
+    let fastapi_dir = apps.join("fastapi");
+    let dotnet_dir = apps.join("dotnet");
+    prepare_vite(&vite_dir);
+    prepare_fastapi(&fastapi_dir);
+
+    // Declared first so it is removed last: the logs and the other project live here.
+    let scratch = Scratch::new();
+    let logs = scratch.dir("logs");
+    let other = scratch.dir("other");
+    run(Command::new("git").args(["init", "-q"]), &other);
+
+    let mut vite = Command::new(if cfg!(windows) { "npm.cmd" } else { "npm" });
+    vite.args(["run", "dev"]);
+
+    let mut fastapi = Command::new(venv_python(&fastapi_dir));
+    fastapi
+        .args(["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port"])
+        .arg(FASTAPI.to_string())
+        .env("PYTHONUNBUFFERED", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1");
+
+    let mut dotnet = Command::new("dotnet");
+    dotnet
+        .args(["run", "--urls"])
+        .arg(format!("http://127.0.0.1:{DOTNET}"))
+        .env("DOTNET_NOLOGO", "1")
+        .env("DOTNET_CLI_TELEMETRY_OPTOUT", "1")
+        .env("DOTNET_GENERATE_ASPNET_CERTIFICATE", "false")
+        // Leave no MSBuild worker nodes or compiler server behind after the build.
+        .env("MSBUILDDISABLENODEREUSE", "1")
+        .env("UseSharedCompilation", "false");
+
+    let mut elsewhere = Command::new(base_python());
+    elsewhere
+        .args(["-m", "http.server"])
+        .arg(OTHER.to_string())
+        .args(["--bind", "127.0.0.1"]);
+
+    let mut servers = vec![
+        Server::start("vite", VITE, vite, &vite_dir, &logs),
+        Server::start("fastapi", FASTAPI, fastapi, &fastapi_dir, &logs),
+        Server::start("dotnet", DOTNET, dotnet, &dotnet_dir, &logs),
+        Server::start("other", OTHER, elsewhere, &other, &logs),
+    ];
+    // Compose blocks until Postgres is healthy while .NET builds in the background.
+    let compose = docker.then(|| Compose::up(&apps.join("compose").join("compose.yaml")));
+    wait_until_listening(&mut servers);
+    if compose.is_some() {
+        assert!(
+            accepts(POSTGRES),
+            "Postgres is healthy but port {POSTGRES} refuses connections"
+        );
+    }
+
+    let snapshot = status_json(&repo);
+
+    let pid_of = |name: &str| {
+        servers
+            .iter()
+            .find(|server| server.name == name)
+            .map(|server| server.child.id())
+    };
+    let mut expected = vec![
+        (VITE, "e2e-vite", "vite", pid_of("vite")),
+        (FASTAPI, "e2e-fastapi", "fastapi", pid_of("fastapi")),
+        (DOTNET, "E2eDotnet", "dotnet", pid_of("dotnet")),
+    ];
+    if docker {
+        expected.push((POSTGRES, "db", "postgres", None));
+    }
+    let mut problems = Vec::new();
+    for (port, name, signature, started) in expected {
+        check_in_project(
+            &snapshot,
+            &repo,
+            port,
+            name,
+            signature,
+            started,
+            &mut problems,
+        );
+    }
+    check_elsewhere(&snapshot, &other, &mut problems);
+    assert!(
+        problems.is_empty(),
+        "{} problem(s):\n  {}\n\n{}",
+        problems.len(),
+        problems.join("\n  "),
+        summary(&snapshot)
+    );
+    println!("every listener maps as expected (docker: {docker})");
+}
+
+/// A port the opened project must own: listener and service in section "project", with
+/// the expected service name and signature, in the worktree this test runs from. For
+/// host programs, the service's process tree must start at the process this test
+/// started (`npm run dev`, not only the `node vite` it runs).
+fn check_in_project(
+    snapshot: &Snapshot,
+    repo: &Path,
+    port: u16,
+    name: &str,
+    signature: &str,
+    started: Option<u32>,
+    problems: &mut Vec<String>,
+) {
+    for (listener, service) in services_on(snapshot, port, problems) {
+        let mut wrong = |what: String| problems.push(format!("port {port}: {what}"));
+        if service.name != name {
+            wrong(format!(
+                "service is named {:?}, expected {name:?}",
+                service.name
+            ));
+        }
+        if service.signature.as_deref() != Some(signature) {
+            wrong(format!(
+                "signature is {:?}, expected {signature:?}",
+                service.signature
+            ));
+        }
+        if listener.section != Section::Project || service.section != Section::Project {
+            wrong(format!(
+                "sections are {:?} (listener) and {:?} (service), expected project",
+                listener.section, service.section
+            ));
+        }
+        if snapshot.opened.is_none() || service.project_id != snapshot.opened {
+            wrong(format!(
+                "project is {:?}, expected the opened project {:?}",
+                service.project_id, snapshot.opened
+            ));
+        }
+        if !service
+            .worktree
+            .as_deref()
+            .is_some_and(|worktree| repo.starts_with(worktree))
+        {
+            wrong(format!(
+                "worktree is {:?}, expected one that contains {}",
+                service.worktree,
+                repo.display()
+            ));
+        }
+        if let Some(pid) = started {
+            match &service.source {
+                ServiceSource::Process { root_pid, .. } if *root_pid == pid => {}
+                source => wrong(format!(
+                    "service source is {source:?}, expected a process tree rooted at {pid}"
+                )),
+            }
+        }
+    }
+}
+
+/// The Python server in the other repository: section "elsewhere", signature "python",
+/// and a project whose root is that repository.
+fn check_elsewhere(snapshot: &Snapshot, root: &Path, problems: &mut Vec<String>) {
+    for (listener, service) in services_on(snapshot, OTHER, problems) {
+        let mut wrong = |what: String| problems.push(format!("port {OTHER}: {what}"));
+        if listener.section != Section::Elsewhere || service.section != Section::Elsewhere {
+            wrong(format!(
+                "sections are {:?} (listener) and {:?} (service), expected elsewhere",
+                listener.section, service.section
+            ));
+        }
+        if service.signature.as_deref() != Some("python") {
+            wrong(format!(
+                "signature is {:?}, expected \"python\"",
+                service.signature
+            ));
+        }
+        let project = service
+            .project_id
+            .as_ref()
+            .and_then(|id| snapshot.projects.iter().find(|project| &project.id == id));
+        match project {
+            Some(project) if project.root == root && !project.opened => {}
+            Some(project) => wrong(format!(
+                "project root is {} (opened: {}), expected {}",
+                project.root.display(),
+                project.opened,
+                root.display()
+            )),
+            None => wrong(format!(
+                "project {:?} is not in the snapshot",
+                service.project_id
+            )),
+        }
+    }
+}
+
+/// Every listener on `port` with its service; a missing listener or service is a problem.
+fn services_on<'s>(
+    snapshot: &'s Snapshot,
+    port: u16,
+    problems: &mut Vec<String>,
+) -> Vec<(&'s Listener, &'s Service)> {
+    let listeners: Vec<&Listener> = snapshot
+        .listeners
+        .iter()
+        .filter(|listener| listener.port == port)
+        .collect();
+    if listeners.is_empty() {
+        problems.push(format!("port {port}: no listener in the snapshot"));
+    }
+    listeners
+        .into_iter()
+        .filter_map(|listener| {
+            let service = listener
+                .service_id
+                .as_ref()
+                .and_then(|id| snapshot.services.iter().find(|service| &service.id == id));
+            if service.is_none() {
+                problems.push(format!(
+                    "port {port}: no service (owner {:?}, label {:?}, section {:?})",
+                    listener.owner, listener.label, listener.section
+                ));
+            }
+            service.map(|service| (listener, service))
+        })
+        .collect()
+}
+
+fn summary(snapshot: &Snapshot) -> String {
+    let mut out = format!("Snapshot summary (opened project {:?})\n", snapshot.opened);
+    for project in &snapshot.projects {
+        let _ = writeln!(
+            out,
+            "  project {} {:?} root={} opened={} git={}",
+            project.id,
+            project.name,
+            project.root.display(),
+            project.opened,
+            project.git
+        );
+    }
+    for service in &snapshot.services {
+        let _ = writeln!(
+            out,
+            "  service {} {:?} signature={:?} section={:?} project={:?} ports={:?} source={:?}",
+            service.id,
+            service.name,
+            service.signature,
+            service.section,
+            service.project_id,
+            service.ports,
+            service.source
+        );
+    }
+    for listener in &snapshot.listeners {
+        let _ = writeln!(
+            out,
+            "  listener {} section={:?} service={:?} owner={:?} label={:?}",
+            SocketAddr::new(listener.addr, listener.port),
+            listener.section,
+            listener.service_id,
+            listener.owner,
+            listener.label
+        );
+    }
+    for note in &snapshot.notes {
+        let _ = writeln!(out, "  note {}: {}", note.code, note.text);
+    }
+    out
+}
+
+fn status_json(repo: &Path) -> Snapshot {
+    let output = Command::new(env!("CARGO_BIN_EXE_harbormap"))
+        .args(["status", "--json"])
+        .current_dir(repo)
+        // Debug builds replay a recorded machine when this is set.
+        .env_remove("HARBORMAP_FIXTURE")
+        .output()
+        .expect("could not run harbormap");
+    assert!(
+        output.status.success(),
+        "harbormap status --json failed ({}):\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+        panic!(
+            "harbormap status --json printed something that is not a snapshot ({error}):\n{}",
+            String::from_utf8_lossy(&output.stdout)
+        )
+    })
+}
+
+/// `npm ci` unless `node_modules` already holds Vite.
+fn prepare_vite(dir: &Path) {
+    if !dir
+        .join("node_modules")
+        .join("vite")
+        .join("package.json")
+        .is_file()
+    {
+        let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
+        run(
+            Command::new(npm).args(["ci", "--no-audit", "--no-fund"]),
+            dir,
+        );
+    }
+}
+
+/// A `.venv` with the pinned requirements, unless it already imports FastAPI and Uvicorn.
+fn prepare_fastapi(dir: &Path) {
+    let python = venv_python(dir);
+    if !python.is_file() {
+        run(
+            Command::new(base_python()).args(["-m", "venv", ".venv"]),
+            dir,
+        );
+    }
+    let ready = Command::new(&python)
+        .args(["-c", "import fastapi, uvicorn"])
+        .current_dir(dir)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    if !ready {
+        run(
+            Command::new(&python).args([
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--quiet",
+                "-r",
+                "requirements.txt",
+            ]),
+            dir,
+        );
+    }
+}
+
+fn venv_python(app: &Path) -> PathBuf {
+    if cfg!(windows) {
+        app.join(".venv").join("Scripts").join("python.exe")
+    } else {
+        app.join(".venv").join("bin").join("python")
+    }
+}
+
+fn base_python() -> String {
+    std::env::var("HM_E2E_PYTHON")
+        .unwrap_or_else(|_| if cfg!(windows) { "python" } else { "python3" }.to_string())
+}
+
+/// Runs a setup command to completion; fails with its output when it fails.
+fn run(command: &mut Command, dir: &Path) {
+    let output = command
+        .current_dir(dir)
+        .output()
+        .unwrap_or_else(|error| panic!("could not run {command:?}: {error}"));
+    assert!(
+        output.status.success(),
+        "{command:?} failed ({}):\n{}{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn accepts(port: u16) -> bool {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
+}
+
+/// The path as Harbormap stores it: symlinks resolved and, on Windows, without the
+/// `\\?\` prefix that `std::fs::canonicalize` adds.
+fn canonical(path: &Path) -> PathBuf {
+    let path =
+        std::fs::canonicalize(path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    #[cfg(windows)]
+    {
+        let text = path.to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+    }
+    path
+}
+
+/// Waits until every server accepts TCP connections; fails early when one exits.
+fn wait_until_listening(servers: &mut [Server]) {
+    let deadline = Instant::now() + STARTUP_TIMEOUT;
+    let mut waiting: Vec<&mut Server> = servers.iter_mut().collect();
+    while !waiting.is_empty() {
+        let mut still = Vec::new();
+        for server in waiting {
+            if accepts(server.port) {
+                println!(
+                    "{} listens on {} after {:.1} s",
+                    server.name,
+                    server.port,
+                    server.started.elapsed().as_secs_f64()
+                );
+            } else if let Ok(Some(status)) = server.child.try_wait() {
+                panic!(
+                    "{} exited ({status}) before listening on {}\n{}",
+                    server.name,
+                    server.port,
+                    server.log_tail()
+                );
+            } else {
+                still.push(server);
+            }
+        }
+        waiting = still;
+        if waiting.is_empty() {
+            break;
+        }
+        if Instant::now() > deadline {
+            let tails: Vec<String> = waiting
+                .iter()
+                .map(|server| {
+                    format!(
+                        "{} (port {})\n{}",
+                        server.name,
+                        server.port,
+                        server.log_tail()
+                    )
+                })
+                .collect();
+            panic!(
+                "not listening after {} s:\n{}",
+                STARTUP_TIMEOUT.as_secs(),
+                tails.join("\n")
+            );
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+}
+
+/// A started program with its whole process tree, stopped when dropped.
+struct Server {
+    name: &'static str,
+    port: u16,
+    child: Child,
+    log: PathBuf,
+    started: Instant,
+}
+
+impl Server {
+    fn start(
+        name: &'static str,
+        port: u16,
+        mut command: Command,
+        cwd: &Path,
+        logs: &Path,
+    ) -> Server {
+        let log = logs.join(format!("{name}.log"));
+        let out = File::create(&log).unwrap_or_else(|error| panic!("{}: {error}", log.display()));
+        let err = out.try_clone().expect("could not duplicate the log handle");
+        command
+            .current_dir(cwd)
+            .stdin(Stdio::null())
+            .stdout(out)
+            .stderr(err);
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            // A group of its own, so the whole tree (npm → sh → node) stops together.
+            command.process_group(0);
+        }
+        let child = command
+            .spawn()
+            .unwrap_or_else(|error| panic!("could not start {name} ({command:?}): {error}"));
+        Server {
+            name,
+            port,
+            child,
+            log,
+            started: Instant::now(),
+        }
+    }
+
+    fn log_tail(&self) -> String {
+        let text = std::fs::read_to_string(&self.log).unwrap_or_default();
+        let lines: Vec<&str> = text.lines().collect();
+        let first = lines.len().saturating_sub(40);
+        format!(
+            "--- {} ---\n{}",
+            self.log.display(),
+            lines[first..].join("\n")
+        )
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        stop_tree(&mut self.child);
+    }
+}
+
+/// TERM to the process group, then KILL if it is still there after 10 s.
+#[cfg(unix)]
+fn stop_tree(child: &mut Child) {
+    let group = format!("-{}", child.id());
+    if signal_group(&group, "-TERM") && !group_gone(child, &group, Duration::from_secs(10)) {
+        signal_group(&group, "-KILL");
+        group_gone(child, &group, Duration::from_secs(5));
+    }
+    let _ = child.wait();
+}
+
+#[cfg(unix)]
+fn signal_group(group: &str, signal: &str) -> bool {
+    Command::new("kill")
+        .args([signal, "--", group])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+#[cfg(unix)]
+fn group_gone(child: &mut Child, group: &str, grace: Duration) -> bool {
+    let deadline = Instant::now() + grace;
+    loop {
+        // Reap the group leader: as a zombie it would keep the group alive.
+        let _ = child.try_wait();
+        // `kill -0` succeeds while any process of the group is alive.
+        if !signal_group(group, "-0") {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+#[cfg(windows)]
+fn stop_tree(child: &mut Child) {
+    let _ = Command::new("taskkill")
+        .args(["/T", "/F", "/PID"])
+        .arg(child.id().to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    let _ = child.wait();
+}
+
+/// `docker compose up -d --wait` for the fixture project; `down -v` when dropped.
+struct Compose(PathBuf);
+
+impl Compose {
+    fn up(file: &Path) -> Compose {
+        // Created first, so a failed `up` is cleaned up too.
+        let compose = Compose(file.to_path_buf());
+        let started = Instant::now();
+        let output = compose
+            .command(&["up", "-d", "--wait"])
+            .output()
+            .expect("could not run docker compose");
+        assert!(
+            output.status.success(),
+            "docker compose up failed ({}):\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        println!(
+            "postgres is healthy after {:.1} s",
+            started.elapsed().as_secs_f64()
+        );
+        compose
+    }
+
+    fn command(&self, args: &[&str]) -> Command {
+        let mut command = Command::new("docker");
+        command
+            .args(["compose", "-p", COMPOSE_PROJECT, "-f"])
+            .arg(&self.0)
+            .args(args);
+        command
+    }
+}
+
+impl Drop for Compose {
+    fn drop(&mut self) {
+        let _ = self.command(&["down", "-v"]).output();
+    }
+}
+
+/// A fresh folder under the system temp folder, removed when dropped.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    fn new() -> Scratch {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_nanos());
+        let path = std::env::temp_dir().join(format!("hm-e2e-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&path)
+            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        Scratch(canonical(&path))
+    }
+
+    fn dir(&self, name: &str) -> PathBuf {
+        let path = self.0.join(name);
+        std::fs::create_dir_all(&path)
+            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        path
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+```
+
+- [ ] **Step 6: Check that it builds and stays out of the normal test run**
+
+Run: `cargo test -p harbormap --test e2e`
+Expected: `test status_json_maps_dev_servers_to_projects_services_and_frameworks ... ignored, starts real dev servers; needs npm, Python, the .NET SDK and git (and Docker with HM_E2E_DOCKER=1)` and `test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out`.
+
+- [ ] **Step 7: Run the harness**
+
+This is the exit criterion. The first run needs the network: it installs the Vite app's `node_modules`, creates the FastAPI `.venv`, and `dotnet run` restores and builds the app, so it can take a few minutes. Later runs take seconds.
+
+Run: `cargo test -p harbormap --test e2e -- --ignored --nocapture`
+Expected: PASS. The output shows when each server started listening, then the verdict:
+
+```text
+running 1 test
+other listens on 47900 after 0.3 s
+vite listens on 47173 after 2.3 s
+fastapi listens on 47800 after 2.3 s
+dotnet listens on 47280 after 13.8 s
+every listener maps as expected (docker: false)
+test status_json_maps_dev_servers_to_projects_services_and_frameworks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
+
+The order and the times differ from run to run. If Docker with compose is installed, run it again with Postgres:
+
+Run: `HM_E2E_DOCKER=1 cargo test -p harbormap --test e2e -- --ignored --nocapture`
+Expected: PASS, with `postgres is healthy after … s` first and `every listener maps as expected (docker: true)` at the end.
+
+Afterwards nothing is left running: ports 47173, 47800, 47280, 47432 and 47900 are free, and `docker ps -a --filter label=com.docker.compose.project=hm-e2e` lists nothing.
+
+- [ ] **Step 8: See the harness catch a wrong mapping**
+
+A harness that cannot fail proves nothing. In `crates/harbormap/tests/e2e.rs`, temporarily change the expected Vite service name in `(VITE, "e2e-vite", "vite", pid_of("vite"))` to `"wrong-name"`.
+
+Run: `cargo test -p harbormap --test e2e -- --ignored --nocapture`
+Expected: FAIL — `1 problem(s):` with `port 47173: service is named "e2e-vite", expected "wrong-name"`, followed by the snapshot summary (`Snapshot summary (opened project Some("p_…"))` and one line per project, service, listener and note). The servers are still stopped afterwards.
+
+Change it back to `"e2e-vite"` and run the same command again: PASS.
+
+- [ ] **Step 9: Run the harness in CI**
+
+The `e2e` job runs after `test` passes, on all three runners. Only the Linux runner can run the Postgres container (macOS runners have no Docker, and Windows runners only run Windows containers), so `HM_E2E_DOCKER=1` is set there only.
+
+Replace the whole content of `.github/workflows/ci.yml` with:
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels the older runs of that pull request.
+# Pushes to main get their own group (the run id), so they are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # rust-toolchain.toml pins channel 1.99.0 with clippy and rustfmt. Given no
+      # toolchain name, `rustup toolchain install` (rustup >= 1.28) installs that
+      # toolchain and its components. We do not rely on implicit installation on
+      # first use: see https://github.com/rust-lang/rustup/issues/4836.
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install --profile minimal --no-self-update
+      - run: cargo fmt --all --check
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install --profile minimal --no-self-update
+      # Must come after the toolchain step: the cache key uses the rustc version.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  deny:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # Runs `cargo deny --all-features check` (advisories, bans, licenses and
+      # sources) with deny.toml from the repository root.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  e2e:
+    # Starts real dev servers, so it runs only after the unit tests pass.
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install --profile minimal --no-self-update
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tests/e2e/apps/vite/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tests/e2e/apps/fastapi/requirements.txt
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+      - name: Install the Vite app
+        working-directory: tests/e2e/apps/vite
+        run: npm ci
+      - name: Create the FastAPI virtual environment
+        working-directory: tests/e2e/apps/fastapi
+        shell: bash
+        run: |
+          python -m venv .venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            .venv/Scripts/python -m pip install -r requirements.txt
+          else
+            .venv/bin/python -m pip install -r requirements.txt
+          fi
+      # Only the Linux runners can run the Postgres (Linux) container: macOS
+      # runners have no Docker and Windows runners only run Windows containers.
+      # The variable stays unset on the other runners.
+      - name: Enable the Docker scenario
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo "HM_E2E_DOCKER=1" >> "$GITHUB_ENV"
+      - run: cargo test -p harbormap --test e2e -- --ignored --nocapture
+```
+
+- [ ] **Step 10: Run the workspace checks**
+
+Run: `cargo fmt --all --check`
+Expected: no output, exit code 0.
+
+Run: `cargo clippy --workspace --all-targets -- -D warnings`
+Expected: ``Finished `dev` profile [unoptimized + debuginfo] target(s)`` with no warnings.
+
+Run: `cargo test --workspace`
+Expected: PASS — 98 tests pass across the workspace (on Windows 95, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
+
+Run: `git status --short`
+Expected: only the files of this task. `node_modules/`, `.venv/`, `bin/` and `obj/` under `tests/e2e/apps` are ignored.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add tests/e2e/apps/.gitignore tests/e2e/apps/vite/package.json tests/e2e/apps/vite/index.html tests/e2e/apps/vite/package-lock.json tests/e2e/apps/fastapi/pyproject.toml tests/e2e/apps/fastapi/requirements.txt tests/e2e/apps/fastapi/main.py tests/e2e/apps/dotnet/E2eDotnet.csproj tests/e2e/apps/dotnet/Program.cs tests/e2e/apps/compose/compose.yaml crates/harbormap/tests/e2e.rs .github/workflows/ci.yml
+git commit -s -m "test(e2e): add the alpha.1 exit-criteria harness and its CI job"
+```
