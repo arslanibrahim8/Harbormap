@@ -271,7 +271,7 @@ fn mask_named_values(text: &str) -> String {
 
 /// For the separator at `separator`, the byte range of the value to mask when the name
 /// before it is a secret name. A `:` separates a pair only before whitespace or a quote,
-/// so `cache-key:6379` stays a host and port.
+/// so `cache-key:6379` stays a host and port, or after a flag (`/Password:x`).
 fn secret_value_after(text: &str, separator: usize) -> Option<(usize, usize)> {
     let bytes = text.as_bytes();
     let mut name_end = separator;
@@ -293,7 +293,8 @@ fn secret_value_after(text: &str, separator: usize) -> Option<(usize, usize)> {
         start += 1;
     }
     let quoted = start < bytes.len() && matches!(bytes[start], b'"' | b'\'');
-    if bytes[separator] == b':' && start == separator + 1 && !quoted {
+    if bytes[separator] == b':' && start == separator + 1 && !quoted && !is_flag(bytes, name_start)
+    {
         return None;
     }
     let end = if quoted {
@@ -313,6 +314,20 @@ fn secret_value_after(text: &str, separator: usize) -> Option<(usize, usize)> {
 
 fn is_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b'-')
+}
+
+/// True when the name starting at `name_start` is a word-initial flag: `-Password`
+/// (PowerShell) or `/Password` (Windows tools), which take a value after `:`. Not the
+/// host in `http://api-key:8080` or a folder in `/run/secrets/api-key:/key`.
+fn is_flag(bytes: &[u8], name_start: usize) -> bool {
+    let flag_char = if bytes[name_start] == b'-' {
+        Some(name_start)
+    } else {
+        name_start
+            .checked_sub(1)
+            .filter(|&slash| bytes[slash] == b'/')
+    };
+    flag_char.is_some_and(|at| at == 0 || matches!(bytes[at - 1], b' ' | b'\t' | b'"' | b'\''))
 }
 
 /// At least 24 characters (guaranteed by `CANDIDATE`), letters and digits mixed,
@@ -474,6 +489,27 @@ mod tests {
                 "-c",
                 "export API_TOKEN=*** && exec node server.js --port 80",
             ])
+        );
+        // Windows tools and PowerShell put the value after `:`; hosts and folders keep it.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "sqlpackage",
+                "/Action:Publish",
+                "/TargetPassword:hunter2"
+            ])),
+            argv(&["sqlpackage", "/Action:Publish", "/TargetPassword:***"])
+        );
+        assert_eq!(
+            redact_argv(&argv(&["pwsh", "-Command", "Connect-Db -Password:hunter2"])),
+            argv(&["pwsh", "-Command", "Connect-Db -Password:***"])
+        );
+        assert_eq!(
+            redact_text("http://api-key:8080/x"),
+            "http://api-key:8080/x"
+        );
+        assert_eq!(
+            redact_text("-v /run/secrets/api-key:/key"),
+            "-v /run/secrets/api-key:/key"
         );
     }
 
