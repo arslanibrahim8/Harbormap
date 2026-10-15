@@ -122,6 +122,13 @@ fn project_services_get_names_frameworks_and_process_trees() {
         }))
         .unwrap()
     };
+    let celery = [
+        "python3",
+        "/Users/me/code/shop/apps/api/.venv/bin/celery",
+        "-A",
+        "shop",
+        "worker",
+    ];
     busy.inventory.processes.extend([
         process(1400, 500, "npm", &["npm run both"], "apps/web"),
         process(
@@ -146,6 +153,10 @@ fn project_services_get_names_frameworks_and_process_trees() {
             "apps/api",
         ),
         process(805, 802, "mystery-server", &["mystery-server"], "apps/web"),
+        // A Celery pool whose children got lower pids than their master (pids wrap).
+        process(2000, 500, "python3", &celery, "apps/api"),
+        process(1990, 2000, "python3", &celery, "apps/api"),
+        process(1991, 2000, "python3", &celery, "apps/api"),
     ]);
     busy.inventory
         .listeners
@@ -170,6 +181,22 @@ fn project_services_get_names_frameworks_and_process_trees() {
         &service(&snapshot, "web", SHOP).source,
         ServiceSource::Process { pids, .. } if pids == &vec![800, 801, 802]
     ));
+    let pool: Vec<&ServiceSource> = snapshot
+        .services
+        .iter()
+        .map(|service| &service.source)
+        .filter(|source| {
+            matches!(source, ServiceSource::Process { pids, .. } if pids.iter().any(|pid| [1990, 1991, 2000].contains(pid)))
+        })
+        .collect();
+    assert_eq!(
+        pool,
+        [&ServiceSource::Process {
+            main_pid: 2000,
+            root_pid: 2000,
+            pids: vec![1990, 1991, 2000]
+        }]
+    );
 }
 
 #[test]

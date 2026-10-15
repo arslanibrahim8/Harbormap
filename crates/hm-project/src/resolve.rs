@@ -461,7 +461,8 @@ impl<'a> Resolver<'a> {
             covered.extend(self.descendants(*root));
         }
         let mut workers = workers;
-        workers.sort_unstable();
+        // Ancestors first, so a pool's master takes in its children whatever their pids.
+        workers.sort_unstable_by_key(|pid| (self.depth(*pid), *pid));
         for pid in workers {
             if covered.contains(&pid) {
                 continue;
@@ -572,6 +573,22 @@ impl<'a> Resolver<'a> {
             current = parent.pid;
         }
         current
+    }
+
+    /// How many known processes sit above `pid`.
+    fn depth(&self, pid: u32) -> usize {
+        let mut depth = 0;
+        let mut current = pid;
+        while depth < 64 {
+            match self.procs.get(&current).and_then(|process| process.ppid) {
+                Some(ppid) if self.procs.contains_key(&ppid) => {
+                    depth += 1;
+                    current = ppid;
+                }
+                _ => break,
+            }
+        }
+        depth
     }
 
     /// The service root at `pid` or nearest above it.
