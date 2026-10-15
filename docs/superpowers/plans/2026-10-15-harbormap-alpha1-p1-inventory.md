@@ -205,6 +205,7 @@ publish.workspace = true
 
 [dependencies]
 bollard.workspace = true
+dunce.workspace = true
 hm-core.workspace = true
 serde_json.workspace = true
 sysinfo.workspace = true
@@ -214,7 +215,6 @@ tokio.workspace = true
 listeners.workspace = true
 
 [dev-dependencies]
-dunce.workspace = true
 tempfile.workspace = true
 
 [lints]
@@ -1195,6 +1195,27 @@ mod tests {
                 "export API_TOKEN=*** && exec node server.js --port 80",
             ])
         );
+        // Windows tools and PowerShell put the value after `:`; hosts and folders keep it.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "sqlpackage",
+                "/Action:Publish",
+                "/TargetPassword:hunter2"
+            ])),
+            argv(&["sqlpackage", "/Action:Publish", "/TargetPassword:***"])
+        );
+        assert_eq!(
+            redact_argv(&argv(&["pwsh", "-Command", "Connect-Db -Password:hunter2"])),
+            argv(&["pwsh", "-Command", "Connect-Db -Password:***"])
+        );
+        assert_eq!(
+            redact_text("http://api-key:8080/x"),
+            "http://api-key:8080/x"
+        );
+        assert_eq!(
+            redact_text("-v /run/secrets/api-key:/key"),
+            "-v /run/secrets/api-key:/key"
+        );
     }
 
     #[test]
@@ -1603,7 +1624,7 @@ fn mask_named_values(text: &str) -> String {
 
 /// For the separator at `separator`, the byte range of the value to mask when the name
 /// before it is a secret name. A `:` separates a pair only before whitespace or a quote,
-/// so `cache-key:6379` stays a host and port.
+/// so `cache-key:6379` stays a host and port, or after a flag (`/Password:x`).
 fn secret_value_after(text: &str, separator: usize) -> Option<(usize, usize)> {
     let bytes = text.as_bytes();
     let mut name_end = separator;
@@ -1625,7 +1646,8 @@ fn secret_value_after(text: &str, separator: usize) -> Option<(usize, usize)> {
         start += 1;
     }
     let quoted = start < bytes.len() && matches!(bytes[start], b'"' | b'\'');
-    if bytes[separator] == b':' && start == separator + 1 && !quoted {
+    if bytes[separator] == b':' && start == separator + 1 && !quoted && !is_flag(bytes, name_start)
+    {
         return None;
     }
     let end = if quoted {
@@ -1645,6 +1667,20 @@ fn secret_value_after(text: &str, separator: usize) -> Option<(usize, usize)> {
 
 fn is_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b'-')
+}
+
+/// True when the name starting at `name_start` is a word-initial flag: `-Password`
+/// (PowerShell) or `/Password` (Windows tools), which take a value after `:`. Not the
+/// host in `http://api-key:8080` or a folder in `/run/secrets/api-key:/key`.
+fn is_flag(bytes: &[u8], name_start: usize) -> bool {
+    let flag_char = if bytes[name_start] == b'-' {
+        Some(name_start)
+    } else {
+        name_start
+            .checked_sub(1)
+            .filter(|&slash| bytes[slash] == b'/')
+    };
+    flag_char.is_some_and(|at| at == 0 || matches!(bytes[at - 1], b' ' | b'\t' | b'"' | b'\''))
 }
 
 /// At least 24 characters (guaranteed by `CANDIDATE`), letters and digits mixed,
@@ -2522,7 +2558,7 @@ git commit -s -m "feat(core): add snapshot model, stable IDs, raw inventory and 
 
 ### Task 5: Process table probe
 
-This task starts the `hm-probe` crate with its first OS adapter: one read of the process table through `sysinfo`. Each process is reduced to what Harbormap may keep: redacted argv, environment variable *names*, and only the values the secrets rule allows (`PORT`-like integers and `*_URL`-like targets, spec §15). On macOS, a process that renamed itself (npm and Next.js do, through node) leaves environment entries, values included, at the end of its argv as the OS reports it; the probe drops that tail, so no environment value leaves the probe. A live test starts a child process with known environment variables and checks that the probe sees its working folder and those facts, but never a secret value.
+This task starts the `hm-probe` crate with its first OS adapter: one read of the process table through `sysinfo`. Each process is reduced to what Harbormap may keep: redacted argv, environment variable *names*, and only the values the secrets rule allows (`PORT`-like integers and `*_URL`-like targets, spec §15). On macOS, a process that renamed itself (npm and Next.js do, through node) leaves environment entries, values included, at the end of its argv as the OS reports it; the probe drops that tail, so no environment value leaves the probe. On Windows, working folders come back as typed (trailing `\`, typed case, `subst` drives, junctions), so they are canonicalized with `dunce` like project roots, and a parent PID whose process started after the child is a reused PID and is dropped, because Windows never reparents orphans. A live test starts a child process with known environment variables and checks that the probe sees its working folder and those facts, but never a secret value.
 
 **Files:**
 - Create: `crates/hm-probe/src/processes.rs`
@@ -2531,7 +2567,7 @@ This task starts the `hm-probe` crate with its first OS adapter: one read of the
 - Test: `crates/hm-probe/src/processes.rs` (unit tests in the same file), `crates/hm-probe/tests/live.rs` (live test on the real machine)
 
 **Interfaces:**
-- Consumes: `hm_core::env::extract_from_pairs<I, S>(entries: I) -> EnvFacts where I: IntoIterator<Item = S>, S: AsRef<str>` (Task 2); `hm_core::env::{EnvFacts, EnvPort, EnvUrl}` (Task 2, checked by the live test); `hm_core::redact::redact_argv(argv: &[String]) -> Vec<String>` (Task 3); `hm_core::raw::RawProcess` (Task 4)
+- Consumes: the `dunce` crate (a normal dependency of `hm-probe`, Task 1); `hm_core::env::extract_from_pairs<I, S>(entries: I) -> EnvFacts where I: IntoIterator<Item = S>, S: AsRef<str>` (Task 2); `hm_core::env::{EnvFacts, EnvPort, EnvUrl}` (Task 2, checked by the live test); `hm_core::redact::redact_argv(argv: &[String]) -> Vec<String>` (Task 3); `hm_core::raw::RawProcess` (Task 4)
 - Produces (in `hm_probe::processes`): `pub struct ProcessTable { pub processes: Vec<RawProcess>, pub self_pid: u32, pub current_uid: Option<String> }`, `pub fn read_processes() -> ProcessTable`, `pub fn clean_cwd(cwd: &Path) -> PathBuf`
 
 - [ ] **Step 1: Write the failing test**
@@ -2604,6 +2640,26 @@ mod tests {
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|arg| arg.to_string()).collect()
+    }
+
+    #[test]
+    fn a_parent_that_started_after_its_child_is_a_reused_pid() {
+        let process = |pid, ppid, start_time| RawProcess {
+            pid,
+            ppid: Some(ppid),
+            start_time,
+            ..RawProcess::default()
+        };
+        // 30 outlived its parent and that PID now belongs to 10; 40's start is unknown.
+        let mut table = vec![
+            process(10, 1, 100),
+            process(20, 10, 200),
+            process(30, 10, 50),
+            process(40, 10, 0),
+        ];
+        drop_reused_parents(&mut table);
+        let ppids: Vec<Option<u32>> = table.iter().map(|process| process.ppid).collect();
+        assert_eq!(ppids, [Some(1), Some(10), None, Some(10)]);
     }
 }
 ```
@@ -2713,6 +2769,7 @@ Add this above the `#[cfg(test)]` line in `crates/hm-probe/src/processes.rs`, wi
 //! The process table, read through sysinfo and reduced to what Harbormap may keep:
 //! redacted argv and environment *names* plus the allowed values.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, Uid, UpdateKind, Users};
@@ -2769,7 +2826,7 @@ pub fn read_processes() -> ProcessTable {
                 name,
                 exe: process.exe().map(ToOwned::to_owned),
                 argv: redact_argv(&argv),
-                cwd: process.cwd().map(clean_cwd),
+                cwd: process.cwd().map(clean_cwd).map(canonical_cwd),
                 uid: process.user_id().map(uid_key),
                 user: process
                     .user_id()
@@ -2786,6 +2843,9 @@ pub fn read_processes() -> ProcessTable {
         })
         .collect();
     processes.sort_by_key(|process| process.pid);
+    if cfg!(windows) {
+        drop_reused_parents(&mut processes);
+    }
     ProcessTable {
         processes,
         self_pid,
@@ -2802,6 +2862,35 @@ pub fn clean_cwd(cwd: &Path) -> PathBuf {
     {
         Some(original) => PathBuf::from(original),
         None => cwd.to_path_buf(),
+    }
+}
+
+/// Windows reports a working folder as it was typed: with a trailing `\`, in the typed
+/// case, or through an 8.3 short name, a `subst` drive or a junction. Project roots are
+/// canonical, so the folder is resolved the same way. Unix kernels report it resolved.
+fn canonical_cwd(cwd: PathBuf) -> PathBuf {
+    if cfg!(windows) {
+        dunce::canonicalize(&cwd).unwrap_or(cwd)
+    } else {
+        cwd
+    }
+}
+
+/// Windows keeps the PID of a parent that has exited and reuses PIDs, so a "parent"
+/// that started after its child is an unrelated process. Start time 0 means unknown.
+fn drop_reused_parents(processes: &mut [RawProcess]) {
+    let started: HashMap<u32, u64> = processes
+        .iter()
+        .map(|process| (process.pid, process.start_time))
+        .collect();
+    for process in processes.iter_mut() {
+        if let Some(&parent) = process.ppid.and_then(|ppid| started.get(&ppid))
+            && parent != 0
+            && process.start_time != 0
+            && parent > process.start_time
+        {
+            process.ppid = None;
+        }
     }
 }
 
@@ -2840,7 +2929,7 @@ fn uid_key(uid: &Uid) -> String {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-probe processes`
-Expected: PASS — unit tests `test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`; `tests/live.rs` `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out`. The live output shows one extra `running 1 test` line: it is printed by the child process and is expected.
+Expected: PASS — unit tests `test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`; `tests/live.rs` `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out`. The live output shows one extra `running 1 test` line: it is printed by the child process and is expected.
 
 - [ ] **Step 5: Commit**
 
@@ -3442,7 +3531,7 @@ pub fn read() -> Result<Vec<RawListener>, String> {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-probe listeners`
-Expected: PASS — unit tests `test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out`; `tests/live.rs` `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out`.
+Expected: PASS — unit tests `test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out`; `tests/live.rs` `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out`.
 
 - [ ] **Step 5: Commit**
 
@@ -3847,7 +3936,7 @@ pub fn on_path(name: &str) -> bool {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-probe discover`
-Expected: PASS — unit tests `test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out` (on Windows 3 passed, because the `#[cfg(unix)]` symlink test does not exist there); `tests/live.rs` `test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out`.
+Expected: PASS — unit tests `test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out` (on Windows 3 passed, because the `#[cfg(unix)]` symlink test does not exist there); `tests/live.rs` `test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out`.
 
 - [ ] **Step 5: Commit**
 
@@ -4072,7 +4161,8 @@ mod tests {
                 endpoint: "tcp://127.0.0.1:1".into(),
                 label: "Docker".into(),
             }],
-            // A refused connection returns at once; the budget only covers slow systems.
+            // Windows retries a refused loopback connection for about 2 s before failing;
+            // elsewhere it returns at once. The budget stays well above that.
             Duration::from_secs(10),
         ));
         assert_eq!(report.engines.len(), 1);
@@ -4682,7 +4772,7 @@ pub fn probe(options: &ProbeOptions) -> RawInventory {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-probe`
-Expected: PASS — unit tests `test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` (on Windows 15 passed, because the two `#[cfg(unix)]` tests do not exist there); `tests/live.rs` `test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out` (the ignored test is the `child_sleeper` helper); doc-tests `test result: ok. 0 passed`. The live probe test makes no assertions about Docker, so it passes whether or not an engine is running.
+Expected: PASS — unit tests `test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` (on Windows 16 passed, because the two `#[cfg(unix)]` tests do not exist there); `tests/live.rs` `test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out` (the ignored test is the `child_sleeper` helper); doc-tests `test result: ok. 0 passed`. The live probe test makes no assertions about Docker, so it passes whether or not an engine is running.
 
 - [ ] **Step 5: Commit**
 
@@ -8950,6 +9040,14 @@ mod tests {
         assert_eq!(tilde(Path::new("/home/me/shop"), Some(home)), "~/shop");
         assert_eq!(tilde(Path::new("/home/me"), Some(home)), "~");
         assert_eq!(tilde(Path::new("/srv/app"), Some(home)), "/srv/app");
+        #[cfg(windows)]
+        assert_eq!(
+            tilde(
+                Path::new(r"C:\Users\me\code\shop"),
+                Some(Path::new(r"C:\Users\me"))
+            ),
+            r"~\code\shop"
+        );
     }
 }
 ```
@@ -9170,7 +9268,7 @@ Add this above the `#[cfg(test)]` line in `crates/hm-doctor/src/render.rs`, with
 //! Template filling and the small formatters cards use.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Component, Path};
 
 use hm_core::signature::Level;
 
@@ -9297,11 +9395,18 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (year, month, day)
 }
 
-/// Replaces the home directory prefix with `~`.
+/// Replaces the home directory prefix with `~`, joined in the path's own style:
+/// `~\code\shop` for a Windows path (drive or UNC prefix), `~/code/shop` otherwise.
 pub fn tilde(path: &Path, home: Option<&Path>) -> String {
     match home.and_then(|home| path.strip_prefix(home).ok()) {
         Some(rest) if rest.as_os_str().is_empty() => "~".into(),
-        Some(rest) => format!("~/{}", rest.display()),
+        Some(rest) => {
+            let separator = match path.components().next() {
+                Some(Component::Prefix(_)) => '\\',
+                _ => '/',
+            };
+            format!("~{separator}{}", rest.display())
+        }
         None => path.display().to_string(),
     }
 }
@@ -12486,7 +12591,7 @@ Run: `cargo clippy --workspace --all-targets -- -D warnings`
 Expected: ``Finished `dev` profile [unoptimized + debuginfo] target(s)`` with no warnings.
 
 Run: `cargo test --workspace`
-Expected: PASS — 99 tests pass across the workspace (on Windows 96, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
+Expected: PASS — 100 tests pass across the workspace (on Windows 97, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
 
 Run: `git status --short`
 Expected: only the files of this task. `node_modules/`, `.venv/`, `bin/` and `obj/` under `tests/e2e/apps` are ignored.
