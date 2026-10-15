@@ -98,7 +98,7 @@ enum Found<'a> {
 }
 
 /// `name` or `project/name`, case-insensitive. Among several matches, the opened
-/// project wins, then the worktree Harbormap was started in.
+/// project wins, then the exact spelling, then the worktree Harbormap was started in.
 fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
     let snapshot = &input.snapshot;
     let (project_name, name) = match target.split_once('/') {
@@ -116,10 +116,6 @@ fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
             None => true,
         })
         .collect();
-    // `Web` and `web` can both exist; the exact spelling wins.
-    if matches.len() > 1 && matches.iter().any(|service| service.name == name) {
-        matches.retain(|service| service.name == name);
-    }
     if matches.len() > 1 {
         let in_project: Vec<&Service> = matches
             .iter()
@@ -129,6 +125,10 @@ fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
         if !in_project.is_empty() {
             matches = in_project;
         }
+    }
+    // `Web` and `web` can both exist; the exact spelling wins.
+    if matches.len() > 1 && matches.iter().any(|service| service.name == name) {
+        matches.retain(|service| service.name == name);
     }
     if matches.len() > 1 {
         let windows = input.snapshot.host.os == "windows";

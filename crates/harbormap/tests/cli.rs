@@ -133,6 +133,27 @@ fn why_accepts_names_and_project_names() {
     assert_eq!(stdout(&["why", "db"]), by_port);
     assert_eq!(stdout(&["why", "shop/db"]), by_port);
     assert!(by_port.starts_with(":55432 → db (PostgreSQL) · Docker\n"));
+
+    // The opened project wins before the exact spelling: `web` is shop's `Web` here,
+    // not blog's `web`.
+    let output = run_patched(
+        |scenario| {
+            let files = &mut scenario["world"]["files"];
+            for root in ["/Users/me/code/shop", "/Users/me/code/shop-feature"] {
+                files[format!("{root}/apps/web/package.json")] =
+                    r#"{"name": "@shop/Web", "devDependencies": {"vite": "7.1.0"}}"#.into();
+            }
+            files["/Users/me/code/blog/package.json"] =
+                r#"{"name": "web", "dependencies": {"next": "15.5.4"}}"#.into();
+        },
+        &["why", "web"],
+    );
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .starts_with(":5173 → Web (Vite)\n")
+    );
 }
 
 #[test]
@@ -198,26 +219,34 @@ fn why_an_unknown_name_fails_with_a_hint() {
 }
 
 #[test]
-fn why_prints_no_control_characters() {
-    // Names and arguments come from other programs; they must not drive the terminal.
-    let output = run_patched(
-        |scenario| {
-            for process in scenario["inventory"]["processes"].as_array_mut().unwrap() {
-                if process["pid"] == 802 {
-                    process["name"] = "node\u{1b}[31m".into();
-                    process["argv"][1] = "\u{1b}]0;pwned\u{7}".into();
-                }
+fn no_control_characters_reach_the_terminal() {
+    // Names, arguments, versions and notes come from other programs; they must not
+    // drive the terminal.
+    let hostile = |scenario: &mut serde_json::Value| {
+        for process in scenario["inventory"]["processes"].as_array_mut().unwrap() {
+            if process["pid"] == 802 {
+                process["name"] = "node\u{1b}[31m".into();
+                process["argv"][1] = "\u{1b}]0;pwned\u{7}".into();
             }
-        },
-        &["why", "5173", "--level", "expert"],
-    );
-    assert!(output.status.success());
-    let text = String::from_utf8(output.stdout).unwrap();
-    assert!(
-        !text.contains('\u{1b}') && !text.contains('\u{7}'),
-        "{text:?}"
-    );
-    assert!(text.contains("\u{FFFD}]0;pwned\u{FFFD}"), "{text:?}");
+        }
+        let inventory = &mut scenario["inventory"];
+        inventory["engines"][0]["version"] = "29.2.1\u{1b}]0;pwned\u{7}".into();
+        inventory["notes"] = serde_json::json!([{
+            "code": "listeners_unavailable",
+            "text": "Harbormap couldn't read listening ports: \u{1b}[2J",
+        }]);
+    };
+    let why = run_patched(hostile, &["why", "5173", "--level", "expert"]);
+    let status = run_patched(hostile, &["status", "--machine"]);
+    for output in [why, status] {
+        assert!(output.status.success());
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            !text.contains('\u{1b}') && !text.contains('\u{7}'),
+            "{text:?}"
+        );
+        assert!(text.contains("\u{FFFD}]0;pwned\u{FFFD}"), "{text:?}");
+    }
 }
 
 const STATUS: &str = r#"shop  ~/code/shop · main

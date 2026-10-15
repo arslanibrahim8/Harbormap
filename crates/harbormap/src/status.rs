@@ -100,6 +100,7 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
         ));
     }
 
+    // Engine versions and note texts can carry what the engine or the OS reported.
     let engines: Vec<String> = snapshot
         .engines
         .iter()
@@ -111,12 +112,12 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
         .collect();
     if !engines.is_empty() {
         separate(&mut out);
-        out.push_str(&format!("Docker: {}\n", engines.join(", ")));
+        out.push_str(&format!("Docker: {}\n", printable(&engines.join(", "))));
     } else if !snapshot.notes.is_empty() {
         separate(&mut out);
     }
     for note in &snapshot.notes {
-        out.push_str(&format!("Note: {}\n", note.text));
+        out.push_str(&format!("Note: {}\n", printable(&note.text)));
     }
     out
 }
