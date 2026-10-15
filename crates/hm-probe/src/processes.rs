@@ -1,6 +1,7 @@
 //! The process table, read through sysinfo and reduced to what Harbormap may keep:
 //! redacted argv and environment *names* plus the allowed values.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, Uid, UpdateKind, Users};
@@ -57,7 +58,7 @@ pub fn read_processes() -> ProcessTable {
                 name,
                 exe: process.exe().map(ToOwned::to_owned),
                 argv: redact_argv(&argv),
-                cwd: process.cwd().map(clean_cwd),
+                cwd: process.cwd().map(clean_cwd).map(canonical_cwd),
                 uid: process.user_id().map(uid_key),
                 user: process
                     .user_id()
@@ -74,6 +75,9 @@ pub fn read_processes() -> ProcessTable {
         })
         .collect();
     processes.sort_by_key(|process| process.pid);
+    if cfg!(windows) {
+        drop_reused_parents(&mut processes);
+    }
     ProcessTable {
         processes,
         self_pid,
@@ -90,6 +94,35 @@ pub fn clean_cwd(cwd: &Path) -> PathBuf {
     {
         Some(original) => PathBuf::from(original),
         None => cwd.to_path_buf(),
+    }
+}
+
+/// Windows reports a working folder as it was typed: with a trailing `\`, in the typed
+/// case, or through an 8.3 short name, a `subst` drive or a junction. Project roots are
+/// canonical, so the folder is resolved the same way. Unix kernels report it resolved.
+fn canonical_cwd(cwd: PathBuf) -> PathBuf {
+    if cfg!(windows) {
+        dunce::canonicalize(&cwd).unwrap_or(cwd)
+    } else {
+        cwd
+    }
+}
+
+/// Windows keeps the PID of a parent that has exited and reuses PIDs, so a "parent"
+/// that started after its child is an unrelated process. Start time 0 means unknown.
+fn drop_reused_parents(processes: &mut [RawProcess]) {
+    let started: HashMap<u32, u64> = processes
+        .iter()
+        .map(|process| (process.pid, process.start_time))
+        .collect();
+    for process in processes.iter_mut() {
+        if let Some(&parent) = process.ppid.and_then(|ppid| started.get(&ppid))
+            && parent != 0
+            && process.start_time != 0
+            && parent > process.start_time
+        {
+            process.ppid = None;
+        }
     }
 }
 
@@ -181,5 +214,25 @@ mod tests {
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|arg| arg.to_string()).collect()
+    }
+
+    #[test]
+    fn a_parent_that_started_after_its_child_is_a_reused_pid() {
+        let process = |pid, ppid, start_time| RawProcess {
+            pid,
+            ppid: Some(ppid),
+            start_time,
+            ..RawProcess::default()
+        };
+        // 30 outlived its parent and that PID now belongs to 10; 40's start is unknown.
+        let mut table = vec![
+            process(10, 1, 100),
+            process(20, 10, 200),
+            process(30, 10, 50),
+            process(40, 10, 0),
+        ];
+        drop_reused_parents(&mut table);
+        let ppids: Vec<Option<u32>> = table.iter().map(|process| process.ppid).collect();
+        assert_eq!(ppids, [Some(1), Some(10), None, Some(10)]);
     }
 }
