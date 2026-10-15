@@ -153,7 +153,11 @@ fn is_local(endpoint: &str) -> bool {
                 Some((host, port)) if port.bytes().all(|byte| byte.is_ascii_digit()) => host,
                 _ => authority,
             };
-            matches!(host, "localhost" | "127.0.0.1" | "[::1]" | "::1")
+            let host = host.trim_start_matches('[').trim_end_matches(']');
+            host.eq_ignore_ascii_case("localhost")
+                || host
+                    .parse::<std::net::IpAddr>()
+                    .is_ok_and(|ip| ip.is_loopback())
         }
         _ => false,
     }
@@ -180,7 +184,10 @@ pub fn label_for(endpoint: &str) -> String {
         "Colima"
     } else if lower.contains("/.rd/") {
         "Rancher Desktop"
-    } else if lower.contains("/podman/") || lower.contains("podman.sock") {
+    } else if lower.contains("/podman/")
+        || lower.contains("podman.sock")
+        || lower.contains("/pipe/podman")
+    {
         "Podman"
     } else if lower.contains("/.docker/run/") || lower.contains("docker_engine") {
         "Docker Desktop"
@@ -297,6 +304,18 @@ mod tests {
             ..DiscoverEnv::default()
         };
         assert!(candidates(&remote).is_empty());
+        // Every loopback address is this computer.
+        for host in [
+            "tcp://127.0.0.2:2375",
+            "tcp://LOCALHOST:2375",
+            "tcp://[::1]:2375",
+        ] {
+            let local = DiscoverEnv {
+                docker_host: Some(host.into()),
+                ..DiscoverEnv::default()
+            };
+            assert_eq!(candidates(&local)[0].endpoint, host);
+        }
         // Labels come from folder names, not from parts of a user name.
         assert_eq!(
             label_for("unix:///Users/halima/.docker/run/docker.sock"),
@@ -305,6 +324,10 @@ mod tests {
         assert_eq!(
             label_for("unix:///Users/me/.lima/default/sock/docker.sock"),
             "Colima"
+        );
+        assert_eq!(
+            label_for("npipe:////./pipe/podman-machine-default"),
+            "Podman"
         );
     }
 
