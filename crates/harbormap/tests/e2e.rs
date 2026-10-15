@@ -16,6 +16,10 @@
 //!
 //! `HM_E2E_PYTHON` names the Python that creates the venv and runs the other project
 //! (default `python3`, or `python` on Windows).
+//!
+//! The test stops everything it started when it ends, also when it fails. A run that is
+//! interrupted (Ctrl-C) cannot: stop whatever still listens on ports 47173, 47800, 47280
+//! and 47900, and run `docker compose -p hm-e2e down -v`.
 
 use std::fmt::Write as _;
 use std::fs::File;
@@ -119,11 +123,12 @@ fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
             .iter()
             .find(|server| server.name == name)
             .map(|server| server.child.id())
+            .unwrap_or_else(|| panic!("no server named {name}"))
     };
     let mut expected = vec![
-        (VITE, "e2e-vite", "vite", pid_of("vite")),
-        (FASTAPI, "e2e-fastapi", "fastapi", pid_of("fastapi")),
-        (DOTNET, "E2eDotnet", "dotnet", pid_of("dotnet")),
+        (VITE, "e2e-vite", "vite", Some(pid_of("vite"))),
+        (FASTAPI, "e2e-fastapi", "fastapi", Some(pid_of("fastapi"))),
+        (DOTNET, "E2eDotnet", "dotnet", Some(pid_of("dotnet"))),
     ];
     if docker {
         expected.push((POSTGRES, "db", "postgres", None));
@@ -152,7 +157,8 @@ fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
 }
 
 /// A port the opened project must own: listener and service in section "project", with
-/// the expected service name and signature, in the worktree this test runs from. For
+/// the expected service name and signature, in the worktree this test runs from (the
+/// repository root, `repo`). For
 /// host programs, the service's process tree must start at the process this test
 /// started (`npm run dev`, not only the `node vite` it runs).
 fn check_in_project(
@@ -190,13 +196,9 @@ fn check_in_project(
                 service.project_id, snapshot.opened
             ));
         }
-        if !service
-            .worktree
-            .as_deref()
-            .is_some_and(|worktree| repo.starts_with(worktree))
-        {
+        if service.worktree.as_deref() != Some(repo) {
             wrong(format!(
-                "worktree is {:?}, expected one that contains {}",
+                "worktree is {:?}, expected {}",
                 service.worktree,
                 repo.display()
             ));
@@ -565,6 +567,8 @@ fn stop_tree(child: &mut Child) {
         signal_group(&group, "-KILL");
         group_gone(child, &group, Duration::from_secs(5));
     }
+    // Without a working `kill`, at least the process this test started stops.
+    let _ = child.kill();
     let _ = child.wait();
 }
 
@@ -643,7 +647,15 @@ impl Compose {
 
 impl Drop for Compose {
     fn drop(&mut self) {
-        let _ = self.command(&["down", "-v"]).output();
+        let removed = self
+            .command(&["down", "-v"])
+            .output()
+            .is_ok_and(|output| output.status.success());
+        if !removed {
+            eprintln!(
+                "could not remove the compose project; run `docker compose -p {COMPOSE_PROJECT} down -v`"
+            );
+        }
     }
 }
 
@@ -671,6 +683,8 @@ impl Scratch {
 
 impl Drop for Scratch {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        if let Err(error) = std::fs::remove_dir_all(&self.0) {
+            eprintln!("could not remove {}: {error}", self.0.display());
+        }
     }
 }
