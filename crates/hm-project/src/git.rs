@@ -107,10 +107,14 @@ mod tests {
     use super::*;
     use std::process::Command;
 
+    /// Runs git without the developer's own configuration (signing, hooks, templates).
     fn git(dir: &Path, args: &[&str]) -> bool {
+        let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
         Command::new("git")
             .args(args)
             .current_dir(dir)
+            .env("GIT_CONFIG_GLOBAL", null)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
             .env("GIT_AUTHOR_NAME", "t")
             .env("GIT_AUTHOR_EMAIL", "t@example.com")
             .env("GIT_COMMITTER_NAME", "t")
@@ -124,10 +128,11 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let repo = temp.path().join("shop");
         std::fs::create_dir_all(repo.join("apps/web")).unwrap();
-        if !git(&repo, &["init", "-q", "-b", "main"]) {
+        if !git(temp.path(), &["--version"]) {
             eprintln!("git is not installed; skipping");
             return;
         }
+        assert!(git(&repo, &["init", "-q", "-b", "main"]));
         assert!(git(&repo, &["commit", "-q", "--allow-empty", "-m", "init"]));
         assert!(git(
             &repo,
