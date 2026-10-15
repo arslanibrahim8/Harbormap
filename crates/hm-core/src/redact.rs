@@ -10,7 +10,8 @@ use crate::names::exe_stem;
 pub const MASK: &str = "***";
 
 /// Words that make a name secret when one of its parts ends with them, digits aside
-/// (`DB_PASSWORD`, `PGPASSWORD`, `NGROK_AUTHTOKEN`, `client_secret`, `PASSWORD2`).
+/// (`DB_PASSWORD`, `PGPASSWORD`, `NGROK_AUTHTOKEN`, `client_secret`, `PASSWORD2`), and
+/// fused names well-known tools use (Redis `--requirepass`, keytool `-storepass`).
 const SECRET_WORDS: &[&str] = &[
     "password",
     "passwd",
@@ -18,11 +19,17 @@ const SECRET_WORDS: &[&str] = &[
     "secret",
     "token",
     "apikey",
+    "requirepass",
+    "masterauth",
+    "storepass",
+    "keypass",
+    "dbpass",
 ];
 
 /// Short words that make a name secret only as its last part (`API_KEY`, `--db-pass`,
-/// `apiKey`), so that `--key-file`, `monkey` and `--pass-with-no-tests` stay readable.
-const SECRET_LAST_WORDS: &[&str] = &["key", "pass", "pwd"];
+/// `apiKey`, ngrok's `--basic-auth`), so that `--key-file`, `monkey`,
+/// `--pass-with-no-tests` and `--auth-url` stay readable.
+const SECRET_LAST_WORDS: &[&str] = &["key", "pass", "pwd", "auth"];
 
 /// Last words of a flag that name something other than the secret before them
 /// (`--password-file`, `--token-limit`, `--secret-id`), so their value stays readable.
@@ -72,6 +79,10 @@ static URL_USERINFO: LazyLock<Regex> =
 
 static BEARER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=\-]+").unwrap());
+
+/// `Authorization: Basic <base64 of user:password>`.
+static BASIC_AUTH: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(authorization:\s*basic)\s+[A-Za-z0-9+/=]+").unwrap());
 
 static PREFIXED: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -153,6 +164,7 @@ pub fn redact_argv(argv: &[String]) -> Vec<String> {
 pub fn redact_text(text: &str) -> String {
     let text = URL_USERINFO.replace_all(text, format!("${{1}}{MASK}@"));
     let text = BEARER.replace_all(&text, format!("${{1}} {MASK}"));
+    let text = BASIC_AUTH.replace_all(&text, format!("${{1}} {MASK}"));
     let text = PREFIXED.replace_all(&text, format!("${{1}}{MASK}"));
     let text = mask_named_values(&text);
     let text = FLAG_AND_VALUE.replace_all(&text, |caps: &regex::Captures<'_>| {
@@ -180,8 +192,9 @@ pub fn redact_text(text: &str) -> String {
 /// one (`DB_PASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2`, `accessToken`).
 fn is_secret_name(name: &str) -> bool {
     let parts = secret_parts(name);
-    parts.iter().any(|part| ends_with_secret_word(part))
-        || parts.last().is_some_and(|last| is_short_secret_word(last))
+    parts.iter().any(|part| {
+        ends_with_secret_word(part) || camel_words(part).into_iter().any(ends_with_secret_word)
+    }) || parts.last().is_some_and(|last| is_short_secret_word(last))
 }
 
 /// True when the word after a flag is a secret: the flag's last part names it
@@ -364,7 +377,14 @@ fn is_flag(bytes: &[u8], name_start: usize) -> bool {
             .checked_sub(1)
             .filter(|&slash| bytes[slash] == b'/')
     };
-    flag_char.is_some_and(|at| at == 0 || matches!(bytes[at - 1], b' ' | b'\t' | b'"' | b'\''))
+    flag_char.is_some_and(|at| {
+        at == 0
+            || bytes[at - 1].is_ascii_whitespace()
+            || matches!(
+                bytes[at - 1],
+                b'"' | b'\'' | b'(' | b'[' | b'{' | b';' | b','
+            )
+    })
 }
 
 /// At least 24 characters (guaranteed by `CANDIDATE`), letters and digits mixed,
@@ -553,6 +573,35 @@ mod tests {
             redact_text("New-Secret -SecretString hunter2 -SecretName db"),
             "New-Secret -SecretString *** -SecretName db"
         );
+        // Names that fuse a secret word, and `auth` as a last word.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "redis-server",
+                "--requirepass",
+                "a1",
+                "--masterauth",
+                "a2",
+            ])),
+            argv(&[
+                "redis-server",
+                "--requirepass",
+                "***",
+                "--masterauth",
+                "***"
+            ])
+        );
+        assert_eq!(
+            redact_argv(&argv(&["keytool", "-storepass", "a1", "-keypass", "a2"])),
+            argv(&["keytool", "-storepass", "***", "-keypass", "***"])
+        );
+        assert_eq!(
+            redact_argv(&argv(&["ngrok", "http", "80", "--basic-auth", "me:a1"])),
+            argv(&["ngrok", "http", "80", "--basic-auth", "***"])
+        );
+        assert_eq!(
+            redact_text("curl -H 'Authorization: Basic dXNlcjpwYXNz' https://x"),
+            "curl -H 'Authorization: Basic ***' https://x"
+        );
         // Windows tools and PowerShell put the value after `:`; hosts and folders keep it.
         assert_eq!(
             redact_argv(&argv(&[
@@ -565,6 +614,10 @@ mod tests {
         assert_eq!(
             redact_argv(&argv(&["pwsh", "-Command", "Connect-Db -Password:hunter2"])),
             argv(&["pwsh", "-Command", "Connect-Db -Password:***"])
+        );
+        assert_eq!(
+            redact_text("Connect-Db `\n-Password:a1 (-SecretString:a2 -Force) -TokenValue=a3"),
+            "Connect-Db `\n-Password:*** (-SecretString:*** -Force) -TokenValue=***"
         );
         assert_eq!(
             redact_text("http://api-key:8080/x"),
