@@ -200,10 +200,18 @@ expert = "e"
     fn duplicate_ids_keep_the_first_entry() {
         let packs = load_embedded();
         let mut signatures: Vec<Signature> = packs.signatures.iter().cloned().collect();
-        signatures.push(signatures[0].clone());
+        let first = signatures[0].clone();
+        let mut second = first.clone();
+        second.name = format!("{} (second copy)", first.name);
+        signatures.push(second);
         let mut warnings = Vec::new();
         let kept = drop_duplicate_ids(signatures, &mut warnings);
         assert_eq!(kept.len(), packs.signatures.len());
+        let survivor = kept
+            .iter()
+            .find(|signature| signature.id == first.id)
+            .unwrap();
+        assert_eq!(survivor.name, first.name);
         assert_eq!(warnings.len(), 1);
     }
 }

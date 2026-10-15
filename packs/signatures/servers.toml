@@ -1,6 +1,9 @@
 # Back-end servers, workers and language runtimes: what does the work.
 # Licensed CC0-1.0 (see packs/LICENSE). Generic runtimes use priority 10 so any
-# framework signature wins over them.
+# framework signature wins over them. Signatures that recognise a program mostly by
+# its parent (ASP.NET Core under dotnet, Go under go or air) use 20, so a framework
+# that recognises the program itself wins. A framework named only by a declared
+# dependency is a guess, so those blocks say `probably`.
 
 [[signature]]
 id = "nestjs"
@@ -79,7 +82,7 @@ argv_contains = ["runserver"]
 [signature.texts]
 beginner = "This is your app's server program, built with Django (Python). It answers requests from your website."
 builder = "Django development server (manage.py runserver). Default port 8000; it reloads when Python files change."
-expert = "Django runserver: an autoreloader parent and a worker child share the socket. Address from the runserver argument (default 127.0.0.1:8000)."
+expert = "Django runserver: an autoreloader parent restarts a worker child, and only the child listens. Address from the runserver argument (default 127.0.0.1:8000)."
 [[signature.fixture]]
 exe = "python3"
 argv = ["python3", "manage.py", "runserver", "8000"]
@@ -125,6 +128,7 @@ argv_basename = ["fastapi"]
 [[signature.when]]
 argv_basename = ["uvicorn", "hypercorn", "granian"]
 package = ["fastapi"]
+probably = true
 [signature.texts]
 beginner = "This is your app's server program, built with FastAPI (Python). It answers requests from your website or app."
 builder = "FastAPI app served by Uvicorn. Default port 8000; interactive API docs at /docs."
@@ -182,6 +186,7 @@ http = true
 argv_basename = ["rails"]
 [[signature.when]]
 argv_prefix = ["puma "]
+probably = true
 [signature.texts]
 beginner = "This is your app's server program, built with Ruby on Rails. It answers requests from your website."
 builder = "Rails server (Puma). Default port 3000."
@@ -200,6 +205,7 @@ role = "work"
 kind = "dev_server"
 default_port = 5000
 http = true
+priority = 20
 [[signature.when]]
 ancestor_exe = ["dotnet"]
 cwd_files = ["*.csproj", "*.fsproj"]
@@ -264,6 +270,7 @@ id = "go"
 name = "Go"
 role = "work"
 kind = "dev_server"
+priority = 20
 [[signature.when]]
 ancestor_exe = ["go", "air"]
 [[signature.when]]

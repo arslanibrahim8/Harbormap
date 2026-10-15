@@ -20,6 +20,11 @@ argv = ["node", "/work/shop/apps/web/node_modules/.bin/vite", "--port", "5173"]
 [[signature.fixture]]
 exe = "node"
 argv = ["node", "C:\\work\\shop\\node_modules\\vite\\bin\\vite.js"]
+# A Vite app in a project that also depends on Next.js: the sure match wins.
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/.bin/vite"]
+packages = ["next", "vite"]
 
 [[signature]]
 id = "sveltekit"
@@ -32,6 +37,7 @@ priority = 60
 [[signature.when]]
 argv_basename = ["vite"]
 package = ["@sveltejs/kit"]
+probably = true
 [signature.texts]
 beginner = "This is the live preview of your SvelteKit website. It updates as soon as you save a file."
 builder = "SvelteKit dev server (vite dev with the SvelteKit plugin). Default port 5173."
