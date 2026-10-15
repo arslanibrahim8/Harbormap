@@ -254,12 +254,23 @@ impl<'a> Resolver<'a> {
             }
         }
         // A dev program outside git but under the home folder gets a folder project.
-        let owners: BTreeSet<u32> = self
+        // Shallow folders first, so a folder inside another joins it whatever the pids.
+        let mut owners: Vec<u32> = self
             .inv
             .listeners
             .iter()
             .flat_map(|l| l.pids.iter().copied())
+            .collect::<BTreeSet<u32>>()
+            .into_iter()
             .collect();
+        owners.sort_by_key(|pid| {
+            let depth = self
+                .procs
+                .get(pid)
+                .and_then(|process| process.cwd.as_ref())
+                .map_or(0, |cwd| cwd.components().count());
+            (depth, *pid)
+        });
         for pid in owners {
             if self.places.contains_key(&pid) || pid == self.inv.self_pid {
                 continue;
@@ -360,6 +371,11 @@ impl<'a> Resolver<'a> {
                 None => Owner::Unknown {
                     reason: match listener.uid {
                         Some(0) => format!("it belongs to the system (root); {NEEDS_ADMIN}"),
+                        Some(uid) if self.inv.current_uid.as_deref() == Some(&*uid.to_string()) => {
+                            format!(
+                                "it belongs to your own user (uid {uid}), but its program is hidden; {NEEDS_ADMIN}"
+                            )
+                        }
                         Some(uid) => {
                             format!("it belongs to another user (uid {uid}); {NEEDS_ADMIN}")
                         }
@@ -779,7 +795,12 @@ impl<'a> Resolver<'a> {
                     (Owner::Process { pid }, None) => {
                         let what = self.matches.get(pid).map_or_else(
                             || self.procs[pid].name.clone(),
-                            |found| found.signature.name.clone(),
+                            |found| match found.confidence {
+                                Confidence::Probably => {
+                                    format!("{}, probably", found.signature.name)
+                                }
+                                Confidence::Sure => found.signature.name.clone(),
+                            },
                         );
                         format!("{what} (pid {pid})")
                     }
@@ -941,16 +962,21 @@ impl<'a> Resolver<'a> {
 
     // ----- helpers -----
 
+    /// The project and worktree of `dir`. The repository around `dir` is always looked
+    /// up, so a repository is its own project even inside a folder opened without git or
+    /// inside another repository (a nested clone), whatever order processes come in.
     fn locate(&mut self, dir: &Path) -> Option<Place> {
-        if let Some(place) = self.find_known(dir) {
-            return Some(place);
+        if let Some(repo) = self.world.repo_for(dir)
+            && !is_boundary(&repo.root, self.home.as_deref(), self.windows)
+            && !self.projects.iter().any(|project| {
+                project.git
+                    && within(&project.root, &repo.root, self.windows)
+                    && within(&repo.root, &project.root, self.windows)
+            })
+        {
+            self.projects
+                .push(ProjectCtx::new(repo.root, true, false, repo.worktrees));
         }
-        let repo = self.world.repo_for(dir)?;
-        if is_boundary(&repo.root, self.home.as_deref(), self.windows) {
-            return None;
-        }
-        self.projects
-            .push(ProjectCtx::new(repo.root, true, false, repo.worktrees));
         self.find_known(dir)
     }
 
@@ -1083,12 +1109,21 @@ fn is_wrapper(process: &RawProcess) -> bool {
     ]
     .iter()
     .any(|name| WRAPPER_EXES.contains(name))
-        || args().any(|arg| WRAPPER_SCRIPTS.contains(&script_stem(arg).as_str()))
+        || args().any(|arg| {
+            // Yarn 2+ runs as `node .yarn/releases/yarn-4.5.1.cjs`.
+            let script = script_stem(arg);
+            WRAPPER_SCRIPTS.contains(&script.as_str()) || script.starts_with("yarn-")
+        })
         || (SHELLS.contains(&stem.as_str())
             && args().any(|arg| {
-                arg == "-c"
-                    || arg.eq_ignore_ascii_case("/c")
+                arg.eq_ignore_ascii_case("/c")
                     || arg.eq_ignore_ascii_case("-command")
+                    // `-c`, also in a cluster such as `bash -lc` or `sh -ec`.
+                    || arg.strip_prefix('-').is_some_and(|flags| {
+                        flags.contains('c')
+                            && flags.len() <= 4
+                            && flags.bytes().all(|byte| byte.is_ascii_lowercase())
+                    })
             }))
         || (stem == "java" && args().any(|arg| arg.contains(MAVEN_LAUNCHER)))
 }
@@ -1151,10 +1186,15 @@ fn compose_of(container: &RawContainer) -> Option<Compose> {
 }
 
 /// Last folder name, for paths of any OS: `C:\\work\\shop\\` → `shop`.
+/// The last folder name; a bare repository's `shop.git` reads `shop`.
 fn folder_name(path: &Path) -> String {
     let text = path.to_string_lossy();
     let trimmed = text.trim_end_matches(['/', '\\']);
     let name = hm_core::names::basename(trimmed);
+    let name = name
+        .strip_suffix(".git")
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(name);
     if name.is_empty() {
         text.into_owned()
     } else {

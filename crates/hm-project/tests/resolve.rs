@@ -157,10 +157,42 @@ fn project_services_get_names_frameworks_and_process_trees() {
         process(2000, 500, "python3", &celery, "apps/api"),
         process(1990, 2000, "python3", &celery, "apps/api"),
         process(1991, 2000, "python3", &celery, "apps/api"),
+        // Wrappers in other spellings: a login shell's `-lc`, and Yarn 2+ run by node.
+        process(
+            1500,
+            500,
+            "bash",
+            &["bash", "-lc", "node server.js"],
+            "apps/web",
+        ),
+        process(1501, 1500, "node", &["node", "server.js"], "apps/web"),
+        process(
+            1502,
+            500,
+            "node",
+            &[
+                "node",
+                "/Users/me/code/shop/.yarn/releases/yarn-4.5.1.cjs",
+                "run",
+                "dev",
+            ],
+            "apps/web",
+        ),
+        process(
+            1503,
+            1502,
+            "node",
+            &["node", "node_modules/.bin/vite", "--port", "5178"],
+            "apps/web",
+        ),
     ]);
-    busy.inventory
-        .listeners
-        .extend([socket(5176, 1402), socket(8001, 1403), socket(7777, 805)]);
+    busy.inventory.listeners.extend([
+        socket(5176, 1402),
+        socket(8001, 1403),
+        socket(7777, 805),
+        socket(5177, 1501),
+        socket(5178, 1503),
+    ]);
     let snapshot = resolve(&busy);
     let owner_service = |port: u16| {
         let id = listener(&snapshot, port).service_id.clone().unwrap();
@@ -181,6 +213,13 @@ fn project_services_get_names_frameworks_and_process_trees() {
         &service(&snapshot, "web", SHOP).source,
         ServiceSource::Process { pids, .. } if pids == &vec![800, 801, 802]
     ));
+    for (port, root) in [(5177, 1500), (5178, 1502)] {
+        assert!(
+            matches!(owner_service(port).source, ServiceSource::Process { root_pid, .. } if root_pid == root),
+            "port {port}: {:?}",
+            owner_service(port).source
+        );
+    }
     let pool: Vec<&ServiceSource> = snapshot
         .services
         .iter()
@@ -305,6 +344,60 @@ fn launching_from_the_home_folder_opens_no_project() {
 }
 
 #[test]
+fn a_folder_without_git_never_swallows_the_repositories_below_it() {
+    // Opened in ~/code, a plain folder that holds the shop and blog repositories, with a
+    // clone nested inside shop whose server has a higher pid than shop's own.
+    let mut scenario = scenario();
+    scenario.launch_dir = PathBuf::from("/Users/me/code");
+    let nested = "/Users/me/code/shop/tools/lib";
+    scenario.world.repos.push(hm_project::RepoInfo {
+        root: PathBuf::from(nested),
+        worktrees: vec![hm_core::model::Worktree {
+            path: PathBuf::from(nested),
+            branch: Some("main".into()),
+            head: None,
+        }],
+    });
+    scenario.inventory.processes.push(
+        serde_json::from_value(serde_json::json!({
+            "pid": 2100, "ppid": 500, "start_time": 1760490000, "name": "node",
+            "exe": "/opt/homebrew/bin/node",
+            "argv": ["node", format!("{nested}/node_modules/.bin/vite"), "--port", "5190"],
+            "cwd": nested, "uid": "501", "user": "me",
+        }))
+        .unwrap(),
+    );
+    scenario.inventory.listeners.push(
+        serde_json::from_value(serde_json::json!({
+            "proto": "tcp", "addr": "127.0.0.1", "port": 5190, "pids": [2100],
+        }))
+        .unwrap(),
+    );
+    let snapshot = resolve(&scenario);
+
+    let opened = snapshot.projects.iter().find(|p| p.opened).unwrap();
+    assert_eq!(opened.root, PathBuf::from("/Users/me/code"));
+    assert!(!opened.git);
+    for (port, root) in [
+        (5173, SHOP),
+        (5174, SHOP),
+        (55432, SHOP),
+        (3000, "/Users/me/code/blog"),
+        (5190, nested),
+    ] {
+        let id = listener(&snapshot, port).service_id.clone().unwrap();
+        let service = snapshot.services.iter().find(|s| s.id == id).unwrap();
+        let project = snapshot
+            .projects
+            .iter()
+            .find(|p| Some(&p.id) == service.project_id.as_ref())
+            .unwrap();
+        assert_eq!(project.root, PathBuf::from(root), "port {port}");
+        assert_eq!(service.section, Section::Elsewhere, "port {port}");
+    }
+}
+
+#[test]
 fn a_git_repository_at_home_is_ignored() {
     let mut scenario = scenario();
     // Some people keep their whole home folder in git.
@@ -339,6 +432,14 @@ fn hidden_linux_owners_map_to_containers_by_published_port() {
         pids: vec![],
         uid: Some(0),
     });
+    // A hidden socket of the user running Harbormap is not "another user's".
+    scenario.inventory.listeners.push(RawListener {
+        proto: Default::default(),
+        addr: "127.0.0.1".parse().unwrap(),
+        port: 6100,
+        pids: vec![],
+        uid: Some(501),
+    });
     let snapshot = resolve(&scenario);
     assert!(matches!(
         listener(&snapshot, 55432).owner,
@@ -347,6 +448,10 @@ fn hidden_linux_owners_map_to_containers_by_published_port() {
     assert!(matches!(
         listener(&snapshot, 6000).owner,
         Owner::Unknown { .. }
+    ));
+    assert!(matches!(
+        &listener(&snapshot, 6100).owner,
+        Owner::Unknown { reason } if reason.starts_with("it belongs to your own user (uid 501)")
     ));
 }
 
@@ -453,6 +558,33 @@ fn programs_that_are_not_the_projects_own_are_named_after_what_they_are() {
         "headless-browser (2) (Headless browser)"
     );
     assert_eq!(listener(&snapshot, 7777).label, "mystery");
+
+    // A program outside any project that is only probably what it looks like says so.
+    let mut outside = scenario;
+    outside.inventory.processes.push(RawProcess {
+        pid: 4200,
+        ppid: Some(1),
+        start_time: 1760495000,
+        name: "ruby".into(),
+        exe: Some("/usr/bin/ruby".into()),
+        argv: vec!["puma 6.4.3 (tcp://0.0.0.0:3300) [app]".into()],
+        cwd: Some("/srv/app".into()),
+        uid: Some("501".into()),
+        user: Some("me".into()),
+        ..RawProcess::default()
+    });
+    outside.inventory.listeners.push(RawListener {
+        proto: Default::default(),
+        addr: "0.0.0.0".parse().unwrap(),
+        port: 3300,
+        pids: vec![4200],
+        uid: None,
+    });
+    let snapshot = resolve(&outside);
+    assert_eq!(
+        listener(&snapshot, 3300).label,
+        "Ruby on Rails, probably (pid 4200)"
+    );
 }
 
 #[cfg(unix)]
