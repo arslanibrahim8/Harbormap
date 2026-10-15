@@ -8,8 +8,8 @@
 # A program that belongs to a project.
 [process]
 title.beginner = "Port {port}: {name} || {name}"
-title.builder = ":{port} → {name} ({framework}) || {name} ({framework}) || {name}"
-title.expert = ":{port}/tcp → {name} [{signature}] || {name} [{signature}] || {name}"
+title.builder = ":{port} → {name} ({framework}) || {name} ({framework}) || :{port} → {name} || {name}"
+title.expert = ":{port}/tcp → {name} [{signature}] || {name} [{signature}] || :{port}/tcp → {name} || {name}"
 beginner = [
   "{name} is part of the project {project}.",
   "{what}",
@@ -21,8 +21,8 @@ beginner = [
 builder = [
   "{what}",
   "{guess}",
-  "Process {process}, pid {pid}, started {uptime} ago by {user}.",
-  "Folder: {cwd_rel} (project {project}, branch {branch})",
+  "Process {process}, pid {pid}, started {uptime} ago by {user}. || Process {process}, pid {pid}, started {uptime} ago. || Process {process}, pid {pid}.",
+  "Folder: {cwd_rel} (project {project}, branch {branch}) || Folder: {cwd_rel} (project {project}) || Folder: {cwd_rel}",
   "Listening on {addr} ({reach}).",
   "Open: {url}",
   "Port settings: {env_ports}",
@@ -32,11 +32,11 @@ expert = [
   "Signature: {signature} ({confidence}) · role {role} · kind {kind}",
   "{what}",
   "Socket: {addr} ({reach}) · owner pid {pid} ({process})",
-  "Project: {project} ({project_id}) · worktree {worktree} ({branch})",
+  "Project: {project} ({project_id}) · worktree {worktree} ({branch}) || Project: {project} ({project_id}) · worktree {worktree}",
   "argv: {argv}",
   "exe: {exe}",
   "cwd: {cwd}",
-  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss}",
+  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss} || Started {started_utc} (up {uptime}) · ppid {ppid} · rss {rss} || Started {started_utc} (up {uptime})",
   "Service pids: {pids}",
   "Env ports: {env_ports}",
   "Env targets: {env_urls}",
@@ -45,8 +45,8 @@ expert = [
 # A container of a project, or a container outside any project.
 [container]
 title.beginner = "Port {port}: {name} || {name}"
-title.builder = ":{port} → {name} ({framework}) · Docker || {name} ({framework}) · Docker || {name} · Docker"
-title.expert = ":{port}/tcp → container {container} [{signature}] || container {container} [{signature}] || container {container}"
+title.builder = ":{port} → {name} ({framework}) · Docker || {name} ({framework}) · Docker || :{port} → {name} · Docker || {name} · Docker"
+title.expert = ":{port}/tcp → container {container} [{signature}] || container {container} [{signature}] || :{port}/tcp → container {container} || container {container}"
 beginner = [
   "{name} is part of the project {project}. It runs inside Docker. || {name} runs inside Docker.",
   "{what}",
@@ -55,19 +55,19 @@ beginner = [
 ]
 builder = [
   "{what}",
-  "Container {container} from image {image}: {state}, {health}.",
+  "Container {container} from image {image}: {state}, {health}. || Container {container} from image {image}: {state}.",
   "Ports: {mapping}",
   "Engine: {engine}",
-  "Compose: service {compose_service} from {compose_files}",
+  "Compose: service {compose_service} from {compose_files} || Compose: service {compose_service}",
 ]
 expert = [
   "Signature: {signature} ({confidence}) · role {role} · kind {kind}",
   "{what}",
-  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc}",
+  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state}",
   "Ports: {mapping}",
   "Networks: {networks}",
   "Volumes: {volumes}",
-  "Compose project {compose_project}, service {compose_service}, files {compose_files}, working dir {working_dir}",
+  "Compose project {compose_project}, service {compose_service}, files {compose_files}, working dir {working_dir} || Compose project {compose_project}, service {compose_service}",
   "Engine: {engine} at {engine_endpoint}",
 ]
 
@@ -93,18 +93,18 @@ beginner = [
 ]
 builder = [
   "{what}",
-  "Program {program}, pid {pid}, user {user}; not part of a project.",
+  "Program {program}, pid {pid}, user {user}; not part of a project. || Program {program}, pid {pid}; not part of a project.",
   "Executable: {exe}",
   "Listening on {addr} ({reach}).",
 ]
 expert = [
   "Signature: {signature}",
   "{what}",
-  "Socket: {addr} ({reach}) · owner pid {pid} ({program}), user {user}",
+  "Socket: {addr} ({reach}) · owner pid {pid} ({program}), user {user} || Socket: {addr} ({reach}) · owner pid {pid} ({program})",
   "argv: {argv}",
   "exe: {exe}",
   "cwd: {cwd}",
-  "Started {started_utc} · ppid {ppid} ({parent})",
+  "Started {started_utc} · ppid {ppid} ({parent}) || Started {started_utc} · ppid {ppid} || Started {started_utc}",
 ]
 
 # The operating system or a container engine holds the port.
@@ -112,9 +112,9 @@ expert = [
 title.beginner = "Port {port}: {reason}"
 title.builder = ":{port} → {reason}"
 title.expert = ":{port}/tcp → {reason}"
-beginner = ["{reason} holds this port. It is part of your computer, not of your project.", "{what}"]
-builder = ["{what}", "Held by {reason} (pid {pid}, {program})."]
-expert = ["Socket: {addr} ({reach}) · system owner: {reason}", "{what}", "pid {pid} ({program}) · exe {exe}"]
+beginner = ["This port is held by {reason}. It is part of your computer, not of your project.", "{what}"]
+builder = ["{what}", "Held by {reason} (pid {pid}, {program}). || Held by {reason}."]
+expert = ["Socket: {addr} ({reach}) · system owner: {reason}", "{what}", "pid {pid} ({program}) · exe {exe} || pid {pid} ({program})"]
 
 # The owner is not visible to Harbormap.
 [unknown]
@@ -167,6 +167,6 @@ builder = "starting"
 expert = "starting"
 
 [guess]
-beginner = "Harbormap is guessing this from the project's files."
-builder = "Guessed from the project's dependencies (probably)."
-expert = "Match confidence: probably (inferred from dependencies)."
+beginner = "Harbormap is guessing this from clues it can see, so it may be wrong."
+builder = "A good guess from what Harbormap can see, not a certainty (probably)."
+expert = "Match confidence: probably (a good guess, not certain)."
