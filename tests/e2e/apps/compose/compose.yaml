@@ -1,0 +1,15 @@
+# Harbormap end-to-end fixture: a compose project with one Postgres service.
+# The password is a throwaway value for this local, short-lived test database.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: hm-e2e-throwaway
+    ports:
+      - "127.0.0.1:47432:5432"
+    healthcheck:
+      # Over TCP, so the temporary server that initdb runs (socket only) does not count.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30

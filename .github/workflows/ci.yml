@@ -50,8 +50,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      # --locked: CI builds exactly the committed Cargo.lock and fails if it is stale.
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
 
   deny:
     runs-on: ubuntu-24.04
@@ -60,6 +61,61 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      # Runs `cargo deny --all-features check` (advisories, bans, licenses and
+      # Runs `cargo deny --all-features --locked check` (advisories, bans, licenses and
       # sources) with deny.toml from the repository root.
       - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          arguments: --all-features --locked
+
+  e2e:
+    # Starts real dev servers, so it runs only after the unit tests pass.
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install --profile minimal --no-self-update
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tests/e2e/apps/vite/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tests/e2e/apps/fastapi/requirements.txt
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+      - name: Install the Vite app
+        working-directory: tests/e2e/apps/vite
+        run: npm ci
+      - name: Create the FastAPI virtual environment
+        working-directory: tests/e2e/apps/fastapi
+        shell: bash
+        run: |
+          python -m venv .venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            .venv/Scripts/python -m pip install -r requirements.txt
+          else
+            .venv/bin/python -m pip install -r requirements.txt
+          fi
+      # Only the Linux runners can run the Postgres (Linux) container: macOS
+      # runners have no Docker and Windows runners only run Windows containers.
+      # The variable stays unset on the other runners.
+      - name: Enable the Docker scenario
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo "HM_E2E_DOCKER=1" >> "$GITHUB_ENV"
+      - run: cargo test --locked -p harbormap --test e2e -- --ignored --nocapture

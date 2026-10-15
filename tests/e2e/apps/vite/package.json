@@ -1,0 +1,11 @@
+{
+  "name": "e2e-vite",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 47173 --strictPort"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}
