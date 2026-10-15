@@ -46,40 +46,53 @@ pub struct Match<'s> {
 }
 
 pub fn match_process<'s>(set: &'s SignatureSet, facts: &ProcFacts) -> Option<Match<'s>> {
-    set.iter()
-        .filter(|signature| os_allows(signature, &facts.os))
-        .find_map(|signature| {
-            signature
-                .when
-                .iter()
-                .filter(|when| when.image.is_empty())
-                .find(|when| process_matches(when, facts))
-                .map(|when| Match {
-                    signature,
-                    confidence: confidence(when),
-                })
-        })
+    best_match(set, &facts.os, |when| {
+        when.image.is_empty() && process_matches(when, facts)
+    })
 }
 
 pub fn match_image<'s>(set: &'s SignatureSet, image: &str, os: &str) -> Option<Match<'s>> {
     let name = image_name(image);
-    set.iter()
-        .filter(|signature| os_allows(signature, os))
-        .find_map(|signature| {
-            signature
-                .when
-                .iter()
-                .filter(|when| !when.image.is_empty())
-                .find(|when| {
-                    when.image
-                        .iter()
-                        .any(|candidate| candidate.eq_ignore_ascii_case(&name))
-                })
-                .map(|when| Match {
-                    signature,
-                    confidence: confidence(when),
-                })
-        })
+    best_match(set, os, |when| {
+        when.image
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(&name))
+    })
+}
+
+/// The first signature, in priority order, with a matching `when` block. A sure block
+/// beats a `probably` one, both inside a signature and between signatures of the same
+/// priority, so the order blocks or signatures are written in never lowers confidence.
+fn best_match<'s>(
+    set: &'s SignatureSet,
+    os: &str,
+    matches: impl Fn(&When) -> bool,
+) -> Option<Match<'s>> {
+    let mut best: Option<Match<'s>> = None;
+    for signature in set.iter().filter(|signature| os_allows(signature, os)) {
+        if let Some(found) = best
+            && (found.confidence == Confidence::Sure
+                || found.signature.priority > signature.priority)
+        {
+            break;
+        }
+        let blocks: Vec<&When> = signature.when.iter().filter(|when| matches(when)).collect();
+        if blocks.is_empty() {
+            continue;
+        }
+        let confidence = if blocks.iter().any(|when| !when.probably) {
+            Confidence::Sure
+        } else {
+            Confidence::Probably
+        };
+        if best.is_none() || confidence == Confidence::Sure {
+            best = Some(Match {
+                signature,
+                confidence,
+            });
+        }
+    }
+    best
 }
 
 /// `docker.io/bitnami/postgresql:16@sha256:...` → `postgresql`.
@@ -91,14 +104,6 @@ pub fn image_name(image: &str) -> String {
 
 fn os_allows(signature: &Signature, os: &str) -> bool {
     signature.os.as_deref().is_none_or(|only| only == os)
-}
-
-fn confidence(when: &When) -> Confidence {
-    if when.probably {
-        Confidence::Probably
-    } else {
-        Confidence::Sure
-    }
 }
 
 fn process_matches(when: &When, facts: &ProcFacts) -> bool {
@@ -124,7 +129,7 @@ fn process_matches(when: &When, facts: &ProcFacts) -> bool {
         || facts.argv.iter().any(|arg| {
             when.argv_prefix
                 .iter()
-                .any(|prefix| arg.starts_with(prefix.as_str()))
+                .any(|prefix| starts_with_ignore_case(arg, prefix))
         });
     let ancestor_ok = when.ancestor_exe.is_empty()
         || facts.ancestors.iter().any(|ancestor| {
@@ -157,6 +162,13 @@ pub(crate) fn script_stem(arg: &str) -> String {
 }
 
 /// Case-insensitive match with one `*` wildcard at the start or the end.
+/// `puma 6.4.3 (…)` starts with `Puma `; comparisons ignore case, as the `When` docs say.
+fn starts_with_ignore_case(value: &str, prefix: &str) -> bool {
+    value
+        .get(..prefix.len())
+        .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+}
+
 fn glob(pattern: &str, value: &str) -> bool {
     let (pattern, value) = (pattern.to_ascii_lowercase(), value.to_ascii_lowercase());
     if let Some(suffix) = pattern.strip_prefix('*') {
