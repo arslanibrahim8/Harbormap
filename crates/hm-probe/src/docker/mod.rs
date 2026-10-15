@@ -45,15 +45,30 @@ impl DockerReport {
 /// Probes every candidate engine at the same time, giving each at most `timeout`.
 pub fn probe_docker(env: &DiscoverEnv, timeout: Duration) -> DockerReport {
     let candidates = discover::candidates(env);
+    // DOCKER_HOST on another computer is skipped (local only); say so instead of
+    // claiming Docker isn't running.
+    let remote = env
+        .docker_host
+        .as_deref()
+        .is_some_and(|host| !discover::is_local(host));
+    if remote && candidates.is_empty() {
+        return DockerReport {
+            notes: vec![remote_note()],
+            ..DockerReport::default()
+        };
+    }
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
         Ok(runtime) => {
-            let report = runtime.block_on(probe_all(candidates, timeout));
+            let mut report = runtime.block_on(probe_all(candidates, timeout));
             // Don't wait for blocking work left behind by a timed-out connect (a name
             // lookup cannot be cancelled); the timeout is the promise.
             runtime.shutdown_background();
+            if remote {
+                report.notes.push(remote_note());
+            }
             report
         }
         Err(error) => DockerReport::failed(&error.to_string()),
@@ -299,6 +314,13 @@ fn not_installed() -> Note {
     )
 }
 
+fn remote_note() -> Note {
+    note(
+        "docker_remote",
+        "DOCKER_HOST points to an engine on another computer. Harbormap only reads engines on this computer, so its containers are not shown.",
+    )
+}
+
 fn not_running() -> Note {
     note(
         "docker_not_running",
@@ -361,6 +383,15 @@ mod tests {
         let error = report.engines[0].error.as_deref().unwrap();
         assert!(error.to_lowercase().contains("refused"), "{error}");
         assert_eq!(report.notes[0].code, "docker_not_running");
+
+        // A DOCKER_HOST on another computer is skipped and named in a note of its own.
+        let remote = DiscoverEnv {
+            docker_host: Some("tcp://10.0.0.5:2375".into()),
+            ..DiscoverEnv::default()
+        };
+        let report = probe_docker(&remote, Duration::from_millis(200));
+        let codes: Vec<&str> = report.notes.iter().map(|note| note.code.as_str()).collect();
+        assert_eq!(codes, ["docker_remote"]);
     }
 
     #[cfg(unix)]

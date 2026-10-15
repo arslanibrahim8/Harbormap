@@ -144,7 +144,7 @@ fn context_host(env: &DiscoverEnv) -> Option<String> {
 }
 
 /// Sockets and pipes are local; a TCP endpoint counts only on a loopback address.
-fn is_local(endpoint: &str) -> bool {
+pub(crate) fn is_local(endpoint: &str) -> bool {
     match endpoint.split_once("://") {
         Some(("unix" | "npipe", _)) => true,
         Some(("tcp" | "http", rest)) => {
