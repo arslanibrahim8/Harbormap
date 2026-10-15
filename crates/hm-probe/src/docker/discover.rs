@@ -1,7 +1,11 @@
 //! Where Docker-compatible engines might be listening (v0.1 spec §6.4), in order:
-//! `DOCKER_HOST`, the current docker context, then well-known sockets.
+//! `DOCKER_HOST`, the current docker context, then well-known sockets. Only engines on
+//! this computer count: a remote `tcp://` or `ssh://` host is skipped (spec §15).
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candidate {
@@ -45,11 +49,23 @@ impl DiscoverEnv {
 pub fn candidates(env: &DiscoverEnv) -> Vec<Candidate> {
     let mut found: Vec<Candidate> = Vec::new();
     let mut push = |endpoint: String| {
-        let endpoint = canonical_endpoint(&endpoint);
-        if !found.iter().any(|candidate| candidate.endpoint == endpoint) {
+        if !is_local(&endpoint) {
+            return;
+        }
+        let canonical = canonical_endpoint(&endpoint);
+        if !found
+            .iter()
+            .any(|candidate| candidate.endpoint == canonical)
+        {
+            // The name as configured says more than the resolved path, which may point
+            // into a VM folder.
+            let label = match label_for(&endpoint).as_str() {
+                "Docker" => label_for(&canonical),
+                known => known.to_string(),
+            };
             found.push(Candidate {
-                label: label_for(&endpoint),
-                endpoint,
+                label,
+                endpoint: canonical,
             });
         }
     };
@@ -127,6 +143,22 @@ fn context_host(env: &DiscoverEnv) -> Option<String> {
     None
 }
 
+/// Sockets and pipes are local; a TCP endpoint counts only on a loopback address.
+fn is_local(endpoint: &str) -> bool {
+    match endpoint.split_once("://") {
+        Some(("unix" | "npipe", _)) => true,
+        Some(("tcp" | "http", rest)) => {
+            let authority = rest.split('/').next().unwrap_or(rest);
+            let host = match authority.rsplit_once(':') {
+                Some((host, port)) if port.bytes().all(|byte| byte.is_ascii_digit()) => host,
+                _ => authority,
+            };
+            matches!(host, "localhost" | "127.0.0.1" | "[::1]" | "::1")
+        }
+        _ => false,
+    }
+}
+
 /// Resolves symlinks in `unix://` endpoints so two names for one socket collapse.
 fn canonical_endpoint(endpoint: &str) -> String {
     match endpoint.strip_prefix("unix://") {
@@ -138,17 +170,19 @@ fn canonical_endpoint(endpoint: &str) -> String {
     }
 }
 
+/// Engine name guessed from folder names in the endpoint, never from parts of a name
+/// (a user called `halima` is not running Colima).
 pub fn label_for(endpoint: &str) -> String {
-    let lower = endpoint.to_ascii_lowercase();
-    let label = if lower.contains(".orbstack") {
+    let lower = endpoint.to_ascii_lowercase().replace('\\', "/");
+    let label = if lower.contains("/.orbstack/") {
         "OrbStack"
-    } else if lower.contains(".colima") || lower.contains("lima") {
+    } else if lower.contains("/.colima/") || lower.contains("/.lima/") {
         "Colima"
     } else if lower.contains("/.rd/") {
         "Rancher Desktop"
-    } else if lower.contains("podman") {
+    } else if lower.contains("/podman/") || lower.contains("podman.sock") {
         "Podman"
-    } else if lower.contains(".docker/run") || lower.contains("docker_engine") {
+    } else if lower.contains("/.docker/run/") || lower.contains("docker_engine") {
         "Docker Desktop"
     } else {
         "Docker"
@@ -156,22 +190,40 @@ pub fn label_for(endpoint: &str) -> String {
     label.to_string()
 }
 
-/// Asks `podman machine inspect` for the API socket when the podman CLI exists.
+/// Asks `podman machine inspect` for the API socket when the podman CLI exists. Podman can
+/// wait on a machine lock, so it gets two seconds before it is stopped.
 fn podman_machine_socket() -> Option<PathBuf> {
     if !super::on_path("podman") {
         return None;
     }
-    let output = std::process::Command::new("podman")
+    let mut child = Command::new("podman")
         .args([
             "machine",
             "inspect",
             "--format",
             "{{.ConnectionInfo.PodmanSocket.Path}}",
         ])
-        .output()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
         .ok()?;
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    (output.status.success() && !path.is_empty() && Path::new(&path).is_absolute())
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    };
+    let mut output = String::new();
+    child.stdout.take()?.read_to_string(&mut output).ok()?;
+    let path = output.trim();
+    (status.success() && !path.is_empty() && Path::new(path).is_absolute())
         .then(|| PathBuf::from(path))
 }
 
@@ -197,7 +249,9 @@ mod tests {
         assert_eq!(found.len(), 2);
         assert_eq!(found[0].endpoint, "tcp://127.0.0.1:2375");
         assert_eq!(found[1].label, "OrbStack");
-        assert!(found[1].endpoint.ends_with(".orbstack/run/docker.sock"));
+        // Compare path components: Windows canonical paths use `\` and a `\\?\` prefix.
+        let socket = found[1].endpoint.trim_start_matches("unix://");
+        assert!(Path::new(socket).ends_with(".orbstack/run/docker.sock"));
     }
 
     #[test]
@@ -236,6 +290,22 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].endpoint, "npipe:////./pipe/docker_engine");
         assert_eq!(found[0].label, "Docker Desktop");
+
+        // A remote engine is not this computer's: Harbormap never connects to it.
+        let remote = DiscoverEnv {
+            docker_host: Some("tcp://10.0.0.5:2375".into()),
+            ..DiscoverEnv::default()
+        };
+        assert!(candidates(&remote).is_empty());
+        // Labels come from folder names, not from parts of a user name.
+        assert_eq!(
+            label_for("unix:///Users/halima/.docker/run/docker.sock"),
+            "Docker Desktop"
+        );
+        assert_eq!(
+            label_for("unix:///Users/me/.lima/default/sock/docker.sock"),
+            "Colima"
+        );
     }
 
     #[cfg(unix)]
