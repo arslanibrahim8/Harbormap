@@ -1,7 +1,7 @@
 //! Template filling and the small formatters cards use.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Component, Path};
 
 use hm_core::signature::Level;
 
@@ -128,11 +128,18 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (year, month, day)
 }
 
-/// Replaces the home directory prefix with `~`.
+/// Replaces the home directory prefix with `~`, joined in the path's own style:
+/// `~\code\shop` for a Windows path (drive or UNC prefix), `~/code/shop` otherwise.
 pub fn tilde(path: &Path, home: Option<&Path>) -> String {
     match home.and_then(|home| path.strip_prefix(home).ok()) {
         Some(rest) if rest.as_os_str().is_empty() => "~".into(),
-        Some(rest) => format!("~/{}", rest.display()),
+        Some(rest) => {
+            let separator = match path.components().next() {
+                Some(Component::Prefix(_)) => '\\',
+                _ => '/',
+            };
+            format!("~{separator}{}", rest.display())
+        }
         None => path.display().to_string(),
     }
 }
@@ -208,5 +215,13 @@ mod tests {
         assert_eq!(tilde(Path::new("/home/me/shop"), Some(home)), "~/shop");
         assert_eq!(tilde(Path::new("/home/me"), Some(home)), "~");
         assert_eq!(tilde(Path::new("/srv/app"), Some(home)), "/srv/app");
+        #[cfg(windows)]
+        assert_eq!(
+            tilde(
+                Path::new(r"C:\Users\me\code\shop"),
+                Some(Path::new(r"C:\Users\me"))
+            ),
+            r"~\code\shop"
+        );
     }
 }
