@@ -126,6 +126,21 @@ fn experts_get_raw_facts() {
     assert!(card.lines.iter().any(|line| {
         line.starts_with("argv: node /Users/me/code/shop/apps/web/node_modules/.bin/vite")
     }));
+
+    // Without a known parent the line still gives the memory.
+    let mut orphan = snapshot();
+    for process in &mut orphan.processes {
+        if process.pid == 802 {
+            process.ppid = None;
+        }
+    }
+    let card = one(&orphan, 5173, Level::Expert);
+    assert!(
+        card.lines
+            .iter()
+            .any(|line| line.starts_with("Started ") && line.ends_with(") · rss 50 MB")),
+        "{card:#?}"
+    );
 }
 
 #[test]
@@ -160,6 +175,20 @@ fn a_compose_database_is_described_as_a_container() {
         redis
             .lines
             .contains(&"Container lonely-redis from image redis:7: running.".to_string())
+    );
+
+    // Without a start time the expert line keeps health and restarts.
+    let mut unstarted = snapshot();
+    for container in &mut unstarted.containers {
+        container.started_at = None;
+    }
+    let expert = one(&unstarted, 55432, Level::Expert);
+    assert!(
+        expert.lines.contains(
+            &"Container 4f1c2a9e8b7d (shop-db-1) · image postgres:16-alpine · state running · health healthy · restarts 0"
+                .to_string()
+        ),
+        "{expert:#?}"
     );
 }
 

@@ -36,7 +36,7 @@ expert = [
   "argv: {argv}",
   "exe: {exe}",
   "cwd: {cwd}",
-  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss} || Started {started_utc} (up {uptime}) · ppid {ppid} · rss {rss} || Started {started_utc} (up {uptime})",
+  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss} || Started {started_utc} (up {uptime}) · ppid {ppid} · rss {rss} || Started {started_utc} (up {uptime}) · rss {rss} || Started {started_utc} (up {uptime})",
   "Service pids: {pids}",
   "Env ports: {env_ports}",
   "Env targets: {env_urls}",
@@ -63,7 +63,7 @@ builder = [
 expert = [
   "Signature: {signature} ({confidence}) · role {role} · kind {kind}",
   "{what}",
-  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state}",
+  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} || Container {container_id} ({container}) · image {image} · state {state} · restarts {restarts} || Container {container_id} ({container}) · image {image} · state {state}",
   "Ports: {mapping}",
   "Networks: {networks}",
   "Volumes: {volumes}",
