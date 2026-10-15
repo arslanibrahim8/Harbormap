@@ -12,7 +12,7 @@ exe = ["postgres", "postmaster"]
 [[signature.when]]
 image = ["postgres", "postgresql", "postgis", "pgvector", "timescaledb", "timescaledb-ha"]
 [signature.texts]
-beginner = "This is your project's database. It stores your app's data, such as users and orders."
+beginner = "This is a database (PostgreSQL). It stores an app's data, such as users and orders."
 builder = "PostgreSQL database server. Default port 5432."
 expert = "PostgreSQL postmaster; data lives in PGDATA, or in the /var/lib/postgresql/data volume of a container."
 [[signature.fixture]]
@@ -34,7 +34,7 @@ exe = ["mysqld", "mariadbd"]
 [[signature.when]]
 image = ["mysql", "mariadb", "percona-server"]
 [signature.texts]
-beginner = "This is your project's database (MySQL or MariaDB). It stores your app's data."
+beginner = "This is a database (MySQL or MariaDB). It stores an app's data."
 builder = "MySQL or MariaDB server. Default port 3306."
 expert = "mysqld / mariadbd; classic protocol on 3306, X protocol on 33060 for MySQL 8."
 [[signature.fixture]]
@@ -56,7 +56,7 @@ exe = ["mongod", "mongos"]
 [[signature.when]]
 image = ["mongo", "mongodb-community-server"]
 [signature.texts]
-beginner = "This is your project's database (MongoDB). It stores your app's data as documents."
+beginner = "This is a database (MongoDB). It stores an app's data as documents."
 builder = "MongoDB server. Default port 27017."
 expert = "mongod; wire protocol on 27017, data in --dbpath or the container's /data/db volume."
 [[signature.fixture]]

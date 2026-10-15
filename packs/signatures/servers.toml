@@ -278,7 +278,7 @@ argv_contains = ["/go-build", "\\go-build"]
 ancestor_exe = ["go", "air"]
 probably = true
 [signature.texts]
-beginner = "This is a program written in Go, started from your project."
+beginner = "This is a program written in Go."
 builder = "Go program, started with go run or a live-reload tool such as air."
 expert = "Go binary; go run builds it into a go-build temporary directory and runs it as a child of the go tool."
 [[signature.fixture]]
