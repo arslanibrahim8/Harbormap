@@ -1,5 +1,6 @@
 //! Signature matching (v0.1 spec §8). Signatures are tried in priority order and the
-//! first match wins; `when` blocks are alternatives, their conditions all must hold.
+//! first match wins, unless a sure match of the same priority follows a `probably` one;
+//! `when` blocks are alternatives, their conditions all must hold.
 
 use std::collections::BTreeSet;
 
@@ -161,14 +162,14 @@ pub(crate) fn script_stem(arg: &str) -> String {
     base
 }
 
-/// Case-insensitive match with one `*` wildcard at the start or the end.
-/// `puma 6.4.3 (…)` starts with `Puma `; comparisons ignore case, as the `When` docs say.
+/// `Puma 6.4.3 (…)` starts with `puma `; comparisons ignore case, as the `When` docs say.
 fn starts_with_ignore_case(value: &str, prefix: &str) -> bool {
     value
         .get(..prefix.len())
         .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
 }
 
+/// Case-insensitive match with one `*` wildcard at the start or the end.
 fn glob(pattern: &str, value: &str) -> bool {
     let (pattern, value) = (pattern.to_ascii_lowercase(), value.to_ascii_lowercase());
     if let Some(suffix) = pattern.strip_prefix('*') {
@@ -193,11 +194,47 @@ mod tests {
     }
 
     #[test]
-    fn globs_support_one_wildcard() {
+    fn globs_and_prefixes_ignore_case() {
         assert!(glob("python*", "python3.13"));
         assert!(glob("*.csproj", "Shop.Api.csproj"));
         assert!(glob("node", "Node"));
         assert!(!glob("node", "nodemon"));
+        assert!(starts_with_ignore_case(
+            "Puma 6.4.3 (tcp://localhost:3000)",
+            "puma "
+        ));
+        assert!(!starts_with_ignore_case("pum", "puma "));
+        // A cut inside a multi-byte character is no match, not a panic.
+        assert!(!starts_with_ignore_case("pum€ 6", "puma "));
+    }
+
+    #[test]
+    fn a_sure_block_beats_a_probably_one() {
+        let signature = |id: &str, blocks: &str| -> Signature {
+            toml::from_str(&format!(
+                "id = '{id}'\nname = '{id}'\nrole = 'work'\nkind = 'dev_server'\n{blocks}\
+                 [texts]\nbeginner = '-'\nbuilder = '-'\nexpert = '-'\n"
+            ))
+            .unwrap()
+        };
+        let guess = "[[when]]\nargv_basename = ['x']\nprobably = true\n";
+        let sure = "[[when]]\nargv_basename = ['x']\n";
+        let facts = ProcFacts {
+            argv: vec!["x".into()],
+            os: "linux".into(),
+            ..ProcFacts::default()
+        };
+        // Inside one signature, the order of its blocks does not matter.
+        let set = SignatureSet::new(vec![signature("one", &format!("{guess}{sure}"))]);
+        let found = match_process(&set, &facts).unwrap();
+        assert_eq!(found.confidence, Confidence::Sure);
+        // Between signatures of one priority, the sure one wins whatever their ids.
+        let set = SignatureSet::new(vec![signature("a", guess), signature("b", sure)]);
+        let found = match_process(&set, &facts).unwrap();
+        assert_eq!(
+            (found.signature.id.as_str(), found.confidence),
+            ("b", Confidence::Sure)
+        );
     }
 
     #[test]
