@@ -3,6 +3,8 @@
 //! exist and who owns every listening port.
 
 pub mod git;
+pub mod manifest;
+pub mod matcher;
 pub mod paths;
 pub mod world;
 
