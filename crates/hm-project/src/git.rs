@@ -66,13 +66,21 @@ impl World for RealWorld {
 pub fn discover(dir: &Path) -> Option<RepoInfo> {
     let repo = gix::discover(dir).ok()?;
     let main = repo.main_repo().ok()?;
-    // A bare main repository has no root folder to call the project.
-    let root = canonical(main.workdir()?);
-    let mut worktrees = vec![Worktree {
-        path: root.clone(),
-        branch: branch(&main),
-        head: head(&main),
-    }];
+    let mut worktrees = Vec::new();
+    let root = match main.workdir() {
+        Some(workdir) => {
+            let root = canonical(workdir);
+            worktrees.push(Worktree {
+                path: root.clone(),
+                branch: branch(&main),
+                head: head(&main),
+            });
+            root
+        }
+        // A bare repository holds no files: it is the root, and only its linked
+        // worktrees are worktrees.
+        None => bare_root(main.git_dir()),
+    };
     for proxy in main.worktrees().ok()? {
         let Ok(base) = proxy.base() else {
             continue;
@@ -84,7 +92,19 @@ pub fn discover(dir: &Path) -> Option<RepoInfo> {
             head: linked.as_ref().and_then(head),
         });
     }
-    Some(RepoInfo { root, worktrees })
+    (!worktrees.is_empty()).then_some(RepoInfo { root, worktrees })
+}
+
+/// `shop.git` is its own root; a `.bare` or `.git` folder stands for the folder holding it
+/// (the layout where worktrees sit next to it).
+fn bare_root(git_dir: &Path) -> PathBuf {
+    let git_dir = canonical(git_dir);
+    match git_dir.file_name().and_then(|name| name.to_str()) {
+        Some(".bare" | ".git") => git_dir
+            .parent()
+            .map_or_else(|| git_dir.clone(), Path::to_path_buf),
+        _ => git_dir,
+    }
 }
 
 fn canonical(path: &Path) -> PathBuf {
@@ -163,6 +183,24 @@ mod tests {
 
         let from_linked = discover(&temp.path().join("shop-feature")).unwrap();
         assert_eq!(from_linked.root, info.root);
+
+        // A bare repository holds no files itself: it is the root, its linked worktrees
+        // are the worktrees.
+        let bare = temp.path().join("shop.git");
+        let (from, to) = (repo.to_str().unwrap(), bare.to_str().unwrap());
+        assert!(git(temp.path(), &["clone", "-q", "--bare", from, to]));
+        assert!(git(
+            &bare,
+            &["worktree", "add", "-q", "../shop-main", "main"]
+        ));
+        let from_bare = discover(&temp.path().join("shop-main")).unwrap();
+        assert_eq!(from_bare.root, canonical(&bare));
+        assert_eq!(from_bare.worktrees.len(), 1);
+        assert_eq!(
+            from_bare.worktrees[0].path,
+            canonical(&temp.path().join("shop-main"))
+        );
+        assert_eq!(from_bare.worktrees[0].branch.as_deref(), Some("main"));
     }
 
     #[test]
