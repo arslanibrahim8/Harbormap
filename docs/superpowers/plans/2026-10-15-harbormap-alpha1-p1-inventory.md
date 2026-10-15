@@ -1029,7 +1029,7 @@ git commit -s -m "feat(core): add program-name helpers and environment-value rul
 
 This task adds the redaction rules from spec §15. Every command line goes through `redact_argv` before it is stored or shown, so passwords, tokens, URL credentials, known key formats and long random-looking strings never leave the probe. Log lines will use `redact_text` from alpha.3 on.
 
-A variable or option name is secret when one of its parts (split at `-`, `_` and `.`) ends with `password`, `passwd`, `passphrase`, `secret`, `token` or `apikey`, digits aside, or when its last part is `key`, `pass` or `pwd` (qualifiers such as `2`, `v2` or `PROD` aside, and camelCase counted by its last word): `DB_PASSWORD`, `PGPASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2` and `apiKey` are secret, while `--key-file`, `--max-tokens` and `monkey` are not. The word after a flag is masked only when the flag's last part names the secret, so `--password-stdin`, `--password-file`, `--no-password` and `--ask-pass` keep the next argument, and a following flag is never masked. A bare `name=value` argument is one value, so `DB_PASSWORD=pa;ss` loses everything after `=`; any other argument (a URL, the command line that `sh -c` runs) is redacted as text, where a value ends at whitespace or `&`, `;`, `,`, `}` and `]`, and `:` separates a pair only before whitespace or a quote, so `cache-key:6379` stays a host and port. MySQL's `-pVALUE` is checked first, also after `sudo` and inside shell text where `mysql` is a command. Ordinary flags such as `--max-old-space-size=4096` stay readable.
+A variable or option name is secret when one of its parts (split at `-`, `_` and `.`) ends with `password`, `passwd`, `passphrase`, `secret`, `token` or `apikey`, digits aside, or when its last part is `key`, `pass` or `pwd` (qualifiers such as `2`, `v2` or `PROD` aside, and camelCase counted by its last word): `DB_PASSWORD`, `PGPASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2` and `apiKey` are secret, while `--key-file`, `--max-tokens` and `monkey` are not. The word after a flag is masked when the flag's last part names the secret, or when a secret word comes earlier and the last word names nothing else (`--secret-string`, `--token-value`, PowerShell's `-SecretString`); `--password-stdin`, `--password-file`, `--token-limit`, `--secret-id`, `--no-password` and `--ask-pass` keep the next argument, and a following flag is never masked. A bare `name=value` argument is one value, so `DB_PASSWORD=pa;ss` loses everything after `=`; any other argument (a URL, the command line that `sh -c` runs) is redacted as text, where a value ends at whitespace or `&`, `;`, `,`, `}` and `]`, and `:` separates a pair only before whitespace or a quote, so `cache-key:6379` stays a host and port. MySQL's `-pVALUE` is checked first, also after `sudo` and inside shell text where `mysql` is a command (at the start of a line, indentation aside, or after `;`, `&`, `|`, `(` or a wrapper). Ordinary flags such as `--max-old-space-size=4096` stay readable.
 
 **Files:**
 - Create: `crates/hm-core/src/redact.rs`
@@ -1195,6 +1195,32 @@ mod tests {
                 "export API_TOKEN=*** && exec node server.js --port 80",
             ])
         );
+        // A secret word before the last word still names the value, unless the last word
+        // says what else it is (`--password-file` and `--token-limit` above).
+        assert_eq!(
+            redact_argv(&argv(&[
+                "aws",
+                "secretsmanager",
+                "create-secret",
+                "--secret-string",
+                "hunter2",
+                "--secret-id",
+                "shop/db",
+            ])),
+            argv(&[
+                "aws",
+                "secretsmanager",
+                "create-secret",
+                "--secret-string",
+                "***",
+                "--secret-id",
+                "shop/db",
+            ])
+        );
+        assert_eq!(
+            redact_text("New-Secret -SecretString hunter2 -SecretName db"),
+            "New-Secret -SecretString *** -SecretName db"
+        );
         // Windows tools and PowerShell put the value after `:`; hosts and folders keep it.
         assert_eq!(
             redact_argv(&argv(&[
@@ -1248,6 +1274,15 @@ mod tests {
         assert_eq!(
             redact_text("cd /srv && mysql -u root -p'hunter 2' shop"),
             "cd /srv && mysql -u root -p*** shop"
+        );
+        // A new line or indentation starts a command too.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "sh",
+                "-c",
+                "set -e\n  mysql -u root -pHunter2 shop"
+            ])),
+            argv(&["sh", "-c", "set -e\n  mysql -u root -p*** shop"])
         );
     }
 
@@ -1377,6 +1412,14 @@ const SECRET_WORDS: &[&str] = &[
 /// `apiKey`), so that `--key-file`, `monkey` and `--pass-with-no-tests` stay readable.
 const SECRET_LAST_WORDS: &[&str] = &["key", "pass", "pwd"];
 
+/// Last words of a flag that name something other than the secret before them
+/// (`--password-file`, `--token-limit`, `--secret-id`), so their value stays readable.
+const NOT_THE_SECRET: &[&str] = &[
+    "stdin", "file", "path", "dir", "env", "id", "name", "arn", "url", "uri", "endpoint", "header",
+    "type", "length", "limit", "size", "count", "ttl", "prompt", "command", "cmd", "helper",
+    "store", "cache", "version",
+];
+
 /// Trailing name parts that only qualify a secret (`API_KEY_2`, `STRIPE_KEY_LIVE`).
 const QUALIFIERS: &[&str] = &[
     "prod",
@@ -1430,12 +1473,12 @@ static FLAG_AND_VALUE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(^|\s)(--?[A-Za-z][A-Za-z0-9_.\-]*)(\s+)("[^"]*"|'[^']*'|[^\s\-"']\S*)"#).unwrap()
 });
 
-/// `mysql … -pVALUE` inside text, where `mysql` is a command: first, after `;`, `&`, `|`,
-/// `(` or a backtick, after a wrapper such as `sudo`, or as a path. `--name mysql -p3306`
-/// is a port mapping, not a password.
+/// `mysql … -pVALUE` inside text, where `mysql` is a command: at the start of a line
+/// (indentation aside), after `;`, `&`, `|`, `(` or a backtick, after a wrapper such as
+/// `sudo`, or as a path. `--name mysql -p3306` is a port mapping, not a password.
 static MYSQL_PASSWORD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r#"((?:^|[;&|(`]\s*|\b(?:{})\s+|[/\\])(?i:{})(?:\.exe)?\s(?:[^;&|\n]*?\s)?-p)('[^']*'|"[^"]*"|[^\s;&|'"]+)"#,
+        r#"((?:(?m:^)\s*|[;&|(`]\s*|\b(?:{})\s+|[/\\])(?i:{})(?:\.exe)?\s(?:[^;&|\n]*?\s)?-p)('[^']*'|"[^"]*"|[^\s;&|'"]+)"#,
         WRAPPERS.join("|"),
         MYSQL_LIKE.join("|")
     ))
@@ -1530,8 +1573,10 @@ fn is_secret_name(name: &str) -> bool {
 }
 
 /// True when the word after a flag is a secret: the flag's last part names it
-/// (`--password`, `--client-secret`, `--api-key`). `--password-file` and `--token-limit`
-/// keep their values, and `--no-password` and `--ask-pass` are switches.
+/// (`--password`, `--client-secret`, `--api-key`), or a secret word comes before a last
+/// word that names nothing else (`--secret-string`, `--token-value`, `-SecretString`).
+/// `--password-file` and `--token-limit` keep their values, and `--no-password` and
+/// `--ask-pass` are switches.
 fn is_secret_flag(flag: &str) -> bool {
     let parts = secret_parts(flag);
     if parts
@@ -1540,9 +1585,36 @@ fn is_secret_flag(flag: &str) -> bool {
     {
         return false;
     }
-    parts
+    if parts
         .last()
         .is_some_and(|last| ends_with_secret_word(last) || is_short_secret_word(last))
+    {
+        return true;
+    }
+    let words: Vec<&str> = parts.iter().flat_map(|part| camel_words(part)).collect();
+    words.split_last().is_some_and(|(last, before)| {
+        before.iter().any(|word| ends_with_secret_word(word))
+            && !NOT_THE_SECRET
+                .iter()
+                .any(|other| last.eq_ignore_ascii_case(other))
+    })
+}
+
+/// `SecretString` → `Secret`, `String`; a part without inner capitals stays whole.
+fn camel_words(part: &str) -> Vec<&str> {
+    let bytes = part.as_bytes();
+    let mut words = Vec::new();
+    let mut start = 0;
+    for index in 1..bytes.len() {
+        if bytes[index].is_ascii_uppercase()
+            && (bytes[index - 1].is_ascii_lowercase() || bytes[index - 1].is_ascii_digit())
+        {
+            words.push(&part[start..index]);
+            start = index;
+        }
+    }
+    words.push(&part[start..]);
+    words
 }
 
 /// The parts of a name without leading dashes and trailing qualifiers.
@@ -2633,6 +2705,7 @@ mod tests {
             "DB_PASS=hunter2",
             "BASH_FUNC_ml%%=() { :; }",
             "npm_config_@acme:registry=https://r.example/",
+            "npm_config_//registry.npmjs.org/:_authToken=npm_abc123",
         ]);
         drop_environment_tail(&mut odd);
         assert_eq!(odd, args(&["node"]));
@@ -2910,13 +2983,15 @@ fn drop_environment_tail(argv: &mut Vec<String>) {
 }
 
 /// `name=value` as an environment block holds it. Names are loose in practice
-/// (`BASH_FUNC_f%%`, `npm_config_@scope:registry`), so anything that is not an option
-/// (`--port=5173`) or a path or URL (`http://x/?a=b`) counts.
+/// (`BASH_FUNC_f%%`, `npm_config_@scope:registry`, npm's
+/// `npm_config_//registry.npmjs.org/:_authToken`), so anything that is not an option
+/// (`--port=5173`), a URL (`http://x/?a=b`) or text with spaces counts.
 fn is_environment_entry(arg: &str) -> bool {
     arg.split_once('=').is_some_and(|(name, _)| {
         !name.is_empty()
             && !name.starts_with('-')
-            && !name.chars().any(|c| c.is_whitespace() || c == '/')
+            && !name.contains("://")
+            && !name.chars().any(char::is_whitespace)
     })
 }
 
@@ -3650,6 +3725,18 @@ mod tests {
             ..DiscoverEnv::default()
         };
         assert!(candidates(&remote).is_empty());
+        // Every loopback address is this computer.
+        for host in [
+            "tcp://127.0.0.2:2375",
+            "tcp://LOCALHOST:2375",
+            "tcp://[::1]:2375",
+        ] {
+            let local = DiscoverEnv {
+                docker_host: Some(host.into()),
+                ..DiscoverEnv::default()
+            };
+            assert_eq!(candidates(&local)[0].endpoint, host);
+        }
         // Labels come from folder names, not from parts of a user name.
         assert_eq!(
             label_for("unix:///Users/halima/.docker/run/docker.sock"),
@@ -3658,6 +3745,10 @@ mod tests {
         assert_eq!(
             label_for("unix:///Users/me/.lima/default/sock/docker.sock"),
             "Colima"
+        );
+        assert_eq!(
+            label_for("npipe:////./pipe/podman-machine-default"),
+            "Podman"
         );
     }
 
@@ -3844,7 +3935,11 @@ fn is_local(endpoint: &str) -> bool {
                 Some((host, port)) if port.bytes().all(|byte| byte.is_ascii_digit()) => host,
                 _ => authority,
             };
-            matches!(host, "localhost" | "127.0.0.1" | "[::1]" | "::1")
+            let host = host.trim_start_matches('[').trim_end_matches(']');
+            host.eq_ignore_ascii_case("localhost")
+                || host
+                    .parse::<std::net::IpAddr>()
+                    .is_ok_and(|ip| ip.is_loopback())
         }
         _ => false,
     }
@@ -3871,7 +3966,10 @@ pub fn label_for(endpoint: &str) -> String {
         "Colima"
     } else if lower.contains("/.rd/") {
         "Rancher Desktop"
-    } else if lower.contains("/podman/") || lower.contains("podman.sock") {
+    } else if lower.contains("/podman/")
+        || lower.contains("podman.sock")
+        || lower.contains("/pipe/podman")
+    {
         "Podman"
     } else if lower.contains("/.docker/run/") || lower.contains("docker_engine") {
         "Docker Desktop"
@@ -4942,6 +5040,12 @@ argv = ["node", "C:\\work\\shop\\node_modules\\vite\\bin\\vite.js"]
 exe = "node"
 argv = ["node", "/work/shop/node_modules/.bin/vite"]
 packages = ["next", "vite"]
+# Vite started by `dotnet run` in an ASP.NET Core project: the program itself wins.
+[[signature.fixture]]
+exe = "node"
+argv = ["node", "/work/shop/node_modules/.bin/vite"]
+ancestors = ["dotnet"]
+cwd_files = ["Shop.csproj", "package.json"]
 
 [[signature]]
 id = "sveltekit"
@@ -5370,9 +5474,11 @@ role = "work"
 kind = "dev_server"
 priority = 20
 [[signature.when]]
-ancestor_exe = ["go", "air"]
-[[signature.when]]
 argv_contains = ["/go-build", "\\go-build"]
+# Started by go or air but not built by go run: most likely Go, not certain.
+[[signature.when]]
+ancestor_exe = ["go", "air"]
+probably = true
 [signature.texts]
 beginner = "This is a program written in Go, started from your project."
 builder = "Go program, started with go run or a live-reload tool such as air."
@@ -6151,10 +6257,21 @@ mod tests {
     use super::*;
     use std::process::Command;
 
-    /// Runs git without the developer's own configuration (signing, hooks, templates).
+    /// Runs git without the developer's own configuration (signing, hooks, templates) and
+    /// without the repository a git hook running these tests points at.
     fn git(dir: &Path, args: &[&str]) -> bool {
         let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
-        Command::new("git")
+        let mut command = Command::new("git");
+        for variable in [
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_INDEX_FILE",
+            "GIT_COMMON_DIR",
+            "GIT_OBJECT_DIRECTORY",
+        ] {
+            command.env_remove(variable);
+        }
+        command
             .args(args)
             .current_dir(dir)
             .env("GIT_CONFIG_GLOBAL", null)
@@ -6635,11 +6752,47 @@ mod tests {
     }
 
     #[test]
-    fn globs_support_one_wildcard() {
+    fn globs_and_prefixes_ignore_case() {
         assert!(glob("python*", "python3.13"));
         assert!(glob("*.csproj", "Shop.Api.csproj"));
         assert!(glob("node", "Node"));
         assert!(!glob("node", "nodemon"));
+        assert!(starts_with_ignore_case(
+            "Puma 6.4.3 (tcp://localhost:3000)",
+            "puma "
+        ));
+        assert!(!starts_with_ignore_case("pum", "puma "));
+        // A cut inside a multi-byte character is no match, not a panic.
+        assert!(!starts_with_ignore_case("pum€ 6", "puma "));
+    }
+
+    #[test]
+    fn a_sure_block_beats_a_probably_one() {
+        let signature = |id: &str, blocks: &str| -> Signature {
+            toml::from_str(&format!(
+                "id = '{id}'\nname = '{id}'\nrole = 'work'\nkind = 'dev_server'\n{blocks}\
+                 [texts]\nbeginner = '-'\nbuilder = '-'\nexpert = '-'\n"
+            ))
+            .unwrap()
+        };
+        let guess = "[[when]]\nargv_basename = ['x']\nprobably = true\n";
+        let sure = "[[when]]\nargv_basename = ['x']\n";
+        let facts = ProcFacts {
+            argv: vec!["x".into()],
+            os: "linux".into(),
+            ..ProcFacts::default()
+        };
+        // Inside one signature, the order of its blocks does not matter.
+        let set = SignatureSet::new(vec![signature("one", &format!("{guess}{sure}"))]);
+        let found = match_process(&set, &facts).unwrap();
+        assert_eq!(found.confidence, Confidence::Sure);
+        // Between signatures of one priority, the sure one wins whatever their ids.
+        let set = SignatureSet::new(vec![signature("a", guess), signature("b", sure)]);
+        let found = match_process(&set, &facts).unwrap();
+        assert_eq!(
+            (found.signature.id.as_str(), found.confidence),
+            ("b", Confidence::Sure)
+        );
     }
 
     #[test]
@@ -6884,7 +7037,8 @@ Add this above the `#[cfg(test)]` line in `crates/hm-project/src/matcher.rs`, en
 
 ```rust
 //! Signature matching (v0.1 spec §8). Signatures are tried in priority order and the
-//! first match wins; `when` blocks are alternatives, their conditions all must hold.
+//! first match wins, unless a sure match of the same priority follows a `probably` one;
+//! `when` blocks are alternatives, their conditions all must hold.
 
 use std::collections::BTreeSet;
 
@@ -7046,14 +7200,14 @@ pub(crate) fn script_stem(arg: &str) -> String {
     base
 }
 
-/// Case-insensitive match with one `*` wildcard at the start or the end.
-/// `puma 6.4.3 (…)` starts with `Puma `; comparisons ignore case, as the `When` docs say.
+/// `Puma 6.4.3 (…)` starts with `puma `; comparisons ignore case, as the `When` docs say.
 fn starts_with_ignore_case(value: &str, prefix: &str) -> bool {
     value
         .get(..prefix.len())
         .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
 }
 
+/// Case-insensitive match with one `*` wildcard at the start or the end.
 fn glob(pattern: &str, value: &str) -> bool {
     let (pattern, value) = (pattern.to_ascii_lowercase(), value.to_ascii_lowercase());
     if let Some(suffix) = pattern.strip_prefix('*') {
@@ -7070,7 +7224,7 @@ fn glob(pattern: &str, value: &str) -> bool {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `cargo test -p hm-project`
-Expected: PASS — the unit tests report `test result: ok. 14 passed` and `tests/pack_fixtures.rs` reports `test result: ok. 2 passed`
+Expected: PASS — the unit tests report `test result: ok. 15 passed` and `tests/pack_fixtures.rs` reports `test result: ok. 2 passed`
 
 - [ ] **Step 5: Commit**
 
@@ -7394,6 +7548,13 @@ fn project_services_get_names_frameworks_and_process_trees() {
         }))
         .unwrap()
     };
+    let celery = [
+        "python3",
+        "/Users/me/code/shop/apps/api/.venv/bin/celery",
+        "-A",
+        "shop",
+        "worker",
+    ];
     busy.inventory.processes.extend([
         process(1400, 500, "npm", &["npm run both"], "apps/web"),
         process(
@@ -7418,6 +7579,10 @@ fn project_services_get_names_frameworks_and_process_trees() {
             "apps/api",
         ),
         process(805, 802, "mystery-server", &["mystery-server"], "apps/web"),
+        // A Celery pool whose children got lower pids than their master (pids wrap).
+        process(2000, 500, "python3", &celery, "apps/api"),
+        process(1990, 2000, "python3", &celery, "apps/api"),
+        process(1991, 2000, "python3", &celery, "apps/api"),
     ]);
     busy.inventory
         .listeners
@@ -7442,6 +7607,22 @@ fn project_services_get_names_frameworks_and_process_trees() {
         &service(&snapshot, "web", SHOP).source,
         ServiceSource::Process { pids, .. } if pids == &vec![800, 801, 802]
     ));
+    let pool: Vec<&ServiceSource> = snapshot
+        .services
+        .iter()
+        .map(|service| &service.source)
+        .filter(|source| {
+            matches!(source, ServiceSource::Process { pids, .. } if pids.iter().any(|pid| [1990, 1991, 2000].contains(pid)))
+        })
+        .collect();
+    assert_eq!(
+        pool,
+        [&ServiceSource::Process {
+            main_pid: 2000,
+            root_pid: 2000,
+            pids: vec![1990, 1991, 2000]
+        }]
+    );
 }
 
 #[test]
@@ -8220,7 +8401,8 @@ impl<'a> Resolver<'a> {
             covered.extend(self.descendants(*root));
         }
         let mut workers = workers;
-        workers.sort_unstable();
+        // Ancestors first, so a pool's master takes in its children whatever their pids.
+        workers.sort_unstable_by_key(|pid| (self.depth(*pid), *pid));
         for pid in workers {
             if covered.contains(&pid) {
                 continue;
@@ -8331,6 +8513,22 @@ impl<'a> Resolver<'a> {
             current = parent.pid;
         }
         current
+    }
+
+    /// How many known processes sit above `pid`.
+    fn depth(&self, pid: u32) -> usize {
+        let mut depth = 0;
+        let mut current = pid;
+        while depth < 64 {
+            match self.procs.get(&current).and_then(|process| process.ppid) {
+                Some(ppid) if self.procs.contains_key(&ppid) => {
+                    depth += 1;
+                    current = ppid;
+                }
+                _ => break,
+            }
+        }
+        depth
     }
 
     /// The service root at `pid` or nearest above it.
@@ -8941,7 +9139,7 @@ Run: `cargo test -p hm-project --test resolve`
 Expected: PASS — `test result: ok. 13 passed` (on Windows 12 passed, because the `#[cfg(unix)]` symlink test does not exist there)
 
 Run: `cargo test -p hm-project`
-Expected: PASS — the unit tests report `test result: ok. 14 passed`, `tests/pack_fixtures.rs` reports `test result: ok. 2 passed` and `tests/resolve.rs` reports `test result: ok. 13 passed` (12 on Windows)
+Expected: PASS — the unit tests report `test result: ok. 15 passed`, `tests/pack_fixtures.rs` reports `test result: ok. 2 passed` and `tests/resolve.rs` reports `test result: ok. 13 passed` (12 on Windows)
 
 - [ ] **Step 5: Commit**
 
@@ -9126,7 +9324,7 @@ expert = [
   "argv: {argv}",
   "exe: {exe}",
   "cwd: {cwd}",
-  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss} || Started {started_utc} (up {uptime}) · ppid {ppid} · rss {rss} || Started {started_utc} (up {uptime})",
+  "Started {started_utc} (up {uptime}) · ppid {ppid} ({parent}) · rss {rss} || Started {started_utc} (up {uptime}) · ppid {ppid} · rss {rss} || Started {started_utc} (up {uptime}) · rss {rss} || Started {started_utc} (up {uptime})",
   "Service pids: {pids}",
   "Env ports: {env_ports}",
   "Env targets: {env_urls}",
@@ -9153,7 +9351,7 @@ builder = [
 expert = [
   "Signature: {signature} ({confidence}) · role {role} · kind {kind}",
   "{what}",
-  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state}",
+  "Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state} · restarts {restarts} · started {started_utc} || Container {container_id} ({container}) · image {image} · state {state} · health {health} · restarts {restarts} || Container {container_id} ({container}) · image {image} · state {state} · restarts {restarts} || Container {container_id} ({container}) · image {image} · state {state}",
   "Ports: {mapping}",
   "Networks: {networks}",
   "Volumes: {volumes}",
@@ -9743,6 +9941,21 @@ fn experts_get_raw_facts() {
     assert!(card.lines.iter().any(|line| {
         line.starts_with("argv: node /Users/me/code/shop/apps/web/node_modules/.bin/vite")
     }));
+
+    // Without a known parent the line still gives the memory.
+    let mut orphan = snapshot();
+    for process in &mut orphan.processes {
+        if process.pid == 802 {
+            process.ppid = None;
+        }
+    }
+    let card = one(&orphan, 5173, Level::Expert);
+    assert!(
+        card.lines
+            .iter()
+            .any(|line| line.starts_with("Started ") && line.ends_with(") · rss 50 MB")),
+        "{card:#?}"
+    );
 }
 
 #[test]
@@ -9777,6 +9990,20 @@ fn a_compose_database_is_described_as_a_container() {
         redis
             .lines
             .contains(&"Container lonely-redis from image redis:7: running.".to_string())
+    );
+
+    // Without a start time the expert line keeps health and restarts.
+    let mut unstarted = snapshot();
+    for container in &mut unstarted.containers {
+        container.started_at = None;
+    }
+    let expert = one(&unstarted, 55432, Level::Expert);
+    assert!(
+        expert.lines.contains(
+            &"Container 4f1c2a9e8b7d (shop-db-1) · image postgres:16-alpine · state running · health healthy · restarts 0"
+                .to_string()
+        ),
+        "{expert:#?}"
     );
 }
 
@@ -10759,6 +10986,7 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
         ));
     }
 
+    // Engine versions and note texts can carry what the engine or the OS reported.
     let engines: Vec<String> = snapshot
         .engines
         .iter()
@@ -10770,12 +10998,12 @@ pub fn render(snapshot: &Snapshot, home: Option<&Path>, machine: bool) -> String
         .collect();
     if !engines.is_empty() {
         separate(&mut out);
-        out.push_str(&format!("Docker: {}\n", engines.join(", ")));
+        out.push_str(&format!("Docker: {}\n", printable(&engines.join(", "))));
     } else if !snapshot.notes.is_empty() {
         separate(&mut out);
     }
     for note in &snapshot.notes {
-        out.push_str(&format!("Note: {}\n", note.text));
+        out.push_str(&format!("Note: {}\n", printable(&note.text)));
     }
     out
 }
@@ -11050,7 +11278,7 @@ git commit -s -m "feat(cli): harbormap status"
 
 ### Task 16: `harbormap why`
 
-`harbormap why <port|name>` explains who holds a port, or what a service is, with the cards from Task 14 at the level chosen by the global `--level` flag (default `builder`). A name is `service` or `project/service`, compared without case; when several services match, the opened project wins, then the worktree Harbormap was started in, and otherwise the command lists the full names and exits with code 1.
+`harbormap why <port|name>` explains who holds a port, or what a service is, with the cards from Task 14 at the level chosen by the global `--level` flag (default `builder`). A port is `5173` or `:5173`, and a number outside 1 to 65535 is refused. A name is `service` or `project/service`, compared without case; when several services match, the opened project wins, then the exact spelling, then the deepest worktree Harbormap was started in, and otherwise the command lists each match with the `harbormap why :PORT` that picks it and exits with code 1. Names, arguments and paths from other programs pass through `printable()` (Task 15), so they cannot drive the terminal.
 
 **Files:**
 - Create: `crates/harbormap/src/why.rs`
@@ -11066,7 +11294,7 @@ git commit -s -m "feat(cli): harbormap status"
 
 - [ ] **Step 1: Write the failing test**
 
-The new tests explain a port to a beginner, find the same card by port, by name and by `project/name`, prefer the worktree Harbormap was started in, print JSON, describe a free port, and fail with a hint for an unknown name.
+The new tests explain a port to a beginner; find the same card by port, by name and by `project/name`, with the opened project winning over another project's exact spelling; prefer the deepest worktree Harbormap was started in; print JSON; describe a free port; fail with a hint for an unknown name and name each twin by its port; and keep control characters from other programs off the terminal, in `why` and in `status`.
 
 In `crates/harbormap/tests/cli.rs`, add this import below `use assert_cmd::Command;`:
 
@@ -11091,6 +11319,27 @@ fn why_accepts_names_and_project_names() {
     assert_eq!(stdout(&["why", "db"]), by_port);
     assert_eq!(stdout(&["why", "shop/db"]), by_port);
     assert!(by_port.starts_with(":55432 → db (PostgreSQL) · Docker\n"));
+
+    // The opened project wins before the exact spelling: `web` is shop's `Web` here,
+    // not blog's `web`.
+    let output = run_patched(
+        |scenario| {
+            let files = &mut scenario["world"]["files"];
+            for root in ["/Users/me/code/shop", "/Users/me/code/shop-feature"] {
+                files[format!("{root}/apps/web/package.json")] =
+                    r#"{"name": "@shop/Web", "devDependencies": {"vite": "7.1.0"}}"#.into();
+            }
+            files["/Users/me/code/blog/package.json"] =
+                r#"{"name": "web", "dependencies": {"next": "15.5.4"}}"#.into();
+        },
+        &["why", "web"],
+    );
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .starts_with(":5173 → Web (Vite)\n")
+    );
 }
 
 #[test]
@@ -11156,26 +11405,34 @@ fn why_an_unknown_name_fails_with_a_hint() {
 }
 
 #[test]
-fn why_prints_no_control_characters() {
-    // Names and arguments come from other programs; they must not drive the terminal.
-    let output = run_patched(
-        |scenario| {
-            for process in scenario["inventory"]["processes"].as_array_mut().unwrap() {
-                if process["pid"] == 802 {
-                    process["name"] = "node\u{1b}[31m".into();
-                    process["argv"][1] = "\u{1b}]0;pwned\u{7}".into();
-                }
+fn no_control_characters_reach_the_terminal() {
+    // Names, arguments, versions and notes come from other programs; they must not
+    // drive the terminal.
+    let hostile = |scenario: &mut serde_json::Value| {
+        for process in scenario["inventory"]["processes"].as_array_mut().unwrap() {
+            if process["pid"] == 802 {
+                process["name"] = "node\u{1b}[31m".into();
+                process["argv"][1] = "\u{1b}]0;pwned\u{7}".into();
             }
-        },
-        &["why", "5173", "--level", "expert"],
-    );
-    assert!(output.status.success());
-    let text = String::from_utf8(output.stdout).unwrap();
-    assert!(
-        !text.contains('\u{1b}') && !text.contains('\u{7}'),
-        "{text:?}"
-    );
-    assert!(text.contains("\u{FFFD}]0;pwned\u{FFFD}"), "{text:?}");
+        }
+        let inventory = &mut scenario["inventory"];
+        inventory["engines"][0]["version"] = "29.2.1\u{1b}]0;pwned\u{7}".into();
+        inventory["notes"] = serde_json::json!([{
+            "code": "listeners_unavailable",
+            "text": "Harbormap couldn't read listening ports: \u{1b}[2J",
+        }]);
+    };
+    let why = run_patched(hostile, &["why", "5173", "--level", "expert"]);
+    let status = run_patched(hostile, &["status", "--machine"]);
+    for output in [why, status] {
+        assert!(output.status.success());
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            !text.contains('\u{1b}') && !text.contains('\u{7}'),
+            "{text:?}"
+        );
+        assert!(text.contains("\u{FFFD}]0;pwned\u{FFFD}"), "{text:?}");
+    }
 }
 ```
 
@@ -11301,7 +11558,7 @@ enum Found<'a> {
 }
 
 /// `name` or `project/name`, case-insensitive. Among several matches, the opened
-/// project wins, then the worktree Harbormap was started in.
+/// project wins, then the exact spelling, then the worktree Harbormap was started in.
 fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
     let snapshot = &input.snapshot;
     let (project_name, name) = match target.split_once('/') {
@@ -11319,10 +11576,6 @@ fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
             None => true,
         })
         .collect();
-    // `Web` and `web` can both exist; the exact spelling wins.
-    if matches.len() > 1 && matches.iter().any(|service| service.name == name) {
-        matches.retain(|service| service.name == name);
-    }
     if matches.len() > 1 {
         let in_project: Vec<&Service> = matches
             .iter()
@@ -11332,6 +11585,10 @@ fn find_service<'a>(input: &'a Input, target: &str) -> Found<'a> {
         if !in_project.is_empty() {
             matches = in_project;
         }
+    }
+    // `Web` and `web` can both exist; the exact spelling wins.
+    if matches.len() > 1 && matches.iter().any(|service| service.name == name) {
+        matches.retain(|service| service.name == name);
     }
     if matches.len() > 1 {
         let windows = input.snapshot.host.os == "windows";
@@ -11726,10 +11983,10 @@ services:
 
 The test is `#[ignore]`d, so `cargo test --workspace` never starts servers; you run it on purpose with `--ignored`. It fails at once if a port is already taken, prepares the apps on the first run (`npm ci` and a venv with the pinned requirements), starts every server in its own process group, waits until each one accepts connections, runs `harbormap status --json` from the repository root and checks every port:
 
-- in the opened project: section `project` for the listener and the service, the expected service name and signature, the worktree that contains the repository, and, for the three host servers, a process tree rooted at the very process the test started (`npm run dev`, not only the `node vite` it runs);
+- in the opened project: section `project` for the listener and the service, the expected service name and signature, the repository's own worktree (the repository root, also when it is a linked worktree), and, for the three host servers, a process tree rooted at the very process the test started (`npm run dev`, not only the `node vite` it runs);
 - the other project: section `elsewhere`, signature `python`, and a project whose root is that second repository.
 
-On failure it lists every problem and prints a summary of the whole snapshot. Servers, the compose project (`down -v`) and the temporary folder are removed when the test ends, also after a failed assertion.
+On failure it lists every problem and prints a summary of the whole snapshot. Servers, the compose project (`down -v`) and the temporary folder are removed when the test ends, also after a failed assertion; a cleanup step that fails says so on stderr. Only an interrupted run (Ctrl-C) leaves them behind, and the module docs say how to stop them.
 
 Create `crates/harbormap/tests/e2e.rs`:
 
@@ -11752,6 +12009,10 @@ Create `crates/harbormap/tests/e2e.rs`:
 //!
 //! `HM_E2E_PYTHON` names the Python that creates the venv and runs the other project
 //! (default `python3`, or `python` on Windows).
+//!
+//! The test stops everything it started when it ends, also when it fails. A run that is
+//! interrupted (Ctrl-C) cannot: stop whatever still listens on ports 47173, 47800, 47280
+//! and 47900, and run `docker compose -p hm-e2e down -v`.
 
 use std::fmt::Write as _;
 use std::fs::File;
@@ -11855,11 +12116,12 @@ fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
             .iter()
             .find(|server| server.name == name)
             .map(|server| server.child.id())
+            .unwrap_or_else(|| panic!("no server named {name}"))
     };
     let mut expected = vec![
-        (VITE, "e2e-vite", "vite", pid_of("vite")),
-        (FASTAPI, "e2e-fastapi", "fastapi", pid_of("fastapi")),
-        (DOTNET, "E2eDotnet", "dotnet", pid_of("dotnet")),
+        (VITE, "e2e-vite", "vite", Some(pid_of("vite"))),
+        (FASTAPI, "e2e-fastapi", "fastapi", Some(pid_of("fastapi"))),
+        (DOTNET, "E2eDotnet", "dotnet", Some(pid_of("dotnet"))),
     ];
     if docker {
         expected.push((POSTGRES, "db", "postgres", None));
@@ -11888,7 +12150,8 @@ fn status_json_maps_dev_servers_to_projects_services_and_frameworks() {
 }
 
 /// A port the opened project must own: listener and service in section "project", with
-/// the expected service name and signature, in the worktree this test runs from. For
+/// the expected service name and signature, in the worktree this test runs from (the
+/// repository root, `repo`). For
 /// host programs, the service's process tree must start at the process this test
 /// started (`npm run dev`, not only the `node vite` it runs).
 fn check_in_project(
@@ -11926,13 +12189,9 @@ fn check_in_project(
                 service.project_id, snapshot.opened
             ));
         }
-        if !service
-            .worktree
-            .as_deref()
-            .is_some_and(|worktree| repo.starts_with(worktree))
-        {
+        if service.worktree.as_deref() != Some(repo) {
             wrong(format!(
-                "worktree is {:?}, expected one that contains {}",
+                "worktree is {:?}, expected {}",
                 service.worktree,
                 repo.display()
             ));
@@ -12301,6 +12560,8 @@ fn stop_tree(child: &mut Child) {
         signal_group(&group, "-KILL");
         group_gone(child, &group, Duration::from_secs(5));
     }
+    // Without a working `kill`, at least the process this test started stops.
+    let _ = child.kill();
     let _ = child.wait();
 }
 
@@ -12379,7 +12640,15 @@ impl Compose {
 
 impl Drop for Compose {
     fn drop(&mut self) {
-        let _ = self.command(&["down", "-v"]).output();
+        let removed = self
+            .command(&["down", "-v"])
+            .output()
+            .is_ok_and(|output| output.status.success());
+        if !removed {
+            eprintln!(
+                "could not remove the compose project; run `docker compose -p {COMPOSE_PROJECT} down -v`"
+            );
+        }
     }
 }
 
@@ -12407,7 +12676,9 @@ impl Scratch {
 
 impl Drop for Scratch {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        if let Err(error) = std::fs::remove_dir_all(&self.0) {
+            eprintln!("could not remove {}: {error}", self.0.display());
+        }
     }
 }
 ```
@@ -12591,7 +12862,7 @@ Run: `cargo clippy --workspace --all-targets -- -D warnings`
 Expected: ``Finished `dev` profile [unoptimized + debuginfo] target(s)`` with no warnings.
 
 Run: `cargo test --workspace`
-Expected: PASS — 100 tests pass across the workspace (on Windows 97, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
+Expected: PASS — 101 tests pass across the workspace (on Windows 98, because three `#[cfg(unix)]` tests do not exist there), and 2 are ignored: the `child_sleeper` helper in `hm-probe` and this harness.
 
 Run: `git status --short`
 Expected: only the files of this task. `node_modules/`, `.venv/`, `bin/` and `obj/` under `tests/e2e/apps` are ignored.
