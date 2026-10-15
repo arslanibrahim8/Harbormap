@@ -107,10 +107,21 @@ mod tests {
     use super::*;
     use std::process::Command;
 
-    /// Runs git without the developer's own configuration (signing, hooks, templates).
+    /// Runs git without the developer's own configuration (signing, hooks, templates) and
+    /// without the repository a git hook running these tests points at.
     fn git(dir: &Path, args: &[&str]) -> bool {
         let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
-        Command::new("git")
+        let mut command = Command::new("git");
+        for variable in [
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_INDEX_FILE",
+            "GIT_COMMON_DIR",
+            "GIT_OBJECT_DIRECTORY",
+        ] {
+            command.env_remove(variable);
+        }
+        command
             .args(args)
             .current_dir(dir)
             .env("GIT_CONFIG_GLOBAL", null)
