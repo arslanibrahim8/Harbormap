@@ -24,6 +24,14 @@ const SECRET_WORDS: &[&str] = &[
 /// `apiKey`), so that `--key-file`, `monkey` and `--pass-with-no-tests` stay readable.
 const SECRET_LAST_WORDS: &[&str] = &["key", "pass", "pwd"];
 
+/// Last words of a flag that name something other than the secret before them
+/// (`--password-file`, `--token-limit`, `--secret-id`), so their value stays readable.
+const NOT_THE_SECRET: &[&str] = &[
+    "stdin", "file", "path", "dir", "env", "id", "name", "arn", "url", "uri", "endpoint", "header",
+    "type", "length", "limit", "size", "count", "ttl", "prompt", "command", "cmd", "helper",
+    "store", "cache", "version",
+];
+
 /// Trailing name parts that only qualify a secret (`API_KEY_2`, `STRIPE_KEY_LIVE`).
 const QUALIFIERS: &[&str] = &[
     "prod",
@@ -77,12 +85,12 @@ static FLAG_AND_VALUE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(^|\s)(--?[A-Za-z][A-Za-z0-9_.\-]*)(\s+)("[^"]*"|'[^']*'|[^\s\-"']\S*)"#).unwrap()
 });
 
-/// `mysql … -pVALUE` inside text, where `mysql` is a command: first, after `;`, `&`, `|`,
-/// `(` or a backtick, after a wrapper such as `sudo`, or as a path. `--name mysql -p3306`
-/// is a port mapping, not a password.
+/// `mysql … -pVALUE` inside text, where `mysql` is a command: at the start of a line
+/// (indentation aside), after `;`, `&`, `|`, `(` or a backtick, after a wrapper such as
+/// `sudo`, or as a path. `--name mysql -p3306` is a port mapping, not a password.
 static MYSQL_PASSWORD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(&format!(
-        r#"((?:^|[;&|(`]\s*|\b(?:{})\s+|[/\\])(?i:{})(?:\.exe)?\s(?:[^;&|\n]*?\s)?-p)('[^']*'|"[^"]*"|[^\s;&|'"]+)"#,
+        r#"((?:(?m:^)\s*|[;&|(`]\s*|\b(?:{})\s+|[/\\])(?i:{})(?:\.exe)?\s(?:[^;&|\n]*?\s)?-p)('[^']*'|"[^"]*"|[^\s;&|'"]+)"#,
         WRAPPERS.join("|"),
         MYSQL_LIKE.join("|")
     ))
@@ -177,8 +185,10 @@ fn is_secret_name(name: &str) -> bool {
 }
 
 /// True when the word after a flag is a secret: the flag's last part names it
-/// (`--password`, `--client-secret`, `--api-key`). `--password-file` and `--token-limit`
-/// keep their values, and `--no-password` and `--ask-pass` are switches.
+/// (`--password`, `--client-secret`, `--api-key`), or a secret word comes before a last
+/// word that names nothing else (`--secret-string`, `--token-value`, `-SecretString`).
+/// `--password-file` and `--token-limit` keep their values, and `--no-password` and
+/// `--ask-pass` are switches.
 fn is_secret_flag(flag: &str) -> bool {
     let parts = secret_parts(flag);
     if parts
@@ -187,9 +197,36 @@ fn is_secret_flag(flag: &str) -> bool {
     {
         return false;
     }
-    parts
+    if parts
         .last()
         .is_some_and(|last| ends_with_secret_word(last) || is_short_secret_word(last))
+    {
+        return true;
+    }
+    let words: Vec<&str> = parts.iter().flat_map(|part| camel_words(part)).collect();
+    words.split_last().is_some_and(|(last, before)| {
+        before.iter().any(|word| ends_with_secret_word(word))
+            && !NOT_THE_SECRET
+                .iter()
+                .any(|other| last.eq_ignore_ascii_case(other))
+    })
+}
+
+/// `SecretString` → `Secret`, `String`; a part without inner capitals stays whole.
+fn camel_words(part: &str) -> Vec<&str> {
+    let bytes = part.as_bytes();
+    let mut words = Vec::new();
+    let mut start = 0;
+    for index in 1..bytes.len() {
+        if bytes[index].is_ascii_uppercase()
+            && (bytes[index - 1].is_ascii_lowercase() || bytes[index - 1].is_ascii_digit())
+        {
+            words.push(&part[start..index]);
+            start = index;
+        }
+    }
+    words.push(&part[start..]);
+    words
 }
 
 /// The parts of a name without leading dashes and trailing qualifiers.
@@ -490,6 +527,32 @@ mod tests {
                 "export API_TOKEN=*** && exec node server.js --port 80",
             ])
         );
+        // A secret word before the last word still names the value, unless the last word
+        // says what else it is (`--password-file` and `--token-limit` above).
+        assert_eq!(
+            redact_argv(&argv(&[
+                "aws",
+                "secretsmanager",
+                "create-secret",
+                "--secret-string",
+                "hunter2",
+                "--secret-id",
+                "shop/db",
+            ])),
+            argv(&[
+                "aws",
+                "secretsmanager",
+                "create-secret",
+                "--secret-string",
+                "***",
+                "--secret-id",
+                "shop/db",
+            ])
+        );
+        assert_eq!(
+            redact_text("New-Secret -SecretString hunter2 -SecretName db"),
+            "New-Secret -SecretString *** -SecretName db"
+        );
         // Windows tools and PowerShell put the value after `:`; hosts and folders keep it.
         assert_eq!(
             redact_argv(&argv(&[
@@ -543,6 +606,15 @@ mod tests {
         assert_eq!(
             redact_text("cd /srv && mysql -u root -p'hunter 2' shop"),
             "cd /srv && mysql -u root -p*** shop"
+        );
+        // A new line or indentation starts a command too.
+        assert_eq!(
+            redact_argv(&argv(&[
+                "sh",
+                "-c",
+                "set -e\n  mysql -u root -pHunter2 shop"
+            ])),
+            argv(&["sh", "-c", "set -e\n  mysql -u root -p*** shop"])
         );
     }
 
