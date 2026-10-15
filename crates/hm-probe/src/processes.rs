@@ -142,13 +142,15 @@ fn drop_environment_tail(argv: &mut Vec<String>) {
 }
 
 /// `name=value` as an environment block holds it. Names are loose in practice
-/// (`BASH_FUNC_f%%`, `npm_config_@scope:registry`), so anything that is not an option
-/// (`--port=5173`) or a path or URL (`http://x/?a=b`) counts.
+/// (`BASH_FUNC_f%%`, `npm_config_@scope:registry`, npm's
+/// `npm_config_//registry.npmjs.org/:_authToken`), so anything that is not an option
+/// (`--port=5173`), a URL (`http://x/?a=b`) or text with spaces counts.
 fn is_environment_entry(arg: &str) -> bool {
     arg.split_once('=').is_some_and(|(name, _)| {
         !name.is_empty()
             && !name.starts_with('-')
-            && !name.chars().any(|c| c.is_whitespace() || c == '/')
+            && !name.contains("://")
+            && !name.chars().any(char::is_whitespace)
     })
 }
 
@@ -207,6 +209,7 @@ mod tests {
             "DB_PASS=hunter2",
             "BASH_FUNC_ml%%=() { :; }",
             "npm_config_@acme:registry=https://r.example/",
+            "npm_config_//registry.npmjs.org/:_authToken=npm_abc123",
         ]);
         drop_environment_tail(&mut odd);
         assert_eq!(odd, args(&["node"]));
