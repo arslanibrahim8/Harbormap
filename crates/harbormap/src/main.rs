@@ -1,15 +1,32 @@
 //! The `harbormap` command line.
 
+mod cli;
+mod source;
+mod status;
+
+use std::process::ExitCode;
+
 use clap::Parser;
 
-#[derive(Debug, Parser)]
-#[command(
-    name = "harbormap",
-    version,
-    about = "Know what's running, why it's broken, and keep your AI agents from breaking it."
-)]
-struct Cli {}
+use cli::{Cli, Command, StatusArgs};
 
-fn main() {
-    Cli::parse();
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    match run(cli) {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("harbormap: {error:#}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn run(cli: Cli) -> anyhow::Result<ExitCode> {
+    let input = source::load()?;
+    match cli
+        .command
+        .unwrap_or(Command::Status(StatusArgs::default()))
+    {
+        Command::Status(args) => status::run(&input, &args, cli.json),
+    }
 }
