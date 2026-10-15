@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use hm_core::model::{BindScope, Listener, Owner, Proto, Section, Snapshot};
+use hm_core::model::{BindScope, Confidence, Listener, Owner, Proto, Section, Snapshot};
 use hm_core::signature::Level;
 use hm_doctor::cards::{Card, CardContext, port_cards, service_card};
 use hm_doctor::packs::{self, Packs};
@@ -211,6 +211,28 @@ fn system_apps_unknown_and_free_ports_have_their_own_cards() {
 
     let chrome = one(&snapshot, 9820, Level::Builder);
     assert_eq!(chrome.title, ":9820 → Google Chrome (pid 76915)");
+    // A program recognised only probably says so, as services do.
+    let mut guessed = snapshot.clone();
+    for process in &mut guessed.processes {
+        if process.pid == 76915 {
+            process.signature = Some("rails".into());
+            process.confidence = Confidence::Probably;
+        }
+    }
+    let rails = one(&guessed, 9820, Level::Builder);
+    assert!(
+        rails.lines.contains(
+            &"A good guess from what Harbormap can see, not a certainty (probably).".to_string()
+        ),
+        "{rails:#?}"
+    );
+    let rails = one(&guessed, 9820, Level::Expert);
+    assert!(
+        rails
+            .lines
+            .contains(&"Signature: rails (probably)".to_string()),
+        "{rails:#?}"
+    );
 
     let agent = one(&snapshot, 41234, Level::Beginner);
     assert_eq!(agent.title, "Port 41234: Claude Code");

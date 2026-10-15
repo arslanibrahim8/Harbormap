@@ -98,7 +98,7 @@ fn owner_card(ctx: &CardContext<'_>, owner: &Owner, listeners: &[&Listener]) -> 
                     ctx,
                     &mut facts,
                     process.signature.as_deref(),
-                    Confidence::Sure,
+                    process.confidence,
                 );
             }
             card(ctx, &ctx.texts.app, &facts)
@@ -115,7 +115,7 @@ fn owner_card(ctx: &CardContext<'_>, owner: &Owner, listeners: &[&Listener]) -> 
                     ctx,
                     &mut facts,
                     process.signature.as_deref(),
-                    Confidence::Sure,
+                    process.confidence,
                 );
             }
             card(ctx, &ctx.texts.system, &facts)
@@ -287,6 +287,13 @@ fn add_signature_text(
     if let Some(signature) = signature.and_then(|id| ctx.signatures.get(id)) {
         facts.insert("what", signature.texts.get(ctx.level).to_string());
         facts.insert("signature", signature.id.clone());
+        facts.insert(
+            "confidence",
+            match confidence {
+                Confidence::Sure => "sure".into(),
+                Confidence::Probably => "probably".into(),
+            },
+        );
         if confidence == Confidence::Probably
             && let Some(guess) = &ctx.texts.guess
         {

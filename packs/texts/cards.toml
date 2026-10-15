@@ -89,16 +89,18 @@ title.expert = ":{port}/tcp → pid {pid} ({program})"
 beginner = [
   "{program} is a program on your computer. It is not part of a project.",
   "{what}",
+  "{guess}",
   "{reach}",
 ]
 builder = [
   "{what}",
+  "{guess}",
   "Program {program}, pid {pid}, user {user}; not part of a project. || Program {program}, pid {pid}; not part of a project.",
   "Executable: {exe}",
   "Listening on {addr} ({reach}).",
 ]
 expert = [
-  "Signature: {signature}",
+  "Signature: {signature} ({confidence})",
   "{what}",
   "Socket: {addr} ({reach}) · owner pid {pid} ({program}), user {user} || Socket: {addr} ({reach}) · owner pid {pid} ({program})",
   "argv: {argv}",

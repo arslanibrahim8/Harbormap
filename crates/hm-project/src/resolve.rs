@@ -861,6 +861,7 @@ impl<'a> Resolver<'a> {
                     user: raw.user.clone(),
                     own: raw.uid.is_some() && raw.uid == self.inv.current_uid,
                     signature: found.map(|found| found.signature.id.clone()),
+                    confidence: found.map_or(Confidence::Sure, |found| found.confidence),
                     kind: found.map_or(Kind::Unknown, |found| found.signature.kind),
                     project_id: place.map(|place| self.projects[place.project].id.clone()),
                     worktree: place.map(|place| place.worktree.clone()),

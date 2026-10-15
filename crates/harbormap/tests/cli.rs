@@ -117,6 +117,12 @@ fn status_json_is_the_snapshot() {
             .iter()
             .all(|listener| !listener.label.is_empty())
     );
+    // hm-doctor's card tests read a saved copy of this snapshot; the two must not drift.
+    let saved: hm_core::model::Snapshot = serde_json::from_str(include_str!(
+        "../../hm-doctor/tests/fixtures/shop-snapshot.json"
+    ))
+    .unwrap();
+    assert_eq!(snapshot, saved);
 }
 
 #[test]

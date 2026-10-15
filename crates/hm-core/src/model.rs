@@ -256,6 +256,8 @@ pub struct Process {
     /// True when the current OS user owns the process.
     pub own: bool,
     pub signature: Option<String>,
+    /// How sure the signature match is; `sure` when nothing matched.
+    pub confidence: Confidence,
     pub kind: Kind,
     pub project_id: Option<String>,
     #[serde(serialize_with = "lossy::option")]
