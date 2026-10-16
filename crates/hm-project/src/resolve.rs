@@ -969,16 +969,29 @@ impl<'a> Resolver<'a> {
     fn locate(&mut self, dir: &Path) -> Option<Place> {
         if let Some(repo) = self.world.repo_for(dir)
             && !is_boundary(&repo.root, self.home.as_deref(), self.windows)
-            && !self.projects.iter().any(|project| {
-                project.git
-                    && within(&project.root, &repo.root, self.windows)
-                    && within(&repo.root, &project.root, self.windows)
-            })
         {
-            self.projects
-                .push(ProjectCtx::new(repo.root, true, false, repo.worktrees));
+            match self.project_at(&repo.root) {
+                Some(index) if self.projects[index].git => {}
+                // A folder project at the root of a bare repository's holder folder
+                // (`mono/.bare`) is that repository: one project, one id.
+                Some(index) => {
+                    let project = &mut self.projects[index];
+                    project.git = true;
+                    project.worktrees.extend(repo.worktrees);
+                }
+                None => self
+                    .projects
+                    .push(ProjectCtx::new(repo.root, true, false, repo.worktrees)),
+            }
         }
         self.find_known(dir)
+    }
+
+    /// The project whose root is `root`.
+    fn project_at(&self, root: &Path) -> Option<usize> {
+        self.projects.iter().position(|project| {
+            within(&project.root, root, self.windows) && within(root, &project.root, self.windows)
+        })
     }
 
     fn find_known(&self, dir: &Path) -> Option<Place> {
@@ -1002,6 +1015,18 @@ impl<'a> Resolver<'a> {
     fn folder_project(&mut self, dir: &Path) -> Place {
         if let Some(place) = self.find_known(dir) {
             return place;
+        }
+        // The holder folder of a bare repository is already that project's root.
+        if let Some(index) = self.project_at(dir) {
+            self.projects[index].worktrees.push(Worktree {
+                path: dir.to_path_buf(),
+                branch: None,
+                head: None,
+            });
+            return Place {
+                project: index,
+                worktree: dir.to_path_buf(),
+            };
         }
         self.projects.push(ProjectCtx::new(
             dir.to_path_buf(),
@@ -1186,8 +1211,8 @@ fn compose_of(container: &RawContainer) -> Option<Compose> {
     })
 }
 
-/// Last folder name, for paths of any OS: `C:\\work\\shop\\` → `shop`.
-/// The last folder name; a bare repository's `shop.git` reads `shop`.
+/// Last folder name, for paths of any OS: `C:\\work\\shop\\` → `shop`; a bare
+/// repository's `shop.git` reads `shop`.
 fn folder_name(path: &Path) -> String {
     let text = path.to_string_lossy();
     let trimmed = text.trim_end_matches(['/', '\\']);

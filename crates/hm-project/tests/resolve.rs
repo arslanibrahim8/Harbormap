@@ -395,6 +395,46 @@ fn a_folder_without_git_never_swallows_the_repositories_below_it() {
         assert_eq!(project.root, PathBuf::from(root), "port {port}");
         assert_eq!(service.section, Section::Elsewhere, "port {port}");
     }
+
+    // A bare repository kept in a holder folder (`mono/.bare`) has the holder as its root.
+    // Opened there, the holder is that git project, not a second project with its id.
+    let mut holder = self::scenario();
+    let mono = "/Users/me/code/mono";
+    holder.launch_dir = PathBuf::from(mono);
+    holder.world.repos.push(hm_project::RepoInfo {
+        root: PathBuf::from(mono),
+        worktrees: vec![hm_core::model::Worktree {
+            path: PathBuf::from(format!("{mono}/main")),
+            branch: Some("main".into()),
+            head: None,
+        }],
+    });
+    holder.inventory.processes.push(
+        serde_json::from_value(serde_json::json!({
+            "pid": 2200, "ppid": 500, "start_time": 1760490000, "name": "node",
+            "exe": "/opt/homebrew/bin/node",
+            "argv": ["node", format!("{mono}/main/node_modules/.bin/vite"), "--port", "5191"],
+            "cwd": format!("{mono}/main"), "uid": "501", "user": "me",
+        }))
+        .unwrap(),
+    );
+    holder.inventory.listeners.push(
+        serde_json::from_value(serde_json::json!({
+            "proto": "tcp", "addr": "127.0.0.1", "port": 5191, "pids": [2200],
+        }))
+        .unwrap(),
+    );
+    let snapshot = resolve(&holder);
+    let ids: std::collections::BTreeSet<&str> =
+        snapshot.projects.iter().map(|p| p.id.as_str()).collect();
+    assert_eq!(ids.len(), snapshot.projects.len());
+    let opened = snapshot.projects.iter().find(|p| p.opened).unwrap();
+    assert_eq!(opened.root, PathBuf::from(mono));
+    assert!(opened.git);
+    let id = listener(&snapshot, 5191).service_id.clone().unwrap();
+    let vite = snapshot.services.iter().find(|s| s.id == id).unwrap();
+    assert_eq!(vite.section, Section::Project);
+    assert_eq!(vite.project_id.as_ref(), Some(&opened.id));
 }
 
 #[test]
