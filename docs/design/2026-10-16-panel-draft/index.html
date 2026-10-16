@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbormap · shop</title>
+<style>
+:root{
+  --bg:#09090B; --bg2:#0E0E11; --panel:#131317; --panel2:#18181D; --line:#24242B; --line2:#2F2F38;
+  --ink:#F2F2F3; --sub:#A1A1AA; --dim:#6B6B75;
+  --red:#F43F4E; --red2:#B91C2C; --redbg:rgba(244,63,78,.10); --redbd:rgba(244,63,78,.38);
+  --ok:#E4E4E7; --okdot:#4ADE80;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,ui-sans-serif,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.app{display:grid;grid-template-columns:224px 1fr 320px;grid-template-rows:56px 1fr;height:100vh}
+
+/* top bar */
+.top{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:.2px;width:216px}
+.logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--red),var(--red2));box-shadow:0 0 18px rgba(244,63,78,.45)}
+.search{flex:1;max-width:460px;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.search input{flex:1;background:none;border:0;outline:0;color:var(--ink);font:inherit}
+.search kbd{font:11px var(--mono);color:var(--dim);border:1px solid var(--line2);border-radius:4px;padding:1px 5px}
+.seg{display:flex;padding:3px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.seg button{padding:5px 12px;border-radius:6px;color:var(--sub);font-size:13px}
+.seg button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
+.live{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--sub);font-size:12px}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 rgba(244,63,78,.6);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 7px rgba(244,63,78,0)}100%{box-shadow:0 0 0 0 rgba(244,63,78,0)}}
+
+/* sidebar */
+.side{border-right:1px solid var(--line);background:var(--bg2);overflow:auto;padding:14px 10px}
+.sec{margin-bottom:18px}
+.sec h4{margin:0 8px 6px;font:600 11px var(--sans);letter-spacing:.9px;text-transform:uppercase;color:var(--dim)}
+.item{display:flex;align-items:center;gap:9px;width:100%;padding:7px 8px;border-radius:7px;text-align:left;color:var(--sub)}
+.item:hover{background:var(--panel)}
+.item.on{background:var(--panel2);color:var(--ink);box-shadow:inset 2px 0 0 var(--red)}
+.item .n{margin-left:auto;font:12px var(--mono);color:var(--dim)}
+.item .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--okdot);flex:none}
+.dot.bad{background:var(--red)}
+.dot.off{background:var(--dim)}
+.port{font:12px var(--mono);color:var(--sub)}
+
+/* centre */
+.main{position:relative;overflow:hidden;background:
+  radial-gradient(1200px 600px at 70% -10%,rgba(244,63,78,.07),transparent 60%),var(--bg)}
+.tabs{position:absolute;z-index:3;top:14px;left:16px;right:16px;display:flex;align-items:center;gap:10px}
+.tabs .title{font-weight:650;font-size:16px;margin-right:6px}
+.tabs .meta{color:var(--dim);font-size:12px}
+.tabs .seg{margin-left:auto}
+.view{position:absolute;inset:0;padding-top:60px;transition:opacity .18s ease}
+.view.hide{opacity:0;pointer-events:none}
+
+/* map */
+.stage{position:absolute;inset:60px 0 0 0;cursor:grab}
+.stage.drag{cursor:grabbing}
+.world{position:absolute;left:0;top:0;width:1100px;height:660px;transform-origin:0 0;will-change:transform}
+.lane{position:absolute;top:0;height:660px;border-left:1px dashed var(--line)}
+.lane span{position:absolute;top:6px;left:12px;white-space:nowrap;font:600 10.5px var(--sans);letter-spacing:1.1px;color:var(--dim);text-transform:uppercase}
+svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.edge{fill:none;stroke:#3A3A44;stroke-width:1.6;stroke-dasharray:5 5;transition:stroke .15s}
+.edge.hot{stroke:var(--red);stroke-dasharray:none;animation:none}
+.edge.flow{animation:flow 1.2s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-20}}
+.elabel{font:11px var(--mono);fill:#8A8A93;paint-order:stroke;stroke:#09090B;stroke-width:4px}
+.elabel.hot{fill:var(--red)}
+.node{position:absolute;width:210px;padding:12px 14px 12px 26px;border:1px solid var(--line2);border-radius:12px;background:var(--panel);
+  box-shadow:0 18px 40px -28px #000;transition:border-color .15s,transform .15s,opacity .15s;cursor:pointer}
+.node:hover{border-color:#4A4A55;transform:translateY(-1px)}
+.node.sel{border-color:var(--red);box-shadow:0 0 0 3px var(--redbg),0 18px 40px -28px #000}
+.node.fade{opacity:.28}
+.node.bad{border-color:var(--redbd)}
+.node .hd{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:6px}
+.node b{white-space:nowrap}
+.node .fw{white-space:nowrap}
+.node b{font-size:15px}
+.node .fw{color:var(--sub);font-size:12.5px}
+.node p{margin:5px 0 8px;color:var(--sub);font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);font-size:11.5px;color:var(--sub)}
+.chip.bad{background:var(--redbg);border-color:var(--redbd);color:#FFB3BA}
+.tab{position:absolute;left:-1px;top:17px;transform:translateX(-50%);height:22px;padding:0 7px;border-radius:6px;background:var(--red2);color:#fff;font:600 11px/22px var(--mono)}
+.tab.idle{background:var(--panel2);color:var(--sub);border:1px dashed var(--line2);line-height:20px}
+.node.people{width:150px;text-align:center;padding-left:14px}
+.zoom{position:absolute;right:16px;bottom:16px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:9px;background:var(--panel);overflow:hidden;z-index:3}
+.zoom button{width:34px;height:32px;color:var(--sub)}
+.zoom button:hover{background:var(--panel2);color:var(--ink)}
+.legend{position:absolute;left:16px;bottom:16px;display:flex;gap:14px;font-size:11.5px;color:var(--dim);z-index:3;flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:6px}
+.sw{width:18px;height:0;border-top:1.6px dashed #55555F}
+
+/* branches */
+.branches{position:absolute;inset:60px 0 0 0;overflow:auto;padding:4px 16px 24px}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--panel)}
+.stat b{display:block;font-size:22px;font-weight:650}
+.stat span{color:var(--dim);font-size:12px}
+.stat.red b{color:var(--red)}
+.bcard{display:grid;grid-template-columns:220px 1fr 210px;gap:16px;align-items:center;padding:14px 16px;margin-bottom:8px;border:1px solid var(--line);border-radius:11px;background:var(--panel);cursor:pointer;transition:border-color .15s}
+.bcard:hover{border-color:var(--line2)}
+.bcard.sel{border-color:var(--red)}
+.bname{font:600 13.5px var(--mono)}
+.bsub{color:var(--dim);font-size:12px;margin-top:3px}
+.lanes svg{display:block;width:100%;height:44px}
+.bright{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.ahead{color:var(--ink)}.behind{color:var(--dim)}
+.timeline{margin-top:18px;padding:14px 16px;border:1px solid var(--line);border-radius:11px;background:var(--panel)}
+.timeline h3,.drawer h3{margin:0 0 10px;font-size:13px;font-weight:650}
+.tl{display:grid;grid-template-columns:70px 14px 1fr;gap:0 10px;font-size:12.5px}
+.tl .d{color:var(--dim);font:12px var(--mono);padding:6px 0}
+.tl .r{position:relative}
+.tl .r::before{content:"";position:absolute;left:6px;top:0;bottom:0;width:1.5px;background:var(--line2)}
+.tl .r::after{content:"";position:absolute;left:2px;top:11px;width:10px;height:10px;border-radius:50%;background:var(--bg);border:2px solid var(--red)}
+.tl .x{padding:6px 0;color:var(--sub)}
+.tl .x b{color:var(--ink);font-weight:600}
+
+/* drawer */
+.drawer{border-left:1px solid var(--line);background:var(--bg2);overflow:auto;padding:18px 18px 24px}
+.kicker{font:600 11px var(--sans);letter-spacing:.9px;text-transform:uppercase;color:var(--red);margin-bottom:6px}
+.drawer h2{margin:0 0 4px;font-size:20px}
+.drawer .lead{color:var(--sub);margin:0 0 14px}
+.facts{border-top:1px solid var(--line);margin:14px 0}
+.fact{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.fact span{color:var(--dim)}
+.fact code{font:12.5px var(--mono);color:var(--ink);text-align:right;word-break:break-all}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 14px;border-radius:9px;font-weight:600;font-size:13px}
+.btn.pri{background:var(--red);color:#fff}
+.btn.pri:hover{background:#FF5562}
+.btn.ghost{border:1px solid var(--line2);color:var(--sub)}
+.btn.ghost:hover{color:var(--ink);border-color:#4A4A55}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.story{counter-reset:s;margin:0;padding:0;list-style:none}
+.story li{position:relative;padding:0 0 14px 30px;color:var(--sub)}
+.story li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:20px;height:20px;border-radius:6px;background:var(--panel2);border:1px solid var(--line2);font:600 11px/18px var(--mono);text-align:center;color:var(--ink)}
+.story li b{display:block;color:var(--ink);font-weight:600}
+.alert{padding:12px 14px;border:1px solid var(--redbd);background:var(--redbg);border-radius:11px;margin:4px 0 16px}
+.alert b{color:#FFC2C8}
+.alert p{margin:4px 0 10px;color:#E8B7BC;font-size:13px}
+.note{color:var(--dim);font-size:11.5px;margin-top:20px}
+/* code */
+.code{position:absolute;inset:60px 0 0 0;overflow:auto;padding:4px 16px 24px}
+.svcbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.svcbar .chip{cursor:pointer;height:28px;padding:0 11px;font-size:12.5px}
+.svcbar .chip.on{color:var(--ink);border-color:var(--red);background:var(--redbg)}
+.svcbar .hint{margin-left:auto;color:var(--dim);font-size:12px}
+.cwrap{position:relative}
+.cgrid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:64px;align-items:start}
+svg.cedges{position:absolute;inset:0;width:100%;height:100%;z-index:0;overflow:visible;pointer-events:none}
+.gcard{border:1px solid var(--line2);border-radius:12px;background:var(--panel);overflow:hidden}
+.gcard:nth-child(2){margin-top:38px}.gcard:nth-child(3){margin-top:12px}.gcard:nth-child(4){margin-top:52px}
+.ghd{padding:10px 12px 8px;border-bottom:1px solid var(--line)}
+.ghd b{font:600 13px var(--mono)}
+.ghd span{display:block;color:var(--dim);font-size:11.5px;margin-top:2px}
+.frow{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font:12.5px var(--mono);color:var(--sub);border-bottom:1px solid #1C1C22;transition:background .12s,color .12s,opacity .12s}
+.frow:last-child{border-bottom:0}
+.frow:hover{background:var(--panel2);color:var(--ink)}
+.frow.sel{background:var(--redbg);color:var(--ink);box-shadow:inset 2px 0 0 var(--red)}
+.frow.near{color:var(--ink)}
+.frow.fade{opacity:.32}
+.frow .k{margin-left:auto;font-size:10.5px;color:var(--dim)}
+.gedge{fill:none;stroke:#34343D;stroke-linecap:round}
+.gcount{font:10.5px var(--mono);fill:#8A8A93;paint-order:stroke;stroke:#09090B;stroke-width:4px}
+.fedge{fill:none;stroke:var(--red);stroke-width:1.6}
+.fedge.in{stroke:#A1A1AA;stroke-dasharray:4 4}
+.clegend{display:flex;gap:16px;margin-top:16px;color:var(--dim);font-size:11.5px;flex-wrap:wrap}
+.clegend span{display:flex;align-items:center;gap:6px}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line2);font-size:12px;color:var(--ink)}
+.pill i{font-style:normal;font:10px var(--mono);color:var(--dim)}
+.drawer h3{margin:18px 0 6px;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:var(--dim)}
+.fn{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.fn code{font:12.5px var(--mono);color:var(--ink)}.fn span{color:var(--sub);text-align:right}
+.fit{padding:10px 12px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);color:var(--sub);font-size:13px}
+.fit b{color:var(--ink)}
+.ev{font:10.5px var(--mono);color:var(--dim)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#24242B;border-radius:10px;border:3px solid var(--bg2)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><div class="logo"></div>Harbormap</div>
+    <label class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B6B75" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" placeholder="Find a service, port or branch">
+      <kbd>/</kbd>
+    </label>
+    <div class="seg" id="level">
+      <button data-l="beginner" class="on">Beginner</button><button data-l="builder">Builder</button><button data-l="expert">Expert</button>
+    </div>
+    <div class="live"><i></i>Live · updated 2 s ago</div>
+  </header>
+
+  <nav class="side" id="side"></nav>
+
+  <main class="main">
+    <div class="tabs">
+      <span class="title" id="wtTitle">shop</span><span class="meta" id="wtMeta"></span>
+      <div class="seg" id="viewSeg"><button data-v="map" class="on">Map</button><button data-v="code">Code</button><button data-v="branches">Branches</button></div>
+    </div>
+    <section class="view" id="vMap">
+      <div class="stage" id="stage"><div class="world" id="world"></div></div>
+      <div class="legend"><span><span class="tab" style="position:static;transform:none">:8000</span>open port</span><span><span class="sw"></span>talks over the network</span><span><span class="dot bad"></span>needs attention</span></div>
+      <div class="zoom"><button id="zin">+</button><button id="zout">−</button><button id="zfit" title="Fit">⤢</button></div>
+    </section>
+    <section class="view hide" id="vCode"><div class="code" id="code"></div></section>
+    <section class="view hide" id="vBranches"><div class="branches" id="branches"></div></section>
+  </main>
+
+  <aside class="drawer" id="drawer"></aside>
+</div>
+
+<script>
+// Example data shaped like the "shop" scenario Harbormap's tests use.
+const NODES = {
+  browser:{lane:0,x:20,y:262,people:true,name:'Your browser',fw:'',text:{beginner:'Opens the website at localhost:5173.',builder:'Requests go to Vite on :5173.',expert:'Client · origin http://localhost:5173'}},
+  web:{lane:1,x:240,y:230,name:'web',fw:'Vite',ports:[5173],pid:802,up:'2 h',wt:'main',
+    text:{beginner:'The live preview of your website. It updates when you save a file.',builder:'apps/web · Vite 7.1 dev server, proxies /api to shop-api.',expert:'node vite · pid 802 · 127.0.0.1:5173 · HMR on'}},
+  api:{lane:2,x:540,y:90,name:'shop-api',fw:'FastAPI, probably',ports:[8000],pid:900,up:'2 h',wt:'main',
+    text:{beginner:'Answers the website and saves orders.',builder:'uvicorn shop.main:app --reload · matched as FastAPI (probably).',expert:'python uvicorn · pid 900 · 0.0.0.0:8000 · signature probably'}},
+  billing:{lane:2,x:540,y:310,name:'Billing',fw:'ASP.NET Core',ports:[5280],pid:951,up:'2 h',wt:'main',
+    text:{beginner:'Takes care of invoices and payments.',builder:'services/Billing · dotnet watch run.',expert:'dotnet Billing.dll · pid 951 · 127.0.0.1:5280'}},
+  celery:{lane:2,x:540,y:500,name:'shop-api-celery',fw:'Celery',ports:[],pid:970,up:'4 min',wt:'main',bad:'Restarted 3× in 10 min',
+    text:{beginner:'Does slow jobs in the background, like sending emails.',builder:'celery -A shop worker · no port, talks to db.',expert:'python celery · pid 970 · pool prefork ×2'}},
+  db:{lane:3,x:870,y:250,name:'db',fw:'PostgreSQL',ports:[55432],docker:'shop-db-1',up:'4 days',wt:'main',health:'healthy',
+    text:{beginner:'Keeps products, users and orders.',builder:'docker compose service db · postgres:16-alpine.',expert:'container shop-db-1 · 0.0.0.0:55432→5432 · healthy'}},
+  web2:{lane:1,x:240,y:230,name:'web',fw:'Vite',ports:[5174],pid:1300,up:'40 min',wt:'feature/login',
+    text:{beginner:'The live preview of the login branch.',builder:'~/code/shop-feature/apps/web · Vite 7.1.',expert:'node vite · pid 1300 · 127.0.0.1:5174'}},
+};
+const EDGES = [
+  ['browser','web','http'],['web','api','API_URL'],['api','billing','BILLING_URL'],['api','db','DATABASE_URL'],['celery','db','DATABASE_URL'],
+  ['browser','web2','http'],
+];
+const WORKTREES = [
+  {name:'main',path:'~/code/shop',nodes:['browser','web','api','billing','celery','db']},
+  {name:'feature/login',path:'~/code/shop-feature',nodes:['browser','web2']},
+];
+const ELSEWHERE = [{name:'blog',fw:'Next.js',port:3000},{name:'lonely-redis',fw:'Redis',port:6380}];
+const SYSTEM = [{p:'631',n:'cupsd'},{p:'5000 7000',n:'AirPlay Receiver'},{p:'6000',n:'unknown owner'},{p:'9820',n:'Google Chrome'},{p:'41234',n:'Claude Code'}];
+const BRANCHES = [
+  {name:'main',main:true,commits:71,last:'2 h ago',msg:'fix: round prices to whole cents'},
+  {name:'feature/login',ahead:4,behind:2,wt:'~/code/shop-feature',run:'web :5174',last:'3 h ago',msg:'feat: remember me checkbox'},
+  {name:'fix/port-parse',merged:'3 days ago',ahead:0,behind:0,last:'3 days ago',msg:'fix: accept [::1] listeners'},
+  {name:'exp/cache',ahead:12,behind:30,stale:41,last:'41 days ago',msg:'wip: redis cache for search'},
+  {name:'release/0.1',merged:'9 days ago',ahead:0,behind:9,last:'9 days ago',msg:'chore: bump version to 0.1'},
+];
+const MERGES = [
+  {d:'16 Oct',t:'<b>feature/checkout</b> → main · 12 commits · card payments through Billing'},
+  {d:'13 Oct',t:'<b>fix/port-parse</b> → main · 3 commits'},
+  {d:'9 Oct',t:'<b>release/0.1</b> → main · version 0.1 tagged'},
+];
+
+// Code of shop-api, grouped by folder. Lines between folders are bundled into one
+// line with a count; a file's own lines appear only when it is selected.
+const GROUPS=[
+  {id:'routes',name:'routes/',role:'Where requests come in'},
+  {id:'services',name:'services/',role:'The business rules'},
+  {id:'models',name:'models/',role:'What is stored'},
+  {id:'infra',name:'core/',role:'Settings, database, jobs'},
+];
+const FILES={
+  'routes/auth.py':{g:'routes',kind:'API route',sum:{beginner:'Handles logging in and out.',builder:'POST /api/login and /api/logout; checks the password through auth_service.',expert:'2 endpoints · async · Depends(get_db) · returns JWT'},
+    patterns:[['REST endpoint','parsed'],['Dependency injection','parsed'],['async / await','parsed']],fns:[['post_login()','POST /api/login'],['post_logout()','POST /api/logout']],
+    fit:'A thin route: it only reads the request and hands over. <b>Good fit</b> for a layered API.',lines:58,runtime:'served on :8000'},
+  'routes/orders.py':{g:'routes',kind:'API route',sum:{beginner:'Where the website sends a new order.',builder:'POST /api/orders validates the cart and calls order_service.create_order().',expert:'3 endpoints · pydantic OrderIn · 201/409 · Depends(current_user)'},
+    patterns:[['REST endpoint','parsed'],['Request validation (pydantic)','parsed'],['Dependency injection','parsed']],fns:[['post_order()','POST /api/orders'],['get_order()','GET /api/orders/{id}'],['cancel()','POST /api/orders/{id}/cancel']],
+    fit:'Thin route over a service. <b>Good fit</b>; one place to look for each URL.',lines:94,runtime:'served on :8000'},
+  'routes/products.py':{g:'routes',kind:'API route',sum:{beginner:'Lists and searches the products.',builder:'GET /api/products with paging; search goes to services/search.py.',expert:'2 endpoints · cursor paging · cache-control 60 s'},
+    patterns:[['REST endpoint','parsed'],['Pagination','parsed']],fns:[['list_products()','GET /api/products'],['search()','GET /api/products/search']],
+    fit:'<b>Good fit.</b>',lines:61,runtime:'served on :8000'},
+  'routes/health.py':{g:'routes',kind:'API route',sum:{beginner:'Lets tools check that the API is alive.',builder:'GET /health returns ok and the database status.',expert:'1 endpoint · SELECT 1 on the pool'},
+    patterns:[['Health check','parsed']],fns:[['health()','GET /health']],fit:'<b>Good fit.</b>',lines:19,runtime:'served on :8000'},
+  'services/order_service.py':{g:'services',kind:'Business logic',sum:{beginner:'The checkout: turns a cart into an order, charges the card and sends the confirmation email.',builder:'create_order() saves the order in one transaction, charges through Billing (payment_client) and queues send_receipt in Celery.',expert:'create_order: UoW(transaction) → PaymentClient.charge (httpx, 5 s timeout, 2 retries) → celery send_receipt.delay · raises OutOfStock'},
+    patterns:[['Service layer','parsed'],['Transaction (unit of work)','parsed'],['Background job (Celery)','parsed'],['Retry with timeout','parsed'],['Calls another service over HTTP','matched']],
+    fns:[['create_order()','used by routes/orders.py'],['cancel_order()','used by routes/orders.py'],['_reserve_stock()','private']],
+    fit:'Layered design (routes → services → models). <b>Good fit</b> for a small or medium API, and easy to test without HTTP. <b>Watch:</b> 212 lines and 5 jobs; the payment part could become its own file.',lines:212,runtime:'runs inside shop-api (:8000) · calls Billing on :5280'},
+  'services/payment_client.py':{g:'services',kind:'HTTP client',sum:{beginner:'Talks to the Billing service to take payments.',builder:'PaymentClient wraps httpx; the address comes from BILLING_URL.',expert:'httpx.AsyncClient · BILLING_URL=http://localhost:5280 · idempotency key per order'},
+    patterns:[['Client wrapper (adapter)','parsed'],['Idempotency key','parsed'],['Config from environment','config']],fns:[['charge()','POST /charges on Billing'],['refund()','POST /refunds on Billing']],
+    fit:'<b>Good fit:</b> one file knows how to reach Billing.',lines:77,runtime:'calls :5280 (open)'},
+  'services/auth_service.py':{g:'services',kind:'Business logic',sum:{beginner:'Checks passwords and makes login tokens.',builder:'verify_user() compares the bcrypt hash; issue_token() signs a JWT.',expert:'bcrypt cost 12 · JWT HS256 · exp 1 h · secret from settings'},
+    patterns:[['Service layer','parsed'],['Password hashing (bcrypt)','parsed'],['JWT tokens','parsed']],fns:[['verify_user()','used by routes/auth.py'],['issue_token()','used by routes/auth.py']],
+    fit:'<b>Good fit.</b>',lines:66,runtime:'runs inside shop-api'},
+  'services/search.py':{g:'services',kind:'Business logic',sum:{beginner:'Finds products by name.',builder:'Full-text search with PostgreSQL tsvector.',expert:'to_tsquery · GIN index products_search_idx'},
+    patterns:[['Full-text search','parsed']],fns:[['search_products()','used by routes/products.py']],fit:'<b>Good fit</b> at this size.',lines:41,runtime:'runs inside shop-api'},
+  'models/order.py':{g:'models',kind:'Data model',sum:{beginner:'What an order looks like in the database.',builder:'SQLAlchemy Order and OrderLine tables.',expert:'Order(id, user_id, status enum, total_cents) · OrderLine FK'},
+    patterns:[['ORM model (SQLAlchemy)','parsed'],['Money in cents','parsed']],fns:[['Order','table orders'],['OrderLine','table order_lines']],fit:'<b>Good fit.</b>',lines:48,runtime:'stored in db (:55432)'},
+  'models/user.py':{g:'models',kind:'Data model',sum:{beginner:'What a user looks like in the database.',builder:'SQLAlchemy User table.',expert:'User(id, email unique, password_hash)'},
+    patterns:[['ORM model (SQLAlchemy)','parsed']],fns:[['User','table users']],fit:'<b>Good fit.</b>',lines:22,runtime:'stored in db (:55432)'},
+  'models/product.py':{g:'models',kind:'Data model',sum:{beginner:'What a product looks like in the database.',builder:'SQLAlchemy Product table with a search column.',expert:'Product(id, name, price_cents, stock, search tsvector)'},
+    patterns:[['ORM model (SQLAlchemy)','parsed']],fns:[['Product','table products']],fit:'<b>Good fit.</b>',lines:31,runtime:'stored in db (:55432)'},
+  'core/db.py':{g:'infra',kind:'Setup',sum:{beginner:'Opens the connection to the database.',builder:'Creates the async engine and session from DATABASE_URL.',expert:'create_async_engine pool_size=10 · get_db() dependency'},
+    patterns:[['Connection pool','parsed'],['Dependency injection','parsed']],fns:[['get_db()','used by 6 files']],fit:'<b>Good fit:</b> the only place that knows the database address.',lines:29,runtime:'connects to :55432'},
+  'core/settings.py':{g:'infra',kind:'Setup',sum:{beginner:'Reads the settings from the .env file.',builder:'pydantic-settings class with DATABASE_URL, BILLING_URL, JWT_SECRET.',expert:'BaseSettings · env_file=.env · 7 fields'},
+    patterns:[['Config from environment','config']],fns:[['Settings','7 fields']],fit:'<b>Good fit.</b>',lines:24,runtime:'reads .env'},
+  'core/celery_app.py':{g:'infra',kind:'Setup',sum:{beginner:'Sets up the background worker.',builder:'Celery app with the send_receipt task.',expert:'broker from settings · task send_receipt(order_id) · acks_late'},
+    patterns:[['Background job (Celery)','parsed']],fns:[['send_receipt()','task']],fit:'<b>Good fit.</b>',lines:33,runtime:'run by shop-api-celery'},
+};
+const IMPORTS=[
+  ['routes/auth.py','services/auth_service.py'],['routes/auth.py','core/db.py'],
+  ['routes/orders.py','services/order_service.py'],['routes/orders.py','models/order.py'],['routes/orders.py','core/db.py'],
+  ['routes/products.py','services/search.py'],['routes/products.py','models/product.py'],['routes/health.py','core/db.py'],
+  ['services/order_service.py','models/order.py'],['services/order_service.py','models/product.py'],['services/order_service.py','services/payment_client.py'],['services/order_service.py','core/celery_app.py'],['services/order_service.py','core/db.py'],
+  ['services/payment_client.py','core/settings.py'],['services/auth_service.py','models/user.py'],['services/auth_service.py','core/settings.py'],
+  ['services/search.py','models/product.py'],['services/search.py','core/db.py'],
+  ['models/order.py','core/db.py'],['models/user.py','core/db.py'],['models/product.py','core/db.py'],
+  ['core/db.py','core/settings.py'],['core/celery_app.py','core/settings.py'],
+];
+const SERVICES_CODE=['web','shop-api','Billing','shop-api-celery'];
+
+let level='beginner', wt='main', sel=null, view='map';
+const $=s=>document.querySelector(s);
+const LANES=['People','What you see','What does the work','Where things are kept'];
+const LANEX=[10,225,525,855];
+
+function renderSide(){
+  const W=WORKTREES.map(w=>`<button class="item ${w.name===wt?'on':''}" data-wt="${w.name}"><span class="dot ${w.nodes.some(n=>NODES[n].bad)?'bad':''}"></span><span class="t">${w.name}</span><span class="n">${w.nodes.filter(n=>!NODES[n].people).length}</span></button>`).join('');
+  const S=WORKTREES.find(w=>w.name===wt).nodes.filter(n=>!NODES[n].people).map(n=>{const d=NODES[n];return `<button class="item ${sel===n?'on':''}" data-node="${n}"><span class="dot ${d.bad?'bad':''}"></span><span class="t">${d.name}</span><span class="n">${d.ports.length?':'+d.ports[0]:'–'}</span></button>`}).join('');
+  $('#side').innerHTML=`
+   <div class="sec"><h4>Project</h4><button class="item on" style="box-shadow:none"><span class="t"><b style="color:var(--ink)">shop</b> <span style="color:var(--dim)">~/code/shop</span></span></button></div>
+   <div class="sec"><h4>Worktrees</h4>${W}</div>
+   <div class="sec"><h4>Services</h4>${S}</div>
+   <div class="sec"><h4>Elsewhere · read-only</h4>${ELSEWHERE.map(e=>`<div class="item"><span class="dot off"></span><span class="t">${e.name} <span style="color:var(--dim)">${e.fw}</span></span><span class="n">:${e.port}</span></div>`).join('')}</div>
+   <div class="sec"><h4>System &amp; unknown</h4>${SYSTEM.map(s=>`<div class="item"><span class="port">:${s.p}</span><span class="t" style="margin-left:auto;color:var(--dim)">${s.n}</span></div>`).join('')}</div>
+   <div class="sec"><h4>Docker</h4><div class="item"><span class="dot"></span><span class="t">Docker Desktop 29.2.1</span></div></div>`;
+}
+
+function renderMap(){
+  const w=WORKTREES.find(x=>x.name===wt);
+  const lanes=LANES.map((l,i)=>`<div class="lane" style="left:${LANEX[i]}px"><span>${l}</span></div>`).join('');
+  const nodes=w.nodes.map(id=>{const d=NODES[id];
+    const tabs=(d.ports||[]).map(p=>`<span class="tab">:${p}</span>`).join('');
+    const chips=d.people?'':`<span class="chip ${d.bad?'bad':''}">${d.bad?'● '+d.bad:'Running · '+d.up}</span>${d.docker?' <span class="chip">Docker</span>':''}`;
+    return `<div class="node ${d.people?'people':''} ${d.bad?'bad':''} ${sel===id?'sel':''} ${sel&&sel!==id&&!linked(sel,id)?'fade':''}" data-node="${id}" style="left:${d.x}px;top:${d.y}px">${tabs}
+      <div class="hd"><b>${d.name}</b>${d.fw?`<span class="fw">· ${d.fw}</span>`:''}</div><p>${d.text[level]}</p>${chips}</div>`}).join('');
+  $('#world').innerHTML=lanes+`<svg class="edges" width="1100" height="660" id="edges"></svg>`+nodes;
+  requestAnimationFrame(drawEdges);
+  $('#wtTitle').textContent='shop · '+w.name;
+  $('#wtMeta').textContent=w.path+' · '+w.nodes.filter(n=>!NODES[n].people).length+' running';
+}
+function linked(a,b){return EDGES.some(([x,y])=>(x===a&&y===b)||(x===b&&y===a))}
+function drawEdges(){
+  const w=WORKTREES.find(x=>x.name===wt), g=$('#edges'); if(!g) return;
+  const box=id=>{const el=$(`#world .node[data-node="${id}"]`);return el&&{x:el.offsetLeft,y:el.offsetTop,w:el.offsetWidth,h:el.offsetHeight}};
+  let s='', said=new Set();
+  for(const [a,b,label] of EDGES){
+    if(!w.nodes.includes(a)||!w.nodes.includes(b)) continue;
+    const A=box(a),B=box(b); if(!A||!B) continue;
+    const hot=sel&&(sel===a||sel===b), cls=`edge ${hot?'hot':'flow'}`;
+    let d,lx,ly,anchor;
+    if(NODES[a].lane===NODES[b].lane){
+      // same column: leave from the bottom, arrive on the port tab from above
+      const x1=A.x+34,y1=A.y+A.h,x2=B.x,y2=B.y+17,my=(y1+y2)/2;
+      d=`M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`; lx=x1+8; ly=my; anchor='start';
+    } else {
+      const tab=$(`#world .node[data-node="${b}"] .tab`), tw=tab?tab.offsetWidth/2:0;
+      const x1=A.x+A.w,y1=A.y+28,x2=B.x-tw-2,y2=B.y+28,mx=(x1+x2)/2;
+      d=`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`; lx=x2-4; ly=y2-8; anchor='end';
+    }
+    s+=`<path class="${cls}" d="${d}"/>`;
+    const key=b+label; if(said.has(key)) continue; said.add(key);
+    s+=`<text class="elabel ${hot?'hot':''}" x="${lx}" y="${ly}" text-anchor="${anchor}">${label}</text>`;
+  }
+  g.innerHTML=s;
+}
+
+function laneSvg(b){
+  if(b.main) return `<svg viewBox="0 0 300 44" preserveAspectRatio="none"><line x1="0" y1="22" x2="300" y2="22" stroke="#F43F4E" stroke-width="2"/>${[...Array(12)].map((_,i)=>`<circle cx="${12+i*25}" cy="22" r="3" fill="#F43F4E"/>`).join('')}</svg>`;
+  const base=120, a=Math.min(b.ahead,8), be=Math.min(b.behind,8);
+  let s=`<line x1="0" y1="32" x2="300" y2="32" stroke="#3A3A44" stroke-width="2"/>`;
+  for(let i=0;i<be;i++) s+=`<circle cx="${base+20+i*20}" cy="32" r="2.6" fill="#55555F"/>`;
+  if(b.merged){ s+=`<path d="M60,32 C80,10 120,10 140,10 L180,10 C200,10 210,32 230,32" fill="none" stroke="#A1A1AA" stroke-width="1.6"/><circle cx="160" cy="10" r="3" fill="#A1A1AA"/><circle cx="230" cy="32" r="4.5" fill="none" stroke="#F43F4E" stroke-width="2"/>`; return `<svg viewBox="0 0 300 44" preserveAspectRatio="none">${s}</svg>`}
+  s+=`<path d="M${base},32 C${base+12},12 ${base+20},10 ${base+30},10 L${base+30+a*18},10" fill="none" stroke="${b.stale?'#6B6B75':'#F43F4E'}" stroke-width="2"/>`;
+  for(let i=0;i<a;i++) s+=`<circle cx="${base+36+i*18}" cy="10" r="3" fill="${b.stale?'#6B6B75':'#F43F4E'}"/>`;
+  s+=`<circle cx="${base}" cy="32" r="3.5" fill="#09090B" stroke="#A1A1AA" stroke-width="1.6"/>`;
+  return `<svg viewBox="0 0 300 44" preserveAspectRatio="none">${s}</svg>`;
+}
+function renderBranches(){
+  const live=BRANCHES.filter(b=>!b.main&&!b.merged).length, merged=BRANCHES.filter(b=>b.merged).length, stale=BRANCHES.filter(b=>b.stale).length;
+  $('#branches').innerHTML=`
+   <div class="summary">
+     <div class="stat"><b>${BRANCHES.length}</b><span>branches</span></div>
+     <div class="stat"><b>${live}</b><span>not in main yet</span></div>
+     <div class="stat"><b>${merged}</b><span>merged · safe to delete</span></div>
+     <div class="stat red"><b>${stale}</b><span>stale (30+ days)</span></div>
+   </div>
+   ${BRANCHES.map(b=>`<div class="bcard ${sel==='b:'+b.name?'sel':''}" data-branch="${b.name}">
+     <div><div class="bname">${b.name}</div><div class="bsub">${b.last} · ${b.msg}</div></div>
+     <div class="lanes">${laneSvg(b)}</div>
+     <div class="bright">${b.main?`<span class="chip">${b.commits} commits</span>`:b.merged?`<span class="chip">✓ in main ${b.merged}</span>`:
+       `<span class="chip"><span class="ahead">${b.ahead} ahead</span>&nbsp;·&nbsp;<span class="behind">${b.behind} behind</span></span>`}
+       ${b.run?`<span class="chip"><span class="dot"></span>${b.run}</span>`:''}${b.stale?`<span class="chip bad">stale · ${b.stale} days</span>`:''}</div>
+   </div>`).join('')}
+   <div class="timeline"><h3>Into main, newest first</h3><div class="tl">${MERGES.map(m=>`<div class="d">${m.d}</div><div class="r"></div><div class="x">${m.t}</div>`).join('')}</div></div>`;
+}
+
+function renderDrawer(){
+  let h='';
+  if(sel&&sel.startsWith('f:')){ h=fileDrawer(sel.slice(2)); }
+  else if(sel&&sel.startsWith('b:')){
+    const b=BRANCHES.find(x=>'b:'+x.name===sel);
+    const say=b.main?'This is the main line. Finished work comes here.':b.merged?'Everything on this branch is already in main. You can delete it.':b.stale?`Nobody has touched this branch for ${b.stale} days, and main has moved ${b.behind} commits since.`:`This branch has ${b.ahead} commits that main doesn't have yet.`;
+    h=`<div class="kicker">Branch</div><h2>${b.name}</h2><p class="lead">${say}</p>
+      <div class="facts"><div class="fact"><span>Last commit</span><code>${b.last}</code></div><div class="fact"><span>Message</span><code>${b.msg}</code></div>
+      ${b.wt?`<div class="fact"><span>Worktree</span><code>${b.wt}</code></div>`:''}${b.run?`<div class="fact"><span>Running</span><code>${b.run}</code></div>`:''}
+      ${!b.main&&!b.merged?`<div class="fact"><span>Ahead / behind main</span><code>${b.ahead} / ${b.behind}</code></div>`:''}</div>
+      <div class="actions">${b.wt?'<button class="btn pri">Open worktree</button>':''}<button class="btn ghost">Copy git command</button></div>`;
+  } else if(sel){
+    const d=NODES[sel];
+    h=`<div class="kicker">${d.docker?'Container':d.people?'Outside':'Service'}</div><h2>${d.name}</h2><p class="lead">${d.text[level]}</p>
+      ${d.bad?`<div class="alert"><b>${d.bad}</b><p>It stops about two minutes after it starts. Its last message says it can't reach the database at localhost:5432 (the database listens on :55432).</p><div class="actions"><button class="btn pri">Copy prompt for my AI agent</button></div></div>`:''}
+      <div class="facts">${d.ports?.length?`<div class="fact"><span>Address</span><code>http://localhost:${d.ports[0]}</code></div>`:''}
+      ${d.fw?`<div class="fact"><span>Made with</span><code>${d.fw}</code></div>`:''}${d.pid?`<div class="fact"><span>Process</span><code>pid ${d.pid}</code></div>`:''}
+      ${d.docker?`<div class="fact"><span>Container</span><code>${d.docker} · ${d.health}</code></div>`:''}${d.up?`<div class="fact"><span>Running for</span><code>${d.up}</code></div>`:''}
+      ${d.wt?`<div class="fact"><span>Worktree</span><code>${d.wt}</code></div>`:''}</div>
+      <div class="actions">${d.ports?.length?'<button class="btn pri">Open in browser</button>':''}<button class="btn ghost">Why?</button><button class="btn ghost">Stop…</button></div>`;
+  } else {
+    h=`<div class="kicker">The story of this project</div><h2>shop</h2><p class="lead">An online shop. Read this first; click a box on the map to see it here.</p>
+      <div class="alert"><b>1 problem</b><p>shop-api-celery keeps restarting. Everything else is running.</p><div class="actions"><button class="btn pri" data-go="celery">Show me</button></div></div>
+      <ol class="story">
+        <li><b>What people see</b>The website, at localhost:5173. It changes as soon as you save a file.</li>
+        <li><b>What does the work</b>shop-api answers the website. Billing handles payments. A background worker sends emails.</li>
+        <li><b>Where things are kept</b>A PostgreSQL database in Docker keeps products, users and orders.</li>
+        <li><b>Branches</b>1 branch is still being worked on (feature/login) and runs its own copy of the website on :5174.</li>
+      </ol>`;
+  }
+  $('#drawer').innerHTML=h+`<div class="note">Example data · design draft, not connected to this computer yet.</div>`;
+}
+
+function renderCode(){
+  const gi=Object.fromEntries(GROUPS.map((g,i)=>[g.id,i]));
+  const near=new Set(); if(sel&&sel.startsWith('f:')){const f=sel.slice(2);IMPORTS.forEach(([a,b])=>{if(a===f)near.add(b);if(b===f)near.add(a)})}
+  const cards=GROUPS.map(g=>{const files=Object.keys(FILES).filter(f=>FILES[f].g===g.id);
+    return `<div class="gcard" data-g="${g.id}"><div class="ghd"><b>${g.name}</b><span>${g.role} · ${files.length} files</span></div>${files.map(f=>{
+      const name=f.split('/').pop(), deg=IMPORTS.filter(([a,b])=>a===f||b===f).length, on=sel==='f:'+f;
+      return `<div class="frow ${on?'sel':''} ${near.has(f)?'near':''} ${sel&&sel.startsWith('f:')&&!on&&!near.has(f)?'fade':''}" data-file="${f}">${name}<span class="k">${deg}</span></div>`}).join('')}</div>`}).join('');
+  $('#code').innerHTML=`<div class="svcbar">${SERVICES_CODE.map(n=>`<span class="chip ${n==='shop-api'?'on':''}">${n}</span>`).join('')}<span class="hint">Click a file · lines show only for the file you pick</span></div>
+    <div class="cwrap"><svg class="cedges" id="cedges"></svg><div class="cgrid">${cards}</div></div>
+    <div class="clegend"><span><svg width="26" height="8"><path d="M0 4H26" stroke="#34343D" stroke-width="5"/></svg>folder uses folder (thicker = more links)</span><span><svg width="26" height="8"><path d="M0 4H26" stroke="#F43F4E" stroke-width="1.6"/></svg>this file uses</span><span><svg width="26" height="8"><path d="M0 4H26" stroke="#A1A1AA" stroke-width="1.6" stroke-dasharray="4 4"/></svg>uses this file</span></div>`;
+  requestAnimationFrame(drawCodeEdges);
+}
+function drawCodeEdges(){
+  const svg=$('#cedges'); if(!svg||$('#vCode').classList.contains('hide')) return;
+  const W=svg.getBoundingClientRect(); const rel=el=>{const r=el.getBoundingClientRect();return {l:r.left-W.left,r:r.right-W.left,t:r.top-W.top,b:r.bottom-W.top,m:(r.top+r.bottom)/2-W.top}};
+  let s='';
+  if(sel&&sel.startsWith('f:')){
+    const f=sel.slice(2), me=rel($(`.frow[data-file="${f}"]`));
+    for(const [a,b] of IMPORTS){ if(a!==f&&b!==f) continue;
+      const other=a===f?b:a, o=rel($(`.frow[data-file="${other}"]`)), out=a===f;
+      if(FILES[a].g===FILES[b].g){ // same folder: a small loop on the right edge
+        const x=me.r, y1=me.m, y2=o.m, bend=x+26; s+=`<path class="fedge ${out?'':'in'}" d="M${x},${y1} C${bend},${y1} ${bend},${y2} ${x},${y2}"/>`; continue;}
+      const [A,B]=me.l<o.l?[me,o]:[o,me], x1=A.r,x2=B.l,mx=(x1+x2)/2;
+      s+=`<path class="fedge ${out?'':'in'}" d="M${x1},${A.m} C${mx},${A.m} ${mx},${B.m} ${x2},${B.m}"/>`;
+    }
+  } else {
+    const agg={}; IMPORTS.forEach(([a,b])=>{const ga=FILES[a].g,gb=FILES[b].g;if(ga!==gb){const k=ga+'>'+gb;agg[k]=(agg[k]||0)+1}});
+    for(const k in agg){const [ga,gb]=k.split('>'),A=rel($(`.gcard[data-g="${ga}"] .ghd`)),B=rel($(`.gcard[data-g="${gb}"] .ghd`));
+      const x1=A.r,x2=B.l,y1=A.m,y2=B.m,mx=(x1+x2)/2,w=Math.min(2+agg[k]*1.4,10);
+      s+=`<path class="gedge" stroke-width="${w}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/><text class="gcount" x="${mx}" y="${(y1+y2)/2-8}" text-anchor="middle">${agg[k]}</text>`;}
+  }
+  svg.innerHTML=s;
+}
+function fileDrawer(f){
+  const d=FILES[f], uses=IMPORTS.filter(([a])=>a===f).map(([,b])=>b), by=IMPORTS.filter(([,b])=>b===f).map(([a])=>a);
+  return `<div class="kicker">${d.kind} · shop-api</div><h2 style="font-family:var(--mono);font-size:17px">${f}</h2><p class="lead">${d.sum[level]}</p>
+    <h3>Methods it uses</h3><div class="pills">${d.patterns.map(([p,e])=>`<span class="pill">${p}<i>${e}</i></span>`).join('')}</div>
+    <h3>Main parts</h3>${d.fns.map(([n,w])=>`<div class="fn"><code>${n}</code><span>${w}</span></div>`).join('')}
+    <h3>Does the structure fit?</h3><div class="fit">${d.fit}</div>
+    <div class="facts"><div class="fact"><span>Uses</span><code>${uses.map(x=>x.split('/').pop()).join(', ')||'–'}</code></div>
+    <div class="fact"><span>Used by</span><code>${by.map(x=>x.split('/').pop()).join(', ')||'–'}</code></div>
+    <div class="fact"><span>Size</span><code>${d.lines} lines</code></div><div class="fact"><span>When it runs</span><code>${d.runtime}</code></div></div>
+    <div class="actions"><button class="btn pri">Open in editor</button><button class="btn ghost">Explain more with AI…</button></div>
+    <p class="ev" style="margin-top:12px">parsed = read from the code · matched = linked to a running port · config = from settings. No AI was used for this card.</p>`;
+}
+
+function render(){renderSide();renderMap();renderCode();renderBranches();renderDrawer()}
+
+// interactions
+document.addEventListener('click',e=>{
+  const n=e.target.closest('[data-node]'), b=e.target.closest('[data-branch]'), w=e.target.closest('[data-wt]'), go=e.target.closest('[data-go]');
+  if(go){sel=go.dataset.go;render();return}
+  if(w){wt=w.dataset.wt;sel=null;render();fit();return}
+  if(n){sel=sel===n.dataset.node?null:n.dataset.node;render();return}
+  if(b){sel=sel==='b:'+b.dataset.branch?null:'b:'+b.dataset.branch;renderBranches();renderDrawer();return}
+  const fr=e.target.closest('[data-file]'); if(fr){sel=sel==='f:'+fr.dataset.file?null:'f:'+fr.dataset.file;renderCode();renderDrawer();return}
+});
+$('#level').addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;level=t.dataset.l;[...$('#level').children].forEach(c=>c.classList.toggle('on',c===t));render()});
+$('#viewSeg').addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;view=t.dataset.v;[...$('#viewSeg').children].forEach(c=>c.classList.toggle('on',c===t));
+  $('#vMap').classList.toggle('hide',view!=='map');$('#vCode').classList.toggle('hide',view!=='code');$('#vBranches').classList.toggle('hide',view!=='branches');sel=null;render()});
+addEventListener('resize',()=>requestAnimationFrame(drawCodeEdges));
+$('#q').addEventListener('input',e=>{const q=e.target.value.toLowerCase().trim();
+  document.querySelectorAll('#world .node').forEach(el=>{const d=NODES[el.dataset.node];const hit=!q||(d.name+' '+(d.fw||'')+' '+(d.ports||[]).join(' ')).toLowerCase().includes(q);el.classList.toggle('fade',!hit)});
+  document.querySelectorAll('.bcard').forEach(el=>el.style.display=!q||el.dataset.branch.toLowerCase().includes(q)?'':'none')});
+addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==$('#q')){e.preventDefault();$('#q').focus()}if(e.key==='Escape'){sel=null;$('#q').value='';render()}});
+
+// pan & zoom: one transform on one element, nothing else moves
+let k=1,tx=0,ty=0,drag=null;const stage=$('#stage'),world=$('#world');
+const apply=()=>world.style.transform=`translate(${tx}px,${ty}px) scale(${k})`;
+function fit(){const r=stage.getBoundingClientRect();k=Math.min((r.width-32)/1100,(r.height-50)/660,1.2);tx=(r.width-1100*k)/2;ty=8;apply()}
+stage.addEventListener('wheel',e=>{e.preventDefault();const r=stage.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top,nk=Math.max(.4,Math.min(2.2,k*Math.exp(-e.deltaY*.0015)));tx=mx-(mx-tx)*nk/k;ty=my-(my-ty)*nk/k;k=nk;apply()},{passive:false});
+stage.addEventListener('pointerdown',e=>{if(e.target.closest('.node'))return;drag={x:e.clientX-tx,y:e.clientY-ty};stage.classList.add('drag');stage.setPointerCapture(e.pointerId)});
+stage.addEventListener('pointermove',e=>{if(!drag)return;tx=e.clientX-drag.x;ty=e.clientY-drag.y;apply()});
+stage.addEventListener('pointerup',()=>{drag=null;stage.classList.remove('drag')});
+const zoomBy=f=>{const r=stage.getBoundingClientRect(),cx=r.width/2,cy=r.height/2,nk=Math.max(.4,Math.min(2.2,k*f));tx=cx-(cx-tx)*nk/k;ty=cy-(cy-ty)*nk/k;k=nk;apply()};
+$('#zin').onclick=()=>zoomBy(1.2);$('#zout').onclick=()=>zoomBy(1/1.2);$('#zfit').onclick=fit;
+addEventListener('resize',fit);
+render();fit();
+// ?view=branches&sel=celery opens a given state (handy for sharing a screen)
+const P=new URLSearchParams(location.search);
+if(P.get('sel')){sel=P.get('sel');render()}
+if(P.get('view')){document.querySelector(`#viewSeg [data-v=${P.get('view')}]`).click();if(P.get('sel')){sel=P.get('sel');render()}}
+</script>
+</body>
+</html>
