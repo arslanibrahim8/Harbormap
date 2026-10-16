@@ -65,6 +65,13 @@ impl World for RealWorld {
 /// The repository containing `dir`: main worktree root plus every linked worktree.
 pub fn discover(dir: &Path) -> Option<RepoInfo> {
     let repo = gix::discover(dir).ok()?;
+    // A submodule (its git folder lives in `.git/modules/` of the repository around it)
+    // belongs to that repository.
+    if is_submodule(repo.git_dir())
+        && let Some(outer) = repo.workdir().and_then(Path::parent).and_then(discover)
+    {
+        return Some(outer);
+    }
     let main = repo.main_repo().ok()?;
     let mut worktrees = Vec::new();
     let root = match main.workdir() {
@@ -93,6 +100,13 @@ pub fn discover(dir: &Path) -> Option<RepoInfo> {
         });
     }
     (!worktrees.is_empty()).then_some(RepoInfo { root, worktrees })
+}
+
+fn is_submodule(git_dir: &Path) -> bool {
+    let parts: Vec<&std::ffi::OsStr> = git_dir.iter().collect();
+    parts
+        .windows(2)
+        .any(|pair| pair[0] == ".git" && pair[1] == "modules")
 }
 
 /// `shop.git` is its own root; a `.bare` or `.git` folder stands for the folder holding it
@@ -201,6 +215,27 @@ mod tests {
             canonical(&temp.path().join("shop-main"))
         );
         assert_eq!(from_bare.worktrees[0].branch.as_deref(), Some("main"));
+
+        // A submodule belongs to the repository that contains it.
+        let lib = temp.path().join("lib");
+        std::fs::create_dir_all(&lib).unwrap();
+        assert!(git(&lib, &["init", "-q", "-b", "main"]));
+        assert!(git(&lib, &["commit", "-q", "--allow-empty", "-m", "lib"]));
+        let source = lib.to_str().unwrap();
+        assert!(git(
+            &repo,
+            &[
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                "-q",
+                source,
+                "vendor/lib"
+            ]
+        ));
+        let from_submodule = discover(&repo.join("vendor/lib")).unwrap();
+        assert_eq!(from_submodule.root, info.root);
     }
 
     #[test]
