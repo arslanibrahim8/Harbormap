@@ -137,7 +137,8 @@ pub fn redact_argv(argv: &[String]) -> Vec<String> {
                 out.push(format!("-p{MASK}"));
                 continue;
             }
-            if arg.starts_with('-') && !arg.contains('=') && is_secret_flag(arg) {
+            // `-SecretString:x` carries its value; the text pass below masks it.
+            if arg.starts_with('-') && !arg.contains(['=', ':']) && is_secret_flag(arg) {
                 out.push(arg.clone());
                 mask_next = true;
                 continue;
@@ -567,6 +568,26 @@ mod tests {
                 "***",
                 "--secret-id",
                 "shop/db",
+            ])
+        );
+        assert_eq!(
+            redact_argv(&argv(&[
+                "pwsh",
+                "-File",
+                "deploy.ps1",
+                "-SecretString:a1",
+                "-Name",
+                "db",
+                "--secret-string:a2",
+            ])),
+            argv(&[
+                "pwsh",
+                "-File",
+                "deploy.ps1",
+                "-SecretString:***",
+                "-Name",
+                "db",
+                "--secret-string:***",
             ])
         );
         assert_eq!(
