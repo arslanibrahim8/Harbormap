@@ -1029,7 +1029,7 @@ git commit -s -m "feat(core): add program-name helpers and environment-value rul
 
 This task adds the redaction rules from spec §15. Every command line goes through `redact_argv` before it is stored or shown, so passwords, tokens, URL credentials, known key formats and long random-looking strings never leave the probe. Log lines will use `redact_text` from alpha.3 on.
 
-A variable or option name is secret when one of its parts (split at `-`, `_` and `.`, and camelCase words such as `SecretString`) ends with `password`, `passwd`, `passphrase`, `secret`, `token` or `apikey`, or with the fused names `requirepass`, `masterauth`, `storepass`, `keypass` and `dbpass`, digits aside, or when its last part is `key`, `pass`, `pwd` or `auth` (qualifiers such as `2`, `v2` or `PROD` aside, and camelCase counted by its last word): `DB_PASSWORD`, `PGPASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2` and `apiKey` are secret, while `--key-file`, `--max-tokens` and `monkey` are not. The word after a flag is masked when the flag's last part names the secret, or when a secret word comes earlier and the last word names nothing else (`--secret-string`, `--token-value`, PowerShell's `-SecretString`); `--password-stdin`, `--password-file`, `--token-limit`, `--secret-id`, `--no-password` and `--ask-pass` keep the next argument, and a following flag is never masked. A bare `name=value` argument is one value, so `DB_PASSWORD=pa;ss` loses everything after `=`; any other argument (a URL, the command line that `sh -c` runs) is redacted as text, where a value ends at whitespace or `&`, `;`, `,`, `}` and `]`, and `:` separates a pair only before whitespace or a quote, or after a flag (`-Password:x`, `/TargetPassword:x`), so `cache-key:6379` stays a host and port. `Authorization: Basic` credentials are masked like bearer tokens. MySQL's `-pVALUE` is checked first, also after `sudo` and inside shell text where `mysql` is a command (at the start of a line, indentation aside, or after `;`, `&`, `|`, `(` or a wrapper). Ordinary flags such as `--max-old-space-size=4096` stay readable.
+A variable or option name is secret when one of its parts (split at `-`, `_` and `.`, and camelCase words such as `SecretString`) ends with `password`, `passwd`, `passphrase`, `secret`, `token` or `apikey`, or with the fused names `requirepass`, `masterauth`, `storepass`, `keypass` and `dbpass`, digits aside, or when its last part is `key`, `pass`, `pwd` or `auth` (qualifiers such as `2`, `v2` or `PROD` aside, and camelCase counted by its last word): `DB_PASSWORD`, `PGPASSWORD`, `-Dpassword`, `NGROK_AUTHTOKEN`, `API_KEY_2` and `apiKey` are secret, while `--key-file`, `--max-tokens` and `monkey` are not. The word after a flag is masked when the flag's last part names the secret, or when a secret word comes earlier and the last word names nothing else (`--secret-string`, `--token-value`, PowerShell's `-SecretString`); `--password-stdin`, `--password-file`, `--token-limit`, `--secret-id`, `--no-password` and `--ask-pass` keep the next argument, and a following flag is never masked. A bare `name=value` argument is one value, so `DB_PASSWORD=pa;ss` loses everything after `=`; any other argument (a URL, the command line that `sh -c` runs) is redacted as text, where a value ends at whitespace or `&`, `;`, `,`, `}` and `]`, and `:` separates a pair only before whitespace or a quote, or after a flag (`-Password:x`, `/TargetPassword:x`, also as an argument of its own), so `cache-key:6379` stays a host and port. `Authorization: Basic` credentials are masked like bearer tokens. MySQL's `-pVALUE` is checked first, also after `sudo` and inside shell text where `mysql` is a command (at the start of a line, indentation aside, or after `;`, `&`, `|`, `(` or a wrapper). Ordinary flags such as `--max-old-space-size=4096` stay readable.
 
 **Files:**
 - Create: `crates/hm-core/src/redact.rs`
@@ -1215,6 +1215,26 @@ mod tests {
                 "***",
                 "--secret-id",
                 "shop/db",
+            ])
+        );
+        assert_eq!(
+            redact_argv(&argv(&[
+                "pwsh",
+                "-File",
+                "deploy.ps1",
+                "-SecretString:a1",
+                "-Name",
+                "db",
+                "--secret-string:a2",
+            ])),
+            argv(&[
+                "pwsh",
+                "-File",
+                "deploy.ps1",
+                "-SecretString:***",
+                "-Name",
+                "db",
+                "--secret-string:***",
             ])
         );
         assert_eq!(
@@ -1558,7 +1578,8 @@ pub fn redact_argv(argv: &[String]) -> Vec<String> {
                 out.push(format!("-p{MASK}"));
                 continue;
             }
-            if arg.starts_with('-') && !arg.contains('=') && is_secret_flag(arg) {
+            // `-SecretString:x` carries its value; the text pass below masks it.
+            if arg.starts_with('-') && !arg.contains(['=', ':']) && is_secret_flag(arg) {
                 out.push(arg.clone());
                 mask_next = true;
                 continue;
@@ -6249,7 +6270,7 @@ git commit -s -m "feat(doctor): embed and validate the signature packs"
 
 ### Task 10: Paths, worlds and git
 
-Resolution has to decide which project a folder belongs to, and its tests must run on any OS without touching the real disk. This task adds path rules that work for macOS, Linux and Windows paths alike (Windows paths compare without case), the `World` trait with a JSON-recorded `FixtureWorld` (plus the `Scenario` recording format that later tests load), and `RealWorld`, which reads the filesystem and finds git repositories and their linked worktrees through gix. A bare repository holds no files, so it is the root of its linked worktrees (`shop.git` is named `shop`).
+Resolution has to decide which project a folder belongs to, and its tests must run on any OS without touching the real disk. This task adds path rules that work for macOS, Linux and Windows paths alike (Windows paths compare without case), the `World` trait with a JSON-recorded `FixtureWorld` (plus the `Scenario` recording format that later tests load), and `RealWorld`, which reads the filesystem and finds git repositories and their linked worktrees through gix. A bare repository holds no files, so it is the root of its linked worktrees (`shop.git` is named `shop`), and a submodule belongs to the repository that contains it.
 
 **Files:**
 - Create: `crates/hm-project/src/paths.rs`
@@ -6483,6 +6504,27 @@ mod tests {
             canonical(&temp.path().join("shop-main"))
         );
         assert_eq!(from_bare.worktrees[0].branch.as_deref(), Some("main"));
+
+        // A submodule belongs to the repository that contains it.
+        let lib = temp.path().join("lib");
+        std::fs::create_dir_all(&lib).unwrap();
+        assert!(git(&lib, &["init", "-q", "-b", "main"]));
+        assert!(git(&lib, &["commit", "-q", "--allow-empty", "-m", "lib"]));
+        let source = lib.to_str().unwrap();
+        assert!(git(
+            &repo,
+            &[
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                "-q",
+                source,
+                "vendor/lib"
+            ]
+        ));
+        let from_submodule = discover(&repo.join("vendor/lib")).unwrap();
+        assert_eq!(from_submodule.root, info.root);
     }
 
     #[test]
@@ -6720,6 +6762,13 @@ impl World for RealWorld {
 /// The repository containing `dir`: main worktree root plus every linked worktree.
 pub fn discover(dir: &Path) -> Option<RepoInfo> {
     let repo = gix::discover(dir).ok()?;
+    // A submodule (its git folder lives in `.git/modules/` of the repository around it)
+    // belongs to that repository.
+    if is_submodule(repo.git_dir())
+        && let Some(outer) = repo.workdir().and_then(Path::parent).and_then(discover)
+    {
+        return Some(outer);
+    }
     let main = repo.main_repo().ok()?;
     let mut worktrees = Vec::new();
     let root = match main.workdir() {
@@ -6748,6 +6797,13 @@ pub fn discover(dir: &Path) -> Option<RepoInfo> {
         });
     }
     (!worktrees.is_empty()).then_some(RepoInfo { root, worktrees })
+}
+
+fn is_submodule(git_dir: &Path) -> bool {
+    let parts: Vec<&std::ffi::OsStr> = git_dir.iter().collect();
+    parts
+        .windows(2)
+        .any(|pair| pair[0] == ".git" && pair[1] == "modules")
 }
 
 /// `shop.git` is its own root; a `.bare` or `.git` folder stands for the folder holding it
@@ -7425,7 +7481,7 @@ git commit -s -m "feat(project): read manifests and match signatures"
 
 ### Task 12: Snapshot resolution
 
-This task, the heart of the plan, turns a raw inventory into the `Snapshot` that `harbormap status` shows, and tests it on `tests/fixtures/shop.json`, a recorded Mac where Harbormap starts in `/Users/me/code/shop/apps/web`. That folder is inside the git project `shop`, whose linked worktree `/Users/me/code/shop-feature` runs a second Vite on port 5174, while the main worktree runs `npm run dev → sh -c → vite` (5173), FastAPI under uvicorn with a reload child (8000), `dotnet run` (5280), a Celery worker without a port, and a compose Postgres that Docker Desktop's `com.docker.backend` forwards on port 55432. Besides the shop's own programs, the machine has a second project `blog` (Next.js on 3000), a loose Redis container, AirPlay Receiver (5000 and 7000), cupsd, Chrome, Claude Code (an AI agent started in the shop folder, listening on 41234), and port 6000, whose owner is hidden. Resolution decides membership (a process belongs to the project whose worktree contains its working folder; a container, to the project that contains its compose `working_dir`, after resolving symlinks, because compose records the folder as it was typed; the repository around a folder is always looked up, so a repository stays its own project inside a folder opened without git or inside another repository, whatever order processes come in) and who owns each listening port (a process, a container behind an engine forwarder, the system, or unknown). Listener owners and workers inside a project become services, and so does every container; a process service spans its whole wrapper chain, so `npm run dev → sh -c → vite` is one service with root PID 800 and main PID 802 (`bash -lc` and Yarn 2+'s `node .yarn/releases/yarn-4.x.cjs` are wrappers too). A program outside every project that matches a signature only probably is labelled with ", probably". Services are named after the nearest manifest or folder for the project's own servers, databases, caches and workers (`@shop/web` → `web`, `shop-api`, `Billing.csproj` → `Billing`), after the compose service or container name for containers (`db`, `lonely-redis`), and after their signature or program name otherwise; editors, AI agents, system owners and Harbormap itself never become services.
+This task, the heart of the plan, turns a raw inventory into the `Snapshot` that `harbormap status` shows, and tests it on `tests/fixtures/shop.json`, a recorded Mac where Harbormap starts in `/Users/me/code/shop/apps/web`. That folder is inside the git project `shop`, whose linked worktree `/Users/me/code/shop-feature` runs a second Vite on port 5174, while the main worktree runs `npm run dev → sh -c → vite` (5173), FastAPI under uvicorn with a reload child (8000), `dotnet run` (5280), a Celery worker without a port, and a compose Postgres that Docker Desktop's `com.docker.backend` forwards on port 55432. Besides the shop's own programs, the machine has a second project `blog` (Next.js on 3000), a loose Redis container, AirPlay Receiver (5000 and 7000), cupsd, Chrome, Claude Code (an AI agent started in the shop folder, listening on 41234), and port 6000, whose owner is hidden. Resolution decides membership (a process belongs to the project whose worktree contains its working folder; a container, to the project that contains its compose `working_dir`, after resolving symlinks, because compose records the folder as it was typed; the repository around a folder is always looked up, so a repository stays its own project inside a folder opened without git or inside another repository, whatever order processes come in; the holder folder of a bare repository is that repository's project) and who owns each listening port (a process, a container behind an engine forwarder, the system, or unknown). Listener owners and workers inside a project become services, and so does every container; a process service spans its whole wrapper chain, so `npm run dev → sh -c → vite` is one service with root PID 800 and main PID 802 (`bash -lc` and Yarn 2+'s `node .yarn/releases/yarn-4.x.cjs` are wrappers too). A program outside every project that matches a signature only probably is labelled with ", probably". Services are named after the nearest manifest or folder for the project's own servers, databases, caches and workers (`@shop/web` → `web`, `shop-api`, `Billing.csproj` → `Billing`), after the compose service or container name for containers (`db`, `lonely-redis`), and after their signature or program name otherwise; editors, AI agents, system owners and Harbormap itself never become services.
 
 **Files:**
 - Create: `crates/hm-project/src/resolve.rs`
@@ -8011,6 +8067,46 @@ fn a_folder_without_git_never_swallows_the_repositories_below_it() {
         assert_eq!(project.root, PathBuf::from(root), "port {port}");
         assert_eq!(service.section, Section::Elsewhere, "port {port}");
     }
+
+    // A bare repository kept in a holder folder (`mono/.bare`) has the holder as its root.
+    // Opened there, the holder is that git project, not a second project with its id.
+    let mut holder = self::scenario();
+    let mono = "/Users/me/code/mono";
+    holder.launch_dir = PathBuf::from(mono);
+    holder.world.repos.push(hm_project::RepoInfo {
+        root: PathBuf::from(mono),
+        worktrees: vec![hm_core::model::Worktree {
+            path: PathBuf::from(format!("{mono}/main")),
+            branch: Some("main".into()),
+            head: None,
+        }],
+    });
+    holder.inventory.processes.push(
+        serde_json::from_value(serde_json::json!({
+            "pid": 2200, "ppid": 500, "start_time": 1760490000, "name": "node",
+            "exe": "/opt/homebrew/bin/node",
+            "argv": ["node", format!("{mono}/main/node_modules/.bin/vite"), "--port", "5191"],
+            "cwd": format!("{mono}/main"), "uid": "501", "user": "me",
+        }))
+        .unwrap(),
+    );
+    holder.inventory.listeners.push(
+        serde_json::from_value(serde_json::json!({
+            "proto": "tcp", "addr": "127.0.0.1", "port": 5191, "pids": [2200],
+        }))
+        .unwrap(),
+    );
+    let snapshot = resolve(&holder);
+    let ids: std::collections::BTreeSet<&str> =
+        snapshot.projects.iter().map(|p| p.id.as_str()).collect();
+    assert_eq!(ids.len(), snapshot.projects.len());
+    let opened = snapshot.projects.iter().find(|p| p.opened).unwrap();
+    assert_eq!(opened.root, PathBuf::from(mono));
+    assert!(opened.git);
+    let id = listener(&snapshot, 5191).service_id.clone().unwrap();
+    let vite = snapshot.services.iter().find(|s| s.id == id).unwrap();
+    assert_eq!(vite.section, Section::Project);
+    assert_eq!(vite.project_id.as_ref(), Some(&opened.id));
 }
 
 #[test]
@@ -9231,16 +9327,29 @@ impl<'a> Resolver<'a> {
     fn locate(&mut self, dir: &Path) -> Option<Place> {
         if let Some(repo) = self.world.repo_for(dir)
             && !is_boundary(&repo.root, self.home.as_deref(), self.windows)
-            && !self.projects.iter().any(|project| {
-                project.git
-                    && within(&project.root, &repo.root, self.windows)
-                    && within(&repo.root, &project.root, self.windows)
-            })
         {
-            self.projects
-                .push(ProjectCtx::new(repo.root, true, false, repo.worktrees));
+            match self.project_at(&repo.root) {
+                Some(index) if self.projects[index].git => {}
+                // A folder project at the root of a bare repository's holder folder
+                // (`mono/.bare`) is that repository: one project, one id.
+                Some(index) => {
+                    let project = &mut self.projects[index];
+                    project.git = true;
+                    project.worktrees.extend(repo.worktrees);
+                }
+                None => self
+                    .projects
+                    .push(ProjectCtx::new(repo.root, true, false, repo.worktrees)),
+            }
         }
         self.find_known(dir)
+    }
+
+    /// The project whose root is `root`.
+    fn project_at(&self, root: &Path) -> Option<usize> {
+        self.projects.iter().position(|project| {
+            within(&project.root, root, self.windows) && within(root, &project.root, self.windows)
+        })
     }
 
     fn find_known(&self, dir: &Path) -> Option<Place> {
@@ -9264,6 +9373,18 @@ impl<'a> Resolver<'a> {
     fn folder_project(&mut self, dir: &Path) -> Place {
         if let Some(place) = self.find_known(dir) {
             return place;
+        }
+        // The holder folder of a bare repository is already that project's root.
+        if let Some(index) = self.project_at(dir) {
+            self.projects[index].worktrees.push(Worktree {
+                path: dir.to_path_buf(),
+                branch: None,
+                head: None,
+            });
+            return Place {
+                project: index,
+                worktree: dir.to_path_buf(),
+            };
         }
         self.projects.push(ProjectCtx::new(
             dir.to_path_buf(),
@@ -9448,8 +9569,8 @@ fn compose_of(container: &RawContainer) -> Option<Compose> {
     })
 }
 
-/// Last folder name, for paths of any OS: `C:\\work\\shop\\` → `shop`.
-/// The last folder name; a bare repository's `shop.git` reads `shop`.
+/// Last folder name, for paths of any OS: `C:\\work\\shop\\` → `shop`; a bare
+/// repository's `shop.git` reads `shop`.
 fn folder_name(path: &Path) -> String {
     let text = path.to_string_lossy();
     let trimmed = text.trim_end_matches(['/', '\\']);
