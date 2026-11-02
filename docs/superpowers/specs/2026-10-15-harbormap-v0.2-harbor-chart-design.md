@@ -1,8 +1,19 @@
 # Harbormap v0.2 — Harbor Chart (code map, story, tours) — Design
 
-- **Status:** approved design, 2026-10-15. Designed now, built after v0.1.
+- **Status:** approved design, 2026-10-15. Designed now, built after v0.1. Amended 2026-11-02 by the [Learn design](2026-11-02-harbormap-learn-engine-design.md): see the note below.
 - **Parent:** [Product design](2026-10-15-harbormap-product-design.md)
 - **Evidence:** [Research summary](../../research/2026-10-15-research-summary.md), sections 5–7
+
+> **Amended 2026-11-02.** The indexer (§2), grouping (§3), edge aggregation (§4), the layout core (§5.1–5.3), tours (§10) and route journeys (§11.2) are built earlier, in the Learn milestone, as revised by the [Learn design](2026-11-02-harbormap-learn-engine-design.md). Where they differ, Learn wins:
+> - §2.3: confidence is P1's `Sure/Probably` plus these provenance tags (Learn §5.2);
+> - §2.4: 100 ms debounce, per-symbol signature and body hashes (Learn §5.4);
+> - §2.6: store schema replaced by Learn §5.5;
+> - §7, §10.5: two text levels (Beginner, Builder) plus a Technical details fold;
+> - §8: dark red/black template (Product design §8 note);
+> - §10: tours are request journeys with a fixed step template (Learn §7–§8); "LLM-written tours" is no longer a non-goal: prose is optional, user-started and verified (Learn §9), and §10.8 is superseded;
+> - §11.2: route rules in Learn §6.3.
+>
+> v0.2 keeps the large-repository path (§5.4 tiles, §6 WebGL), the full code↔runtime bridge (§11.1) and the 50k-file budgets (§12).
 
 ## 1. Goal
 
@@ -80,7 +91,7 @@ It also carries a confidence level of `exact` or `probable`.
 ### 2.4 Incremental indexing
 
 - **Change detection:** a (size, mtime) precheck, then a BLAKE3 content hash. A Merkle tree over directories detects branch switches and checkouts cheaply.
-- **File watching:** notify, with a 2 s debounce. Only changed files are re-parsed, followed by a graph diff.
+- **File watching:** notify, with a 2 s debounce (amended: 100 ms, Learn §5.4). Only changed files are re-parsed, followed by a graph diff.
 - **Freshness stamp:** the index records the commit and the time it last caught up. Every view and every MCP answer shows it.
 - **Shared across worktrees:** one store keyed by repository, with per-worktree overlays.
 
@@ -392,6 +403,8 @@ On **Next**:
 - Text sits in a fixed side panel; the camera keeps that area clear.
 
 ### 10.8 Optional LLM (later, opt-in)
+
+> Superseded 2026-11-02 by Learn §9 (Claude Code prose pipeline).
 
 An LLM may rewrite one step's text from that step's facts only (~200 tokens):
 - the result is cached by facts hash;

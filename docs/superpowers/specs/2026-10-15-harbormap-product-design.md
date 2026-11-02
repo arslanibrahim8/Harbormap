@@ -1,6 +1,6 @@
 # Harbormap — Product Design
 
-- **Status:** approved design, 2026-10-15
+- **Status:** approved design, 2026-10-15. Amended 2026-11-02 by the [Learn design](2026-11-02-harbormap-learn-engine-design.md) (roadmap order, LLM exception, UI stack, colours).
 - **Owner:** Ibrahim ARSLAN
 - **Former working title:** CodeOrbit. It was renamed because `codeorbit` is taken on npm by a project in the same niche.
 - **Companion specs:**
@@ -82,9 +82,10 @@ Harbormap interoperates rather than replaces:
 
 1. **Local only.**
    - No telemetry, no update checks, no network calls.
+   - One exception (amended 2026-11-02): the user-started, previewed prose path through the user's own Claude Code ([Learn design](2026-11-02-harbormap-learn-engine-design.md) §9.9). It is off by default and sends only a redacted facts bundle.
    - The only outside connection is to the local Docker engine.
 2. **Zero tokens by default.** Every feature works without an LLM.
-   - A later optional LLM layer is lazy, cached and cost-previewed.
+   - The optional prose layer (Learn) is user-started, lazy, cached and cost-previewed.
    - It may rephrase facts. It never decides what is flagged, linked or done.
 3. **Facts are deterministic.** The same input gives the same output, and golden tests pin it.
 4. **Plan before acting.** Every state-changing action is shown as a plan first.
@@ -108,6 +109,8 @@ Harbormap interoperates rather than replaces:
 | **v0.4** | Agent Context | AI-agent users | Budgeted MCP tools over the code graph, ranked repo map, task context packs, version-truth block, agent read ledger, index shared across worktrees | Signed |
 | **v0.5** | Health & Conventions | Teams | Cycles, god files, churn×complexity hotspots, "new issues only" baseline, duplicate-intent detection, inferred conventions → confirmed AGENTS.md block, AGENTS.md fact-checker, change-risk badge | Signed |
 
+**Order of work (amended 2026-11-02).** After alpha.1 P1: **Learn** (indexer, journeys, cards, Claude Code prose, a simple panel; [Learn design](2026-11-02-harbormap-learn-engine-design.md)) → **Project facts** (branch map; going-live, CI, cloud and database detection from files) → P2 safe stop → P3 daemon → P4 full dashboard. Learn takes over v0.2's indexer, grouping, tours and route journeys; v0.2 keeps the large-repository rendering and the full code↔runtime bridge.
+
 **v0.1 milestones** (details in the v0.1 spec):
 1. `alpha.1` See
 2. `alpha.2` Diagnose
@@ -117,7 +120,7 @@ Harbormap interoperates rather than replaces:
 6. `0.1.0`, after five real users complete the first-five-minutes tasks.
 
 **Later, not scheduled:**
-- optional LLM explanations, cached and cost-previewed;
+- ~~optional LLM explanations~~ (moved into Learn, 2026-11-02);
 - journeys for more frameworks;
 - a live route-hit dev proxy;
 - a desktop app (Tauri, with the core as a library);
@@ -159,6 +162,7 @@ Harbormap interoperates rather than replaces:
 - It exits after an idle period when it supervises nothing.
 
 **UI.** React + TypeScript + Vite, embedded in the binary, with no CDN.
+- Amended 2026-11-02: the Learn panel is framework-free TypeScript + SVG, built with esbuild at development time and embedded (Learn §10.6). P4 may revisit the stack.
 - v0.1 renders the small runtime map as SVG.
 - v0.2 adds a WebGL renderer fed by layouts precomputed in Rust (see the v0.2 spec).
 
@@ -185,7 +189,7 @@ The optional project file `harbormap.toml` is written only on request.
 | `hm-hooks` | Agent hooks |
 | `harbormap` | CLI binary |
 
-`hm-index` (code indexing) arrives in v0.2.
+`hm-index` (code indexing), `hm-learn` (journeys, cards, prose validator) and `hm-serve` (Learn panel server until P3) arrive with Learn (amended 2026-11-02).
 
 **Key dependencies.** All licences are AGPL-compatible:
 
@@ -203,6 +207,8 @@ The optional project file `harbormap.toml` is written only on request.
 | UI | React, TanStack Query; v0.2: deck.gl or Sigma 4 (decided by benchmark), React Flow for focused views, elkjs ≥0.12 under its GPL option for rare in-browser layouts |
 
 ## 8. Visual language: Harbor Chart
+
+> **Amended 2026-11-02.** The UI is one dark template in red and black for now (colours as CSS variables, so a light theme can return). Red means brand and problems; a problem always carries an icon and words; selection is a white outline (it replaces the yellow/gold tour focus). Role is shown by lane headers, icons and words, not by the role palette below. "Light and dark from v0.1" is postponed. Details: [Learn design](2026-11-02-harbormap-learn-engine-design.md) §10.1.
 
 **Shapes**
 - **Boxes are things that run:** a process, a container, a compose service.
@@ -310,7 +316,7 @@ The tour focus is a "highlighter" yellow (light theme) or a muted gold (dark the
   - URL-like keys (`*_URL`, `*_HOST`, `*_DSN`, `*_URI`), parsed in memory to scheme, host and port only. Credentials are dropped immediately.
 - Command lines are redacted before storage: passwords, tokens, credentialed URLs, known key prefixes such as `sk_live_` and `ghp_`, and long high-entropy strings.
 
-**Network.** No outbound network at all. There is no update check either; `harbormap self-update --check` is a manual, explicit command and arrives with signed installers.
+**Network.** No outbound network at all, except the user-started prose path (Learn §9.9). There is no update check either; `harbormap self-update --check` is a manual, explicit command and arrives with signed installers.
 
 ## 11. Packs (community content)
 

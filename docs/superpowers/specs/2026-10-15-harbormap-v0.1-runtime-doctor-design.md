@@ -1,6 +1,6 @@
 # Harbormap v0.1 — Runtime Doctor — Design
 
-- **Status:** approved design, 2026-10-15
+- **Status:** approved design, 2026-10-15. Amended 2026-11-02 by the [Learn design](2026-11-02-harbormap-learn-engine-design.md) (work order, themes).
 - **Parent:** [Product design](2026-10-15-harbormap-product-design.md)
 - **Evidence:** [Research summary](../../research/2026-10-15-research-summary.md)
 
@@ -9,7 +9,7 @@
 v0.1 shows everything that runs for a project, explains problems in plain language, and starts and stops the project safely. It does this for people and for their AI agents, on macOS, Linux and Windows, with no LLM and no network.
 
 **Non-goals for v0.1:**
-- a code map (v0.2);
+- a code map (moved into Learn, which runs between alpha.1 and P2; see below);
 - save points and the leak check (v0.3);
 - MCP tools over code (v0.4);
 - health and conventions checks (v0.5);
@@ -18,6 +18,8 @@ v0.1 shows everything that runs for a project, explains problems in plain langua
 ## 2. Scope by milestone
 
 Each milestone ships as a pre-release and has exit criteria.
+
+> **Amended 2026-11-02.** After alpha.1 P1 (inventory) the work order is: **Learn** ([Learn design](2026-11-02-harbormap-learn-engine-design.md)) → **Project facts** (branch list with ahead/behind and merged state, local refs only; going-live, CI, cloud and database detection from files, names only, no values) → P2 safe stop → P3 daemon → P4 full dashboard. Learn adds no `Snapshot` fields: its facts live in its own store and join the snapshot at read time (Learn §5.6). Project facts will add `Branch` and file-detected deploy facts as optional sections or a schema bump, outside the 2 s sampling loop.
 
 ### alpha.1 — "See"
 
@@ -639,10 +641,8 @@ Annotations are advisory only. The daemon enforces approval regardless of client
 ### 13.2 Levels and themes
 
 - A segmented level control appears on every screen. Choosing a level re-renders text and density on the same layout.
-- Themes:
-  - light and dark, defaulting to `prefers-color-scheme`;
-  - a toggle stored in Harbormap's settings;
-  - CSS custom properties per the Product design §8 tokens.
+- Themes (amended 2026-11-02): dark only for now, red and black, with every colour a CSS custom property so a light theme can return; red means brand and problems, selection is a white outline (Product design §8 note, Learn §10.1). The light theme and the toggle are postponed.
+- Levels (amended 2026-11-02): Beginner and Builder; expert facts sit in a Technical details fold (Learn §8.3).
 
 ### 13.3 Runtime map layout (v0.1, `hm-layout`)
 
