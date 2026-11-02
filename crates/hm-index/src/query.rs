@@ -1,7 +1,13 @@
 //! Reading the facts back: readable names for files and symbols. The cards of
 //! Learn spec §7 are added here later.
 
+use hm_core::ids::file_id;
+use hm_store::Store;
+use rusqlite::{Connection, OptionalExtension, params};
+use serde::Serialize;
+
 use crate::facts::SymbolFact;
+use crate::index::Result;
 
 /// The name shown for a file or a symbol: `path`, `path#name` or `path#Owner.name`.
 pub fn display_name(rel: &str, sym: Option<&SymbolFact>) -> String {
@@ -13,13 +19,6 @@ pub fn display_name(rel: &str, sym: Option<&SymbolFact>) -> String {
 }
 
 // The cards of Learn spec §7.
-
-use hm_core::ids::file_id;
-use hm_store::Store;
-use rusqlite::{Connection, OptionalExtension, params};
-use serde::Serialize;
-
-use crate::index::Result;
 
 /// What the index knows about one file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

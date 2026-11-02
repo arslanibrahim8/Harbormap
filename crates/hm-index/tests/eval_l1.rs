@@ -117,12 +117,14 @@ fn next_learn_parses_cleanly_and_resolves() {
     // tree-sitter-typescript 0.23.2 (the latest release) cannot parse a tagged template
     // with type arguments: the grammar reports a MISSING `!` after `sql<User[]>` in
     // auth.ts line 13 (`await sql<User[]>`SELECT ...``) and in app/lib/data.ts lines
-    // 22, 35, 96, 147, 172 and 189. The facts of both files are still extracted, so
-    // only these two files may be unclean; any other file must parse without errors.
+    // 22, 35, 96, 147, 172 and 189. The facts of both files are still extracted.
+    // Exactly these two files are unclean: any other file must parse without errors,
+    // and a grammar fix that cleans one of them must remove it from this list.
     let known: BTreeSet<&str> = ["auth.ts", "app/lib/data.ts"].into();
     let unclean: BTreeSet<&str> = got.unclean().iter().map(|(p, _)| p.as_str()).collect();
-    assert!(
-        unclean.is_subset(&known),
+    assert_eq!(
+        unclean,
+        known,
         "files parsed with errors: {:?}",
         got.unclean()
     );
