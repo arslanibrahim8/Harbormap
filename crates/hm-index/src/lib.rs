@@ -2,3 +2,4 @@
 //! writes the facts that the store keeps (Learn spec §5).
 
 pub mod lang;
+pub mod walk;
