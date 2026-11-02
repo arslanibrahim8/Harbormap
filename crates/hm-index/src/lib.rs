@@ -6,6 +6,8 @@ pub mod hash;
 pub mod index;
 pub mod lang;
 pub mod query;
+#[doc(hidden)]
+pub mod synth;
 pub mod ts;
 pub mod walk;
 pub mod watch;
