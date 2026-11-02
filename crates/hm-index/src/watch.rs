@@ -31,7 +31,9 @@ const PER_FOLDER_WATCHES: bool = cfg!(target_os = "linux");
 /// The changes that settled together.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Batch {
-    /// Changed paths, relative to the root and `/`-separated.
+    /// Changed paths, relative to the root and `/`-separated. A path may name a folder
+    /// that was removed or moved away; callers treat a vanished path as removing
+    /// everything indexed under it.
     pub paths: BTreeSet<String>,
     /// Events were lost or the tree moved wholesale: the caller must rescan.
     pub rescan: bool,
@@ -245,10 +247,17 @@ impl Run {
     /// Watches the new folder `rel` (on Linux) and reports the files already in it.
     fn enter_dir(&mut self, now: Instant, rel: &str) {
         if PER_FOLDER_WATCHES {
-            // The folder may be gone again already; the next event says so.
-            let _ = self
+            let added = self
                 .watcher
                 .watch(&join_rel(&self.root, rel), RecursiveMode::NonRecursive);
+            // A folder that is gone again is reported by its own event. Any other
+            // failure (an exhausted inotify limit, no permission) leaves files in
+            // this folder unseen, so the caller must rescan.
+            if let Err(e) = added
+                && on_watch_error(&e) == WatchErrorAction::Rescan
+            {
+                self.debouncer.push_rescan(now);
+            }
         }
         let Ok(entries) = fs::read_dir(join_rel(&self.root, rel)) else {
             return;
@@ -272,6 +281,25 @@ impl Run {
     }
 }
 
+/// What to do when adding a watch for a new folder fails.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WatchErrorAction {
+    /// The folder vanished before the watch was added; its own event says so.
+    Ignore,
+    /// Changes in the folder may go unseen; ask the caller to rescan.
+    Rescan,
+}
+
+fn on_watch_error(e: &notify::Error) -> WatchErrorAction {
+    match &e.kind {
+        notify::ErrorKind::PathNotFound => WatchErrorAction::Ignore,
+        notify::ErrorKind::Io(io) if io.kind() == io::ErrorKind::NotFound => {
+            WatchErrorAction::Ignore
+        }
+        _ => WatchErrorAction::Rescan,
+    }
+}
+
 /// `path` relative to `root`, `/`-separated; `None` when it lies outside the root.
 fn rel_of(root: &Path, path: &Path) -> Option<String> {
     let rel = path.strip_prefix(root).ok()?;
@@ -292,6 +320,22 @@ mod tests {
 
     fn set<const N: usize>(items: [&str; N]) -> BTreeSet<String> {
         items.into_iter().map(str::to_owned).collect()
+    }
+
+    #[test]
+    fn only_a_vanished_folder_is_forgiven_when_a_watch_cannot_be_added() {
+        use notify::{Error, ErrorKind};
+        let gone = |e: Error| on_watch_error(&e);
+        assert_eq!(gone(Error::path_not_found()), WatchErrorAction::Ignore);
+        let not_found = Error::io(io::Error::from(io::ErrorKind::NotFound));
+        assert_eq!(gone(not_found), WatchErrorAction::Ignore);
+        let denied = Error::io(io::Error::from(io::ErrorKind::PermissionDenied));
+        assert_eq!(gone(denied), WatchErrorAction::Rescan);
+        assert_eq!(
+            gone(Error::new(ErrorKind::MaxFilesWatch)),
+            WatchErrorAction::Rescan
+        );
+        assert_eq!(gone(Error::generic("x")), WatchErrorAction::Rescan);
     }
 
     #[test]
