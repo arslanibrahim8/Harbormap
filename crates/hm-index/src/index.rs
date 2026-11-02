@@ -21,7 +21,9 @@ use crate::hash::{content_hash, facts_hash, interface_hash};
 use crate::lang::Lang;
 use crate::ts::resolve::{ModuleResolver, ModuleTarget, Project, resolve_file, symbol_ids};
 use crate::ts::tsconfig::load_tsconfigs;
-use crate::walk::{FileClass, IGNORE_FILES, Skip, WalkRules, WalkedFile, walk, walked_file};
+use crate::walk::{
+    FileClass, IGNORE_FILES, Skip, WalkRules, WalkedFile, is_unreadable, walk, walked_file,
+};
 
 /// Where every L1 edge comes from.
 const PROVENANCE: &str = "parsed";
@@ -84,8 +86,9 @@ pub struct IndexReport {
     pub files: BTreeMap<String, u32>,
     /// File count by class (`source`, `test`, `generated`, `doc`, `infra`).
     pub classes: BTreeMap<String, u32>,
-    /// `too_large` and `binary` files, and `dir:<name>` for each kind of folder that
-    /// was not entered.
+    /// `too_large`, `binary` and `unreadable` files (`unreadable` counts folders that
+    /// could not be read too), and `dir:<name>` for each kind of folder that was not
+    /// entered.
     pub skipped: BTreeMap<String, u32>,
     /// Files whose bytes were read and hashed.
     pub hashed: u32,
@@ -230,6 +233,12 @@ impl Indexer {
         for (name, count) in &walked.skipped_dirs {
             report.skipped.insert(format!("dir:{name}"), *count);
         }
+        if !walked.unreadable.is_empty() {
+            *report
+                .skipped
+                .entry(skip_name(Skip::Unreadable).to_string())
+                .or_default() += walked.unreadable.len() as u32;
+        }
 
         // Metadata decides what has to be read; the reading itself runs in parallel.
         let mut changes: Vec<Option<Change>> = Vec::new();
@@ -283,6 +292,10 @@ impl Indexer {
                     facts.insert(f.rel.clone(), p.facts.clone());
                 }
                 Change::Fresh { .. } | Change::Skipped(_) => {
+                    // A file the walk could open and the read could not.
+                    if let (Change::Skipped(name), None) = (change, f.skip) {
+                        *report.skipped.entry(name.to_string()).or_default() += 1;
+                    }
                     facts.remove(&f.rel);
                 }
                 _ => {}
@@ -383,7 +396,8 @@ impl Indexer {
             if is_file(&abs)? && rules.admits(&rel) {
                 match walked_file(rel.clone(), &abs) {
                     Ok(f) => files.push(f),
-                    Err(err) if is_gone(&err) => gone.push(rel),
+                    // A file that cannot even be stat-ed is not in a walk either.
+                    Err(err) if is_gone(&err) || is_unreadable(&err) => gone.push(rel),
                     Err(err) => return Err(err.into()),
                 }
             } else if stored.contains_key(&rel) {
@@ -660,6 +674,7 @@ fn skip_name(skip: Skip) -> &'static str {
     match skip {
         Skip::TooLarge => "too_large",
         Skip::Binary => "binary",
+        Skip::Unreadable => "unreadable",
     }
 }
 
@@ -747,6 +762,8 @@ fn read_one(job: &Job) -> io::Result<Change> {
     let bytes = match std::fs::read(&f.abs) {
         Ok(bytes) => bytes,
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Change::Gone),
+        // Readable when the walk sniffed it, but not any more.
+        Err(err) if is_unreadable(&err) => return Ok(Change::Skipped("unreadable")),
         Err(err) => return Err(err),
     };
     let hash = content_hash(&bytes);
@@ -960,7 +977,8 @@ fn files_under(
 ) -> io::Result<bool> {
     let entries = match fs::read_dir(abs_path(root, dir)) {
         Ok(entries) => entries,
-        Err(err) if is_gone(&err) => return Ok(false),
+        // The walk counts a folder it may not read and sees nothing in it.
+        Err(err) if is_gone(&err) || is_unreadable(&err) => return Ok(false),
         Err(err) => return Err(err),
     };
     let mut ignore_file = false;
@@ -1027,11 +1045,12 @@ fn is_gone(err: &io::Error) -> bool {
     )
 }
 
-/// Whether `abs` is a regular file. Like the walk, symlinks are not followed.
+/// Whether `abs` is a regular file. Like the walk, symlinks are not followed, and a
+/// path inside a folder that may not be read is not seen.
 fn is_file(abs: &Path) -> io::Result<bool> {
     match fs::symlink_metadata(abs) {
         Ok(meta) => Ok(meta.is_file()),
-        Err(err) if is_gone(&err) => Ok(false),
+        Err(err) if is_gone(&err) || is_unreadable(&err) => Ok(false),
         Err(err) => Err(err),
     }
 }
@@ -1040,7 +1059,7 @@ fn is_file(abs: &Path) -> io::Result<bool> {
 fn is_dir(abs: &Path) -> io::Result<bool> {
     match fs::symlink_metadata(abs) {
         Ok(meta) => Ok(meta.is_dir()),
-        Err(err) if is_gone(&err) => Ok(false),
+        Err(err) if is_gone(&err) || is_unreadable(&err) => Ok(false),
         Err(err) => Err(err),
     }
 }

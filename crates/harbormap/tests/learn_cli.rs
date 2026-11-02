@@ -319,3 +319,23 @@ fn status_still_works() {
     );
     serde_json::from_str::<serde_json::Value>(&text).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn index_counts_an_unreadable_folder_and_goes_on() {
+    use std::os::unix::fs::PermissionsExt;
+    let s = setup();
+    let orders = s.project.path().join("src/orders");
+    fs::set_permissions(&orders, fs::Permissions::from_mode(0o000)).unwrap();
+    let readable = fs::read_dir(&orders).is_ok();
+    let out = s.harbormap(&["index"]).output().unwrap();
+    fs::set_permissions(&orders, fs::Permissions::from_mode(0o755)).unwrap();
+    if readable {
+        eprintln!("skipped: permissions do not stop this user (root?)");
+        return;
+    }
+    let text = String::from_utf8(out.stdout).unwrap();
+    let errors = String::from_utf8(out.stderr).unwrap();
+    assert!(out.status.success(), "{errors}");
+    assert!(text.contains("1 unreadable file or folder"), "{text}");
+}

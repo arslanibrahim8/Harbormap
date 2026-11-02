@@ -571,3 +571,34 @@ fn a_changed_git_exclude_rescans() {
     assert_eq!(d.files_removed, vec!["src/legacy.js"]);
     assert_cold(&ix, dir.path());
 }
+
+#[cfg(unix)]
+#[test]
+fn an_unreadable_folder_or_file_leaves_the_index_and_comes_back() {
+    let (mut ix, dir) = indexed("ts-basic");
+    let Some(orders) = common::lock(&dir.path().join("src/orders")) else {
+        return;
+    };
+    let Some(db) = common::lock(&dir.path().join("src/db.ts")) else {
+        return;
+    };
+    let changed = set(["src/orders", "src/db.ts"]);
+    let d = ix.apply(&changed).unwrap();
+    assert_eq!(d.files_removed.len(), 4);
+    assert_eq!(d.files_changed, vec!["src/db.ts"]);
+    assert_eq!(
+        scalar(
+            ix.store(),
+            "SELECT parse_status FROM file WHERE path = 'src/db.ts'"
+        ),
+        "unreadable"
+    );
+    assert_eq!(dangling_edges(&ix), "0");
+    assert_cold(&ix, dir.path());
+    assert_eq!(ix.rescan().unwrap(), Default::default());
+
+    drop((orders, db));
+    let d = ix.apply(&changed).unwrap();
+    assert_eq!(d.files_changed.len(), 5);
+    assert_cold(&ix, dir.path());
+}

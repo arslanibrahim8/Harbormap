@@ -301,3 +301,32 @@ fn a_pass_with_nothing_to_do_rewrites_no_derived_rows() {
     ix.full().unwrap();
     assert_ne!(writes(&ix), "0");
 }
+
+#[cfg(unix)]
+#[test]
+fn unreadable_folders_and_files_are_counted_and_the_pass_goes_on() {
+    let (mut ix, dir) = indexer_for("ts-basic");
+    let Some(_orders) = common::lock(&dir.path().join("src/orders")) else {
+        return;
+    };
+    let Some(_db) = common::lock(&dir.path().join("src/db.ts")) else {
+        return;
+    };
+    let r = ix.full().unwrap();
+    assert_eq!(r.skipped.get("unreadable"), Some(&2));
+    // Four files in src/orders and src/db.ts are not parsed.
+    assert_eq!(r.parsed, 5);
+    let s = ix.store();
+    assert_eq!(
+        scalar(s, "SELECT parse_status FROM file WHERE path = 'src/db.ts'"),
+        "unreadable"
+    );
+    assert_eq!(
+        scalar(
+            s,
+            "SELECT count(*) FROM file WHERE path LIKE 'src/orders/%'"
+        ),
+        "0"
+    );
+    assert_eq!(dump(s), dump(fresh_index_of(dir.path()).store()));
+}

@@ -299,3 +299,41 @@ pub fn dump(store: &hm_store::Store) -> String {
     }
     out
 }
+
+/// Gives a path its permissions back when dropped, so the `TempDir` can be removed.
+#[cfg(unix)]
+pub struct Locked {
+    path: PathBuf,
+    mode: u32,
+}
+
+#[cfg(unix)]
+impl Drop for Locked {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(self.mode));
+    }
+}
+
+/// Takes every permission away from the file or folder at `path` until the guard
+/// drops. `None` when that does not stop reading it, as when the tests run as root.
+#[cfg(unix)]
+pub fn lock(path: &Path) -> Option<Locked> {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = fs::metadata(path).expect("stat").permissions().mode();
+    fs::set_permissions(path, fs::Permissions::from_mode(0o000)).expect("chmod");
+    let guard = Locked {
+        path: path.to_path_buf(),
+        mode,
+    };
+    let readable = if path.is_dir() {
+        fs::read_dir(path).is_ok()
+    } else {
+        fs::File::open(path).is_ok()
+    };
+    if readable {
+        eprintln!("skipped: permissions do not stop this user (root?)");
+        return None;
+    }
+    Some(guard)
+}

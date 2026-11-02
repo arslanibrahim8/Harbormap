@@ -1,7 +1,7 @@
 //! Walks a worktree: which files exist, what class each has, and which the indexer
 //! will not parse (Learn spec §5.2).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
@@ -77,6 +77,9 @@ pub enum Skip {
     TooLarge,
     /// A NUL byte in the first 8 KiB.
     Binary,
+    /// The file could not be opened: no permission, or (on Windows) another program
+    /// holds it without sharing.
+    Unreadable,
 }
 
 /// One file the walk admitted.
@@ -89,7 +92,8 @@ pub struct WalkedFile {
     /// Modification time in nanoseconds since the epoch, 0 when unavailable.
     pub mtime_ns: i64,
     pub lang: Option<Lang>,
-    /// Always `Generated` when `skip` is set.
+    /// Always `Generated` when the file is too large or binary; an unreadable file is
+    /// classed by its path alone.
     pub class: FileClass,
     pub skip: Option<Skip>,
 }
@@ -103,6 +107,10 @@ pub struct WalkResult {
     pub skipped_dirs: BTreeMap<String, u32>,
     /// Admitted folders, relative and sorted; `""` is the root.
     pub dirs: Vec<String>,
+    /// Folders that could not be read, and files that could not even be stat-ed,
+    /// relative and sorted. Nothing below such a folder is seen. A file that can be
+    /// stat-ed but not opened is in `files` with [`Skip::Unreadable`].
+    pub unreadable: Vec<String>,
     /// Relative paths of the `.gitignore` / `.harbormapignore` files the walk applied.
     pub ignore_files: Vec<String>,
     pub rules: WalkRules,
@@ -233,6 +241,7 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
     let mut dirs = Vec::new();
     let mut ignore_files = Vec::new();
     let mut matchers = Vec::new();
+    let mut unreadable = BTreeSet::new();
     for entry in builder.build() {
         let entry = match entry {
             Ok(entry) => entry,
@@ -244,7 +253,14 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
             {
                 continue;
             }
-            Err(err) => return Err(io::Error::other(err)),
+            // A folder that may not be read is counted, and the walk goes on.
+            Err(err) => match (err.io_error(), error_path(&err)) {
+                (Some(io), Some(path)) if is_unreadable(io) => {
+                    unreadable.insert(rel_path(root, path));
+                    continue;
+                }
+                _ => return Err(io::Error::other(err)),
+            },
         };
         let rel = rel_path(root, entry.path());
         let Some(file_type) = entry.file_type() else {
@@ -254,16 +270,22 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
             count_skip_dirs(entry.path(), &mut skipped_dirs);
             dirs.push(rel);
         } else if file_type.is_file() {
-            let name = entry.file_name().to_string_lossy();
-            if IGNORE_FILES.contains(&name.as_ref()) {
-                matchers.push(matcher_for(root, &rel, entry.path()));
-                ignore_files.push(rel.clone());
-            }
-            match walked_file(rel, entry.path()) {
-                Ok(file) => files.push(file),
-                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            let file = match walked_file(rel.clone(), entry.path()) {
+                Ok(file) => file,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => continue,
+                Err(err) if is_unreadable(&err) => {
+                    unreadable.insert(rel);
+                    continue;
+                }
                 Err(err) => return Err(err),
+            };
+            // An ignore file the walker could not read applied nothing.
+            let name = entry.file_name().to_string_lossy();
+            if IGNORE_FILES.contains(&name.as_ref()) && file.skip != Some(Skip::Unreadable) {
+                matchers.push(matcher_for(root, &rel, entry.path()));
+                ignore_files.push(rel);
             }
+            files.push(file);
         }
     }
 
@@ -283,6 +305,8 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
     }
 
     files.sort_by(|a, b| a.rel.cmp(&b.rel));
+    // The walker reports a folder before it fails to read it.
+    dirs.retain(|d| !unreadable.contains(d));
     dirs.sort();
     ignore_files.sort();
     // Deepest folder first, then by priority within a folder.
@@ -291,12 +315,31 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
         files,
         skipped_dirs,
         dirs,
+        unreadable: unreadable.into_iter().collect(),
         ignore_files,
         rules: WalkRules {
             root: root.to_path_buf(),
             matchers,
         },
     })
+}
+
+/// The path an error of the walker is about.
+fn error_path(err: &ignore::Error) -> Option<&Path> {
+    match err {
+        ignore::Error::WithPath { path, .. } => Some(path),
+        ignore::Error::WithDepth { err, .. } | ignore::Error::WithLineNumber { err, .. } => {
+            error_path(err)
+        }
+        _ => None,
+    }
+}
+
+/// Whether reading failed because the path may not be read: no permission, or (on
+/// Windows) a sharing or lock violation, as when another program holds the file.
+pub(crate) fn is_unreadable(err: &io::Error) -> bool {
+    err.kind() == io::ErrorKind::PermissionDenied
+        || (cfg!(windows) && matches!(err.raw_os_error(), Some(32 | 33)))
 }
 
 /// Counts the skip-named directories directly inside `dir`, whether or not an ignore
@@ -337,6 +380,8 @@ fn matcher_for(root: &Path, rel: &str, abs: &Path) -> Matcher {
 }
 
 /// Reads the facts about one file: size, mtime, language, and whether it is skipped.
+/// A file that can be stat-ed but not opened is [`Skip::Unreadable`]; one that cannot
+/// even be stat-ed is an error.
 pub(crate) fn walked_file(rel: String, abs: &Path) -> io::Result<WalkedFile> {
     let meta = std::fs::metadata(abs)?;
     let size = meta.len();
@@ -351,13 +396,17 @@ pub(crate) fn walked_file(rel: String, abs: &Path) -> io::Result<WalkedFile> {
     let skip = if size > MAX_PARSE_BYTES {
         Some(Skip::TooLarge)
     } else {
-        File::open(abs)?.take(SNIFF_BYTES).read_to_end(&mut sniff)?;
-        sniff_skip(&sniff)
+        match File::open(abs).and_then(|f| f.take(SNIFF_BYTES).read_to_end(&mut sniff)) {
+            Ok(_) => sniff_skip(&sniff),
+            Err(err) if is_unreadable(&err) => Some(Skip::Unreadable),
+            Err(err) => return Err(err),
+        }
     };
-    let class = if skip.is_some() {
-        FileClass::Generated
-    } else {
-        classify(&rel, &sniff[..sniff.len().min(HEAD_BYTES)])
+    let class = match skip {
+        // Nothing was read, so only the path says what the file is for.
+        Some(Skip::Unreadable) => classify(&rel, b""),
+        Some(_) => FileClass::Generated,
+        None => classify(&rel, &sniff[..sniff.len().min(HEAD_BYTES)]),
     };
     Ok(WalkedFile {
         lang: Lang::from_path(Path::new(&rel)),

@@ -147,6 +147,13 @@ pub fn render(name: &str, report: &IndexReport) -> String {
             plural(binary, "file", "files")
         ));
     }
+    let unreadable = count(&report.skipped, "unreadable");
+    if unreadable > 0 {
+        skipped.push(format!(
+            "{unreadable} unreadable {}",
+            plural(unreadable, "file or folder", "files or folders")
+        ));
+    }
     if !skipped.is_empty() {
         line(
             &mut out,
@@ -188,10 +195,13 @@ fn watch(indexer: &mut Indexer, root: &Path, json: bool) -> anyhow::Result<()> {
     let walked = walk(root).context("cannot read the project")?;
     let watcher = Watcher::start(root, walked.rules, &walked.dirs)
         .context("cannot watch the project for changes")?;
+    // A batch that failed is not applied again, so the next batch rescans.
+    let mut failed = false;
     loop {
-        let Some(batch) = watcher.recv_timeout(POLL) else {
+        let Some(mut batch) = watcher.recv_timeout(POLL) else {
             continue;
         };
+        batch.rescan |= std::mem::take(&mut failed);
         let applied = if batch.rescan {
             indexer.rescan()
         } else {
@@ -201,6 +211,7 @@ fn watch(indexer: &mut Indexer, root: &Path, json: bool) -> anyhow::Result<()> {
             Ok(delta) => delta,
             Err(error) => {
                 eprintln!("harbormap: {error}");
+                failed = true;
                 continue;
             }
         };

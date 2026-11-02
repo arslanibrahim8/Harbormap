@@ -278,3 +278,31 @@ fn admits_dir_answers_for_folders() {
     assert!(!r.rules.admits("ignored/secret.ts") && !r.rules.admits("dist/bundle.js"));
     assert!(r.rules.admits("src/new.ts"));
 }
+
+#[cfg(unix)]
+#[test]
+fn unreadable_folders_and_files_are_counted_and_the_walk_goes_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    fs::create_dir_all(p.join("locked/inner")).unwrap();
+    fs::write(p.join("locked/a.ts"), "export const a = 1;\n").unwrap();
+    fs::write(p.join("secret.test.ts"), "export const s = 1;\n").unwrap();
+    fs::write(p.join("ok.ts"), "export const o = 1;\n").unwrap();
+    let Some(_folder) = common::lock(&p.join("locked")) else {
+        return;
+    };
+    let Some(_file) = common::lock(&p.join("secret.test.ts")) else {
+        return;
+    };
+
+    let r = walk(p).unwrap();
+    assert_eq!(r.unreadable, ["locked"]);
+    assert_eq!(r.dirs, [""], "an unreadable folder is not admitted");
+    let rels: Vec<&str> = r.files.iter().map(|f| f.rel.as_str()).collect();
+    assert_eq!(rels, ["ok.ts", "secret.test.ts"]);
+    let secret = &r.files[1];
+    assert_eq!(secret.skip, Some(Skip::Unreadable));
+    // Nothing was read, so the path alone gives the class.
+    assert_eq!(secret.class, FileClass::Test);
+    assert_eq!(r.files[0].skip, None);
+}
