@@ -11,16 +11,20 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+dunce.workspace = true
 hm-core.workspace = true
 hm-doctor.workspace = true
+hm-index.workspace = true
 hm-probe.workspace = true
 hm-project.workspace = true
+hm-store.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
 predicates.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true

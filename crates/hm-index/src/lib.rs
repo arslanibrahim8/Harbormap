@@ -5,6 +5,7 @@ pub mod facts;
 pub mod hash;
 pub mod index;
 pub mod lang;
+pub mod location;
 pub mod query;
 #[doc(hidden)]
 pub mod synth;

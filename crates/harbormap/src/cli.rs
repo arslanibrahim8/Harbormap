@@ -1,5 +1,7 @@
 //! Command-line arguments.
 
+use std::path::PathBuf;
+
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use hm_core::signature::Level;
@@ -29,6 +31,10 @@ pub enum Command {
     Status(StatusArgs),
     /// Explain who holds a port or what a service is.
     Why(WhyArgs),
+    /// Read a project's code into a local map, and keep it current with --watch.
+    Index(IndexArgs),
+    /// Show what the map knows about a file or a symbol.
+    Card(CardArgs),
 }
 
 #[derive(Debug, Default, Args)]
@@ -41,6 +47,22 @@ pub struct StatusArgs {
 #[derive(Debug, Args)]
 pub struct WhyArgs {
     /// A port number, a service name, or project/service.
+    pub target: String,
+}
+
+#[derive(Debug, Args)]
+pub struct IndexArgs {
+    /// The project folder; the current folder when left out.
+    pub path: Option<PathBuf>,
+
+    /// Keep running and update the map when files change, until Ctrl-C.
+    #[arg(long)]
+    pub watch: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct CardArgs {
+    /// A file (`src/orders/service.ts`) or a symbol in it (`src/orders/service.ts#placeOrder`).
     pub target: String,
 }
 

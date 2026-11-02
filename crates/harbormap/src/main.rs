@@ -1,6 +1,8 @@
 //! The `harbormap` command line.
 
+mod card;
 mod cli;
+mod index;
 mod source;
 mod status;
 mod why;
@@ -23,13 +25,15 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> anyhow::Result<ExitCode> {
-    let input = source::load()?;
     let level = cli.level.into();
     match cli
         .command
         .unwrap_or(Command::Status(StatusArgs::default()))
     {
-        Command::Status(args) => status::run(&input, &args, cli.json),
-        Command::Why(args) => why::run(&input, &args, cli.json, level),
+        Command::Status(args) => status::run(&source::load()?, &args, cli.json),
+        Command::Why(args) => why::run(&source::load()?, &args, cli.json, level),
+        // The code map reads the project, not the machine: no probe.
+        Command::Index(args) => index::run(&args, cli.json),
+        Command::Card(args) => card::run(&args, cli.json),
     }
 }
