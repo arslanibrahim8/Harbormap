@@ -628,3 +628,34 @@ fn a_vanished_folder_with_an_ignore_file_takes_its_rules_along() {
     assert_eq!(d.files_changed, vec!["src/extra/hidden.ts"]);
     assert_cold(&ix, dir.path());
 }
+
+/// Whether names in the temporary folder match without regard to case, as on
+/// macOS and Windows by default.
+fn case_insensitive() -> bool {
+    let probe = tempfile::tempdir().unwrap();
+    fs::write(probe.path().join("probe"), "").unwrap();
+    probe.path().join("PROBE").exists()
+}
+
+#[test]
+fn a_case_only_rename_keeps_only_the_new_name() {
+    if !case_insensitive() {
+        eprintln!("skipped: the file system tells names apart by case");
+        return;
+    }
+    let (mut ix, dir) = indexed("ts-basic");
+    fs::rename(dir.path().join("src/db.ts"), dir.path().join("src/DB.ts")).unwrap();
+    let d = ix.apply(&set(["src/DB.ts", "src/db.ts"])).unwrap();
+    assert_eq!(d.files_removed, vec!["src/db.ts"]);
+    assert_eq!(d.files_changed, vec!["src/DB.ts"]);
+    // `../db` from service.ts no longer names a file.
+    assert!(has_ref(&ix, "src/orders/service.ts", "../db", "unresolved"));
+    assert_cold(&ix, dir.path());
+
+    // A folder: the files under the old name go.
+    fs::rename(dir.path().join("src/orders"), dir.path().join("src/Orders")).unwrap();
+    let d = ix.apply(&set(["src/Orders", "src/orders"])).unwrap();
+    assert_eq!(d.files_removed.len(), 4);
+    assert_eq!(d.files_changed.len(), 4);
+    assert_cold(&ix, dir.path());
+}

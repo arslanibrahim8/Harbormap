@@ -386,10 +386,10 @@ impl Indexer {
             return self.rescan();
         }
 
+        let mut names = Names::new(&self.root);
         let mut paths = BTreeSet::new();
         for rel in changed.iter().filter(|rel| !rel.is_empty()) {
-            let abs = abs_path(&self.root, rel);
-            if !is_file(&abs)? {
+            if !names.is_file(rel)? {
                 // A folder that vanished, moved or replaced a file: its stored files
                 // are read again or removed. An ignore file among them took its rules
                 // along, so that needs a walk.
@@ -399,7 +399,7 @@ impl Indexer {
                 }
                 paths.extend(under);
             }
-            if is_dir(&abs)? && rules.admits_dir(rel) {
+            if names.is_dir(rel)? && rules.admits_dir(rel) {
                 // A folder moved or copied in: its own ignore file would change the
                 // rules, so that needs a walk.
                 if files_under(&self.root, rules, rel, &mut paths)? {
@@ -412,9 +412,8 @@ impl Indexer {
         let mut files = Vec::new();
         let mut gone = Vec::new();
         for rel in paths {
-            let abs = abs_path(&self.root, &rel);
-            if is_file(&abs)? && rules.admits(&rel) {
-                match walked_file(rel.clone(), &abs) {
+            if names.is_file(&rel)? && rules.admits(&rel) {
+                match walked_file(rel.clone(), &abs_path(&self.root, &rel)) {
                     Ok(f) => files.push(f),
                     // A file that cannot even be stat-ed is not in a walk either.
                     Err(err) if is_gone(&err) || is_unreadable(&err) => gone.push(rel),
@@ -1067,6 +1066,61 @@ fn is_gone(err: &io::Error) -> bool {
         err.kind(),
         io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
     )
+}
+
+/// Says whether paths under a root exist, spelled exactly as given. On a file system
+/// that ignores case, `src/button.ts` still stats after a rename to `src/Button.ts`;
+/// only the listing of `src` tells the two names apart. Listings are read once.
+struct Names<'a> {
+    root: &'a Path,
+    /// The names in each folder read so far (relative, `""` is the root); `None`
+    /// when the folder cannot be listed.
+    listings: BTreeMap<String, Option<BTreeSet<String>>>,
+}
+
+impl<'a> Names<'a> {
+    fn new(root: &'a Path) -> Self {
+        Names {
+            root,
+            listings: BTreeMap::new(),
+        }
+    }
+
+    /// Whether `rel` is a regular file under this spelling (see [`is_file`]).
+    fn is_file(&mut self, rel: &str) -> io::Result<bool> {
+        Ok(is_file(&abs_path(self.root, rel))? && self.spelled(rel))
+    }
+
+    /// Whether `rel` is a folder under this spelling (see [`is_dir`]).
+    fn is_dir(&mut self, rel: &str) -> io::Result<bool> {
+        Ok(is_dir(&abs_path(self.root, rel))? && self.spelled(rel))
+    }
+
+    /// Whether each part of `rel` is listed, with exactly its spelling, in the
+    /// folder above it.
+    fn spelled(&mut self, rel: &str) -> bool {
+        let mut dir = String::new();
+        for part in rel.split('/') {
+            let root = self.root;
+            let listing = self.listings.entry(dir.clone()).or_insert_with(|| {
+                let entries = fs::read_dir(abs_path(root, &dir)).ok()?;
+                Some(
+                    entries
+                        .flatten()
+                        .filter_map(|e| e.file_name().into_string().ok())
+                        .collect(),
+                )
+            });
+            if !listing.as_ref().is_some_and(|names| names.contains(part)) {
+                return false;
+            }
+            if !dir.is_empty() {
+                dir.push('/');
+            }
+            dir.push_str(part);
+        }
+        true
+    }
 }
 
 /// Whether `abs` is a regular file. Like the walk, symlinks are not followed, and a
