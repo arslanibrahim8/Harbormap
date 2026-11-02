@@ -3,8 +3,14 @@ mod common;
 use std::collections::BTreeSet;
 use std::fs;
 
-use common::resolver_for;
-use hm_index::ts::resolve::{ModuleResolver, ModuleTarget};
+use std::collections::BTreeMap;
+
+use common::{named_edges_for, resolver_for};
+use hm_index::facts::FileFacts;
+use hm_index::lang::Lang;
+use hm_index::ts::resolve::{
+    ModuleResolver, ModuleTarget, Project, ResolvedFile, resolve_export, resolve_file, symbol_ids,
+};
 use hm_index::ts::tsconfig::{TsConfigs, load_tsconfigs};
 
 fn file(p: &str) -> ModuleTarget {
@@ -243,4 +249,482 @@ fn notes_are_not_repeated() {
         .filter(|n| n.contains("@tsconfig/node20"))
         .count();
     assert_eq!(lines, 1, "{:?}", configs.notes);
+}
+
+/// Extracts and resolves `files` (relative path, text) without touching the disk.
+fn resolve_all(files: &[(&str, &str)]) -> (BTreeMap<String, FileFacts>, ModuleResolver) {
+    let facts = files
+        .iter()
+        .map(|(rel, text)| {
+            let lang = Lang::from_path(std::path::Path::new(rel)).unwrap();
+            (rel.to_string(), hm_index::ts::extract(text, lang))
+        })
+        .collect();
+    let known = files.iter().map(|(rel, _)| rel.to_string()).collect();
+    (facts, ModuleResolver::new(known, TsConfigs::default()))
+}
+
+type EdgeTuple = (String, String, String, String);
+type RefTuple = (String, String, String);
+
+/// The resolution of `rel` among `files`, with edges as (kind, src, dst, rule) in
+/// readable names (`path#Owner.name`, `path` for a file) and refs as (kind, text, status).
+fn resolved(files: &[(&str, &str)], rel: &str) -> (Vec<EdgeTuple>, Vec<RefTuple>) {
+    let (facts, modules) = resolve_all(files);
+    let project = Project {
+        facts: &facts,
+        modules: &modules,
+    };
+    let mut names = std::collections::HashMap::new();
+    for (r, f) in &facts {
+        names.insert(hm_core::ids::file_id(r), r.clone());
+        for (id, s) in symbol_ids(r, f).into_iter().zip(&f.symbols) {
+            names.insert(id, hm_index::query::display_name(r, Some(s)));
+        }
+    }
+    let ResolvedFile { edges, refs, .. } = resolve_file(&project, rel);
+    (
+        edges
+            .into_iter()
+            .map(|e| {
+                (
+                    e.kind.to_string(),
+                    names[&e.src_id].clone(),
+                    names[&e.dst_id].clone(),
+                    e.rule.to_string(),
+                )
+            })
+            .collect(),
+        refs.into_iter()
+            .map(|r| (r.kind.to_string(), r.text, r.status.to_string()))
+            .collect(),
+    )
+}
+
+fn edge(kind: &str, src: &str, dst: &str, rule: &str) -> EdgeTuple {
+    (kind.into(), src.into(), dst.into(), rule.into())
+}
+
+fn reference(kind: &str, text: &str, status: &str) -> RefTuple {
+    (kind.into(), text.into(), status.into())
+}
+
+#[test]
+fn fixture_calls_resolve_to_the_right_symbols() {
+    let names = named_edges_for("ts-basic");
+    for e in [
+        (
+            "calls",
+            "src/index.ts#main",
+            "src/orders/service.ts#placeOrder",
+        ),
+        (
+            "calls",
+            "src/orders/service.ts#placeOrder",
+            "src/orders/mail.ts#sendReceipt",
+        ),
+        (
+            "calls",
+            "src/ui/Page.tsx#Page",
+            "src/orders/service.ts#OrderService.find",
+        ),
+        (
+            "calls",
+            "src/ui/Page.tsx#Page",
+            "src/orders/mail.ts#sendReceipt",
+        ),
+        ("calls", "src/ui/Page.tsx#Page", "src/ui/Button.tsx#Button"),
+        (
+            "calls",
+            "src/orders/service.ts#OrderService.total",
+            "src/orders/service.ts#OrderService.sum",
+        ),
+        (
+            "calls",
+            "src/legacy.js#run",
+            "src/orders/service.ts#placeOrder",
+        ),
+        (
+            "calls",
+            "src/orders/service.test.ts",
+            "src/orders/service.ts#placeOrder",
+        ),
+        ("imports", "src/ui/Page.tsx", "src/orders/index.ts"),
+        ("imports", "src/orders/index.ts", "src/orders/mail.ts"),
+    ] {
+        assert!(
+            names.edges.contains(&(e.0.into(), e.1.into(), e.2.into())),
+            "missing {e:?}"
+        );
+    }
+    let count = |kind: &str| names.edges.iter().filter(|(k, _, _)| k == kind).count();
+    assert_eq!((count("calls"), count("imports")), (8, 9));
+
+    let r = |file: &str, kind: &str, text: &str, status: &str| {
+        (file.into(), kind.into(), text.into(), status.into())
+    };
+    for expected in [
+        r("src/orders/service.ts", "call", "db.insert", "unresolved"),
+        r("src/orders/service.ts", "call", "db.get", "unresolved"),
+        r("src/orders/service.ts", "import", "zod", "external"),
+        r("src/orders/service.ts", "call", "z.object", "external"),
+        r(
+            "src/orders/service.ts",
+            "call",
+            "z.object({}).parse",
+            "external",
+        ),
+    ] {
+        assert!(names.refs.contains(&expected), "missing {expected:?}");
+    }
+    assert!(
+        !names
+            .edges
+            .iter()
+            .any(|(_, _, dst)| dst.contains("db.ts#insert")),
+        "no guessing"
+    );
+}
+
+#[test]
+fn a_reexport_loop_stops() {
+    let (facts, modules) = resolve_all(&[
+        ("a.ts", "export * from \"./b\";"),
+        ("b.ts", "export * from \"./a\";"),
+    ]);
+    let project = Project {
+        facts: &facts,
+        modules: &modules,
+    };
+    assert_eq!(resolve_export(&project, "a.ts", "nothing"), None);
+}
+
+#[test]
+fn exports_are_followed_through_aliases_stars_and_default() {
+    let (facts, modules) = resolve_all(&[
+        (
+            "src/impl.ts",
+            "export function real() {}\nexport default class Main {}\nfunction hidden() {}",
+        ),
+        (
+            "src/mid.ts",
+            "export { real as alias, default as Renamed } from \"./impl\";\nexport { hidden } from \"./impl\";",
+        ),
+        (
+            "src/top.ts",
+            "export * from \"./mid\";\nexport { default } from \"./impl\";",
+        ),
+        (
+            "src/local.ts",
+            "import { real } from \"./impl\";\nfunction own() {}\nexport { real as viaImport, own };\nexport default own;",
+        ),
+        ("src/ns.ts", "export * as inner from \"./impl\";"),
+        ("src/chain0.ts", "export * from \"./chain1\";"),
+        ("src/chain1.ts", "export * from \"./chain2\";"),
+        ("src/chain2.ts", "export * from \"./chain3\";"),
+        ("src/chain3.ts", "export * from \"./chain4\";"),
+        ("src/chain4.ts", "export * from \"./chain5\";"),
+        ("src/chain5.ts", "export * from \"./chain6\";"),
+        ("src/chain6.ts", "export function deep() {}"),
+        ("src/near.ts", "export * from \"./chain6\";"),
+    ]);
+    let p = Project {
+        facts: &facts,
+        modules: &modules,
+    };
+    let name_at = |found: Option<(String, usize)>| {
+        found.map(|(rel, i)| format!("{rel}#{}", facts[&rel].symbols[i].name))
+    };
+    let at = |rel: &str, name: &str| name_at(resolve_export(&p, rel, name));
+
+    assert_eq!(at("src/mid.ts", "alias"), Some("src/impl.ts#real".into()));
+    assert_eq!(at("src/mid.ts", "Renamed"), Some("src/impl.ts#Main".into()));
+    // A name that the other module does not export stays unresolved.
+    assert_eq!(at("src/mid.ts", "hidden"), None);
+    assert_eq!(at("src/top.ts", "alias"), Some("src/impl.ts#real".into()));
+    assert_eq!(at("src/top.ts", "default"), Some("src/impl.ts#Main".into()));
+    // `export *` never carries the default export.
+    assert_eq!(at("src/mid.ts", "default"), None);
+    assert_eq!(
+        at("src/local.ts", "viaImport"),
+        Some("src/impl.ts#real".into())
+    );
+    assert_eq!(at("src/local.ts", "own"), Some("src/local.ts#own".into()));
+    assert_eq!(
+        at("src/local.ts", "default"),
+        Some("src/local.ts#own".into())
+    );
+    assert_eq!(at("src/ns.ts", "inner"), None);
+    // Five hops are followed, a sixth is not.
+    assert_eq!(
+        at("src/chain2.ts", "deep"),
+        Some("src/chain6.ts#deep".into())
+    );
+    assert_eq!(
+        at("src/chain1.ts", "deep"),
+        Some("src/chain6.ts#deep".into())
+    );
+    assert_eq!(at("src/chain0.ts", "deep"), None);
+    assert_eq!(at("src/near.ts", "deep"), Some("src/chain6.ts#deep".into()));
+}
+
+#[test]
+fn symbol_ids_disambiguate_only_when_needed() {
+    let facts = hm_index::ts::extract(
+        "class C { get x() { return 1; } set x(v: number) {} }\n\
+         function f() { return 1; }\n\
+         function g() {}",
+        Lang::TypeScript,
+    );
+    let ids = symbol_ids("a.ts", &facts);
+    assert_eq!(ids.len(), facts.symbols.len());
+    let unique: std::collections::BTreeSet<_> = ids.iter().collect();
+    assert_eq!(unique.len(), ids.len());
+    let id_of = |name: &str| {
+        let i = facts.symbols.iter().position(|s| s.name == name).unwrap();
+        ids[i].clone()
+    };
+    let file = hm_core::ids::file_id("a.ts");
+    // A unique symbol has an empty disambiguator.
+    assert_eq!(
+        id_of("f"),
+        hm_core::ids::symbol_id(&file, "", "f", "function", "")
+    );
+
+    // Two symbols with the same owner, name, kind and signature hash get `#2`.
+    let twice = hm_index::ts::extract("function h() {}\nfunction h() {}", Lang::TypeScript);
+    let ids = symbol_ids("a.ts", &twice);
+    assert_eq!(twice.symbols[0].sig_hash, twice.symbols[1].sig_hash);
+    let hash = &twice.symbols[0].sig_hash;
+    assert_eq!(
+        ids[0],
+        hm_core::ids::symbol_id(&file, "", "h", "function", hash)
+    );
+    assert_eq!(
+        ids[1],
+        hm_core::ids::symbol_id(&file, "", "h", "function", &format!("{hash}#2"))
+    );
+}
+
+#[test]
+fn local_static_new_and_namespace_calls_resolve() {
+    let files = [
+        (
+            "src/m.ts",
+            "export class K { static make() {} run() {} }\nexport function util() {}",
+        ),
+        (
+            "src/use.ts",
+            "import { K } from \"./m\";\nimport * as m from \"./m\";\n\
+             function local() {}\n\
+             class Own { static s() {} }\n\
+             export function go() {\n  local();\n  K.make();\n  Own.s();\n  new K();\n  m.util();\n  m.nothing();\n  K.missing();\n}\n",
+        ),
+    ];
+    let (edges, refs) = resolved(&files, "src/use.ts");
+    for expected in [
+        edge(
+            "calls",
+            "src/use.ts#go",
+            "src/use.ts#local",
+            "ts.call.local",
+        ),
+        edge(
+            "calls",
+            "src/use.ts#go",
+            "src/m.ts#K.make",
+            "ts.call.static",
+        ),
+        edge(
+            "calls",
+            "src/use.ts#go",
+            "src/use.ts#Own.s",
+            "ts.call.static",
+        ),
+        edge("calls", "src/use.ts#go", "src/m.ts#K", "ts.call.new"),
+        edge(
+            "calls",
+            "src/use.ts#go",
+            "src/m.ts#util",
+            "ts.call.namespace",
+        ),
+        edge("imports", "src/use.ts", "src/m.ts", "ts.import"),
+    ] {
+        assert!(
+            edges.contains(&expected),
+            "missing {expected:?} in {edges:?}"
+        );
+    }
+    // One edge per import line: `K` and `m` are imported on two lines.
+    assert_eq!(edges.len(), 7, "{edges:?}");
+    assert_eq!(
+        refs,
+        vec![
+            reference("call", "K.missing", "unresolved"),
+            reference("call", "m.nothing", "unresolved"),
+        ]
+    );
+}
+
+#[test]
+fn this_calls_and_ambiguous_owners_are_attributed_by_line() {
+    let files = [(
+        "a.ts",
+        "export class C {\n\
+         \x20 get x() { return this.helper(); }\n\
+         \x20 set x(v: number) { this.other(); }\n\
+         \x20 helper() {}\n\
+         \x20 other() {}\n\
+         }\n\
+         export interface Foo { a: number }\n\
+         export class Foo { make() { return this.nothing(); } }\n\
+         helper();\n",
+    )];
+    let (edges, refs) = resolved(&files, "a.ts");
+    let helper = edges
+        .iter()
+        .find(|e| e.2 == "a.ts#C.helper")
+        .expect("helper edge");
+    assert_eq!(helper.1, "a.ts#C.x");
+    assert_eq!(helper.3, "ts.call.this");
+    assert!(edges.iter().any(|e| e.2 == "a.ts#C.other"));
+    // `this.nothing()` and the bare `helper()` at top level resolve to nothing.
+    assert!(refs.contains(&reference("call", "this.nothing", "unresolved")));
+    assert!(refs.contains(&reference("call", "helper", "unresolved")));
+    assert!(!edges.iter().any(|e| e.2.ends_with("#nothing")));
+}
+
+#[test]
+fn getter_and_setter_calls_are_split_by_line() {
+    let (facts, modules) = resolve_all(&[(
+        "a.ts",
+        "function t() {}\nfunction u() {}\nclass C {\n  get x() { return t(); }\n  set x(v: number) { u(); }\n}\n",
+    )]);
+    let ids = symbol_ids("a.ts", &facts["a.ts"]);
+    let id_of = |name: &str, nth: usize| {
+        let i = facts["a.ts"]
+            .symbols
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.name == name)
+            .nth(nth)
+            .unwrap()
+            .0;
+        ids[i].clone()
+    };
+    let project = Project {
+        facts: &facts,
+        modules: &modules,
+    };
+    let edges: BTreeSet<_> = resolve_file(&project, "a.ts")
+        .edges
+        .into_iter()
+        .map(|e| (e.src_id, e.dst_id))
+        .collect();
+    let expected: BTreeSet<_> = [
+        (id_of("x", 0), id_of("t", 0)),
+        (id_of("x", 1), id_of("u", 0)),
+    ]
+    .into();
+    assert_eq!(edges, expected);
+}
+
+#[test]
+fn require_jsx_extends_and_type_only_imports() {
+    let files = [
+        ("lib.js", "export function f() {}"),
+        (
+            "base.ts",
+            "export class Base {}\nexport default class Def {}",
+        ),
+        ("types.ts", "export function typed() {}"),
+        ("ui.tsx", "export function Card() { return <i />; }"),
+        (
+            "app.tsx",
+            "import Def, { Base } from \"./base\";\n\
+             import type { typed } from \"./types\";\n\
+             import { Card } from \"./ui\";\n\
+             import { Component } from \"react\";\n\
+             import { gone } from \"./gone\";\n\
+             const { f } = require(\"./lib\");\n\
+             export class A extends Base {}\n\
+             export class B extends Def {}\n\
+             export class D extends Component {}\n\
+             export class E extends Missing {}\n\
+             export function App() { f(); typed(); gone(); return <Card />; }\n",
+        ),
+    ];
+    let (edges, refs) = resolved(&files, "app.tsx");
+    for expected in [
+        edge("extends", "app.tsx#A", "base.ts#Base", "ts.extends"),
+        edge("extends", "app.tsx#B", "base.ts#Def", "ts.extends"),
+        edge("calls", "app.tsx#App", "ui.tsx#Card", "ts.jsx"),
+        edge("calls", "app.tsx#App", "lib.js#f", "ts.call.require"),
+        // A type-only import is still a dependency of the file.
+        edge("imports", "app.tsx", "types.ts", "ts.import"),
+    ] {
+        assert!(
+            edges.contains(&expected),
+            "missing {expected:?} in {edges:?}"
+        );
+    }
+    // ... but it never feeds call resolution.
+    assert!(
+        !edges
+            .iter()
+            .any(|e| e.0 == "calls" && e.2 == "types.ts#typed")
+    );
+    for expected in [
+        reference("call", "typed", "unresolved"),
+        reference("call", "gone", "unresolved"),
+        reference("call", "Component", "external"),
+        reference("call", "Missing", "unresolved"),
+        reference("import", "./gone", "unresolved"),
+        reference("import", "react", "external"),
+    ] {
+        assert!(refs.contains(&expected), "missing {expected:?} in {refs:?}");
+    }
+}
+
+#[test]
+fn resolution_is_sorted_and_deduplicated() {
+    let files = [(
+        "a.ts",
+        "function f() {}\nexport function g() { f(); f(); other.x(); other.x(); }\n",
+    )];
+    let (facts, modules) = resolve_all(&files);
+    let project = Project {
+        facts: &facts,
+        modules: &modules,
+    };
+    let r = resolve_file(&project, "a.ts");
+    // Two identical calls on one line are one edge; on different lines they stay apart.
+    assert_eq!(r.edges.len(), 1);
+    assert_eq!(r.refs.len(), 1);
+    assert!(r.imports_files.is_empty());
+
+    let files = [
+        ("b.ts", "export function t() {}"),
+        (
+            "a.ts",
+            "import { t } from \"./b\";\nimport { t as u } from \"./b\";\nt();\nu();\n",
+        ),
+    ];
+    let (facts, modules) = resolve_all(&files);
+    let project = Project {
+        facts: &facts,
+        modules: &modules,
+    };
+    let r = resolve_file(&project, "a.ts");
+    assert_eq!(r.imports_files, ["b.ts".to_string()].into());
+    let keys: Vec<_> = r
+        .edges
+        .iter()
+        .map(|e| (e.kind, e.src_id.clone(), e.dst_id.clone(), e.line))
+        .collect();
+    let mut sorted = keys.clone();
+    sorted.sort();
+    assert_eq!(keys, sorted);
+    sorted.dedup();
+    assert_eq!(keys, sorted);
 }

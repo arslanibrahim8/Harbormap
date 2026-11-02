@@ -4,5 +4,6 @@
 pub mod facts;
 pub mod hash;
 pub mod lang;
+pub mod query;
 pub mod ts;
 pub mod walk;
