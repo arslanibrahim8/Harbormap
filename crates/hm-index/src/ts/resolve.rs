@@ -32,13 +32,14 @@ impl ModuleResolver {
         Self { known, tsconfigs }
     }
 
-    /// Every tsconfig file read, extended ones included. The resolver must be rebuilt
-    /// when one of them changes.
+    /// Every tsconfig file read or attempted, extended ones and failed ones included.
+    /// The resolver must be rebuilt when one of them changes.
     pub fn config_sources(&self) -> BTreeSet<String> {
         self.tsconfigs
             .by_dir
             .values()
             .flat_map(|c| c.sources.iter().cloned())
+            .chain(self.tsconfigs.failed.iter().cloned())
             .collect()
     }
 

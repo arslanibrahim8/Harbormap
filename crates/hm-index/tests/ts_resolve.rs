@@ -200,3 +200,47 @@ fn a_relative_path_above_the_root_is_unresolved() {
         ModuleTarget::Unresolved
     );
 }
+
+#[test]
+fn a_broken_tsconfig_is_still_a_config_source() {
+    let (_dir, configs, r) = project(&[("tsconfig.json", r#"{ "compilerOptions": "#)]);
+    assert!(!configs.by_dir.contains_key(""));
+    let notes: Vec<&String> = configs
+        .notes
+        .iter()
+        .filter(|n| n.contains("tsconfig.json"))
+        .collect();
+    assert_eq!(notes.len(), 1, "{:?}", configs.notes);
+    assert!(r.config_sources().contains("tsconfig.json"));
+}
+
+#[test]
+fn a_missing_extends_target_is_a_config_source() {
+    let (_dir, configs, r) = project(&[
+        (
+            "a/tsconfig.json",
+            r#"{ "extends": "./base.json",
+                 "compilerOptions": { "paths": { "~/*": ["lib/*"] } } }"#,
+        ),
+        ("a/lib/util.ts", ""),
+        ("a/src/main.ts", ""),
+    ]);
+    assert!(r.config_sources().contains("a/base.json"));
+    assert!(configs.notes.iter().any(|n| n.contains("a/base.json")));
+    assert_eq!(r.resolve("a/src/main.ts", "~/util"), file("a/lib/util.ts"));
+}
+
+#[test]
+fn notes_are_not_repeated() {
+    let (_dir, configs, _) = project(&[
+        ("a/tsconfig.json", r#"{ "extends": "../shared/base.json" }"#),
+        ("b/tsconfig.json", r#"{ "extends": "../shared/base.json" }"#),
+        ("shared/base.json", r#"{ "extends": "@tsconfig/node20" }"#),
+    ]);
+    let lines = configs
+        .notes
+        .iter()
+        .filter(|n| n.contains("@tsconfig/node20"))
+        .count();
+    assert_eq!(lines, 1, "{:?}", configs.notes);
+}

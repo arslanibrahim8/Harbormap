@@ -32,8 +32,11 @@ pub struct TsConfigs {
     /// Keyed by the relative folder of a `tsconfig.json` or `jsconfig.json`; the root
     /// folder is the empty string.
     pub by_dir: BTreeMap<String, TsConfig>,
-    /// What was not read and why, one line each.
+    /// What was not read and why, one line each. Each line appears once.
     pub notes: Vec<String>,
+    /// Top-level config files that could not be read or parsed. They still count as
+    /// config sources, so that fixing them rebuilds the resolver.
+    pub failed: Vec<String>,
 }
 
 /// `paths` patterns with their targets, in file order.
@@ -51,7 +54,9 @@ struct Raw {
 
 /// Loads every `tsconfig.json` and `jsconfig.json` in `known` (relative paths of the
 /// walked files) from under `root`. Relative `extends` values are followed up to 10
-/// hops; a package name in `extends` is not fetched and adds a line to `notes`.
+/// hops; a package name in `extends` is not fetched and adds a line to `notes`. A
+/// config that cannot be read or parsed is listed in `failed`, and its folder gets no
+/// entry in `by_dir`, so the nearest ancestor config applies there.
 pub fn load_tsconfigs(root: &Path, known: &BTreeSet<String>) -> TsConfigs {
     let mut out = TsConfigs::default();
     for rel in known {
@@ -67,6 +72,7 @@ pub fn load_tsconfigs(root: &Path, known: &BTreeSet<String>) -> TsConfigs {
         }
         let mut stack = Vec::new();
         let Some(raw) = load_raw(root, rel, &mut stack, &mut out.notes) else {
+            out.failed.push(rel.clone());
             continue;
         };
         out.by_dir.insert(dir, finish(raw));
@@ -85,14 +91,21 @@ fn load_raw(
     if stack.len() > MAX_EXTENDS_HOPS || stack.iter().any(|s| s == rel) {
         return None;
     }
-    let text = fs::read_to_string(root.join(rel)).ok()?;
+    let Ok(text) = fs::read_to_string(root.join(rel)) else {
+        push_note(
+            notes,
+            format!("{rel} is missing or unreadable, so Harbormap does not read it"),
+        );
+        return None;
+    };
     // The AST keeps the order of `paths`, which the patterns are tried in; a serde
     // value would sort the keys.
     let parsed = jsonc_parser::parse_to_ast(&text, &Default::default(), &Default::default());
     let Some(ast::Value::Object(config)) = parsed.ok().and_then(|p| p.value) else {
-        notes.push(format!(
-            "{rel} is not valid JSON, so Harbormap does not read it"
-        ));
+        push_note(
+            notes,
+            format!("{rel} is not valid JSON, so Harbormap does not read it"),
+        );
         return None;
     };
     let dir = dir_of(rel).to_string();
@@ -114,22 +127,27 @@ fn load_raw(
     };
     for target in extends {
         if !(target.starts_with("./") || target.starts_with("../")) {
-            notes.push(format!(
-                "{rel} extends {target}, which Harbormap does not read"
-            ));
+            push_note(
+                notes,
+                format!("{rel} extends {target}, which Harbormap does not read"),
+            );
             continue;
         }
         let Some(mut parent_rel) = join_norm(&dir, target) else {
-            notes.push(format!(
-                "{rel} extends {target}, which is outside the repository"
-            ));
+            push_note(
+                notes,
+                format!("{rel} extends {target}, which is outside the repository"),
+            );
             continue;
         };
         if !parent_rel.ends_with(".json") {
             parent_rel.push_str(".json");
         }
-        if let Some(parent) = load_raw(root, &parent_rel, stack, notes) {
-            overlay(&mut raw, parent);
+        match load_raw(root, &parent_rel, stack, notes) {
+            Some(parent) => overlay(&mut raw, parent),
+            // A target that failed is still a source: creating or fixing it must rebuild.
+            None if !raw.sources.contains(&parent_rel) => raw.sources.push(parent_rel),
+            None => {}
         }
     }
 
@@ -157,6 +175,14 @@ fn load_raw(
     }
     stack.pop();
     Some(raw)
+}
+
+/// Adds `line` to `notes` unless it is already there. A shared base extended by several
+/// configs is reported once.
+fn push_note(notes: &mut Vec<String>, line: String) {
+    if !notes.contains(&line) {
+        notes.push(line);
+    }
 }
 
 /// Applies `parent` under `raw`: what `raw` already set stays, and `sources` are merged.
