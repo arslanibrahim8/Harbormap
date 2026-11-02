@@ -2,7 +2,7 @@
 //! harness. Everything is a pure function of the seed and the tree, so a failure
 //! reproduces from its seed.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -10,6 +10,8 @@ use std::path::Path;
 const FOLDER_SIZE: usize = 20;
 /// Every this-many-th module is a barrel.
 const BARREL_EVERY: usize = 10;
+/// Barrel chains longer than this are not followed when scanning a tree.
+const MAX_HOPS: usize = 12;
 
 /// A splitmix64 generator: small, fast and the same on every platform.
 struct Rng(u64);
@@ -67,19 +69,6 @@ fn module_path(i: usize) -> String {
     format!("src/d{:03}/m{:04}.ts", i / FOLDER_SIZE, i)
 }
 
-/// The names other modules can import from module `i`.
-fn visible(mods: &[Module], i: usize) -> Vec<String> {
-    let m = &mods[i];
-    let mut names = m.funcs.clone();
-    for r in &m.reexports {
-        match r {
-            Reexport::Star(src) => names.extend(mods[*src].funcs.iter().cloned()),
-            Reexport::Named(_, _, alias) => names.push(alias.clone()),
-        }
-    }
-    names
-}
-
 /// The relative specifier from module `from` to module `to` (no extension).
 fn relative_spec(from: usize, to: usize) -> String {
     let (from_folder, to_folder) = (from / FOLDER_SIZE, to / FOLDER_SIZE);
@@ -105,7 +94,8 @@ fn write_file(dir: &Path, rel: &str, content: &str) {
 /// `@/*` → `src/*`, and `files` modules in folders of 20. Plain modules export 3–6
 /// functions, each calling 1–4 functions imported from up to 3 other modules, by a
 /// relative or an `@/` specifier. Every 10th module is a barrel that re-exports
-/// from the modules after it, and other modules import through it.
+/// from the modules after it, and often from the next barrel as well, so
+/// re-exports chain over several hops; other modules import through barrels.
 pub fn project(dir: &Path, seed: u64, files: u32) {
     let n = files as usize;
     let mut rng = Rng(seed);
@@ -116,8 +106,19 @@ pub fn project(dir: &Path, seed: u64, files: u32) {
     );
 
     // Plan first: a module's imports depend on what the barrels re-export.
-    let mut mods: Vec<Module> = Vec::with_capacity(n);
-    for i in 0..n {
+    let mut mods: Vec<Module> = (0..n)
+        .map(|i| {
+            let count = if is_barrel(i) { 0 } else { rng.range(3, 6) };
+            Module {
+                funcs: (0..count).map(|k| format!("f{i}_{k}")).collect(),
+                reexports: Vec::new(),
+            }
+        })
+        .collect();
+    // `vis[i]` is every name another module can import from module `i`. Barrels
+    // only look forward, so planning from the end sees each source's names first.
+    let mut vis: Vec<Vec<String>> = vec![Vec::new(); n];
+    for i in (0..n).rev() {
         if is_barrel(i) {
             let cands: Vec<usize> = (i + 1..(i + BARREL_EVERY).min(n)).collect();
             let want = rng.range(2, 3);
@@ -126,30 +127,37 @@ pub fn project(dir: &Path, seed: u64, files: u32) {
                 if rng.chance(50) {
                     reexports.push(Reexport::Star(src));
                 } else {
-                    // Every plain module has an `f<src>_0`.
-                    let name = format!("f{src}_0");
-                    let alias = format!("x{name}");
-                    reexports.push(Reexport::Named(src, name, alias));
+                    let name = mods[src].funcs[rng.range(0, mods[src].funcs.len() - 1)].clone();
+                    reexports.push(Reexport::Named(src, name.clone(), format!("x{i}_{name}")));
                 }
             }
-            mods.push(Module {
-                funcs: Vec::new(),
-                reexports,
-            });
-        } else {
-            let count = rng.range(3, 6);
-            mods.push(Module {
-                funcs: (0..count).map(|k| format!("f{i}_{k}")).collect(),
-                reexports: Vec::new(),
-            });
+            // A chain: this barrel re-exports the next one.
+            let next = i + BARREL_EVERY;
+            if next < n && !vis[next].is_empty() && rng.chance(70) {
+                if rng.chance(50) {
+                    reexports.push(Reexport::Star(next));
+                } else {
+                    let name = vis[next][rng.range(0, vis[next].len() - 1)].clone();
+                    reexports.push(Reexport::Named(next, name.clone(), format!("x{i}_{name}")));
+                }
+            }
+            mods[i].reexports = reexports;
         }
+        let mut names = mods[i].funcs.clone();
+        for r in &mods[i].reexports {
+            match r {
+                Reexport::Star(src) => names.extend(vis[*src].iter().cloned()),
+                Reexport::Named(_, _, alias) => names.push(alias.clone()),
+            }
+        }
+        vis[i] = names;
     }
 
-    for i in 0..n {
+    for (i, m) in mods.iter().enumerate() {
         let source = if is_barrel(i) {
-            render_barrel(&mods[i], i)
+            render_barrel(m, i)
         } else {
-            render_module(&mods, i, &mut rng)
+            render_module(m, &vis, i, &mut rng)
         };
         write_file(dir, &module_path(i), &source);
     }
@@ -174,25 +182,37 @@ fn render_barrel(m: &Module, i: usize) -> String {
     out
 }
 
-fn render_module(mods: &[Module], i: usize, rng: &mut Rng) -> String {
-    let others: Vec<usize> = (0..mods.len())
-        .filter(|&j| j != i && !visible(mods, j).is_empty())
-        .collect();
+fn render_module(m: &Module, vis: &[Vec<String>], i: usize, rng: &mut Rng) -> String {
+    // What module `j` offers this one: never its own functions (a barrel can
+    // re-export them), nor a name it imports already.
+    let importable = |j: usize, imported: &[String]| -> Vec<String> {
+        vis[j]
+            .iter()
+            .filter(|nm| !m.funcs.contains(nm) && !imported.contains(nm))
+            .cloned()
+            .collect()
+    };
+    let mut targets: Vec<usize> = Vec::new();
+    let wanted = rng.range(1, 3);
+    for _ in 0..40 {
+        if targets.len() == wanted {
+            break;
+        }
+        let j = rng.range(0, vis.len() - 1);
+        if j != i && !targets.contains(&j) && !importable(j, &[]).is_empty() {
+            targets.push(j);
+        }
+    }
     let mut out = String::new();
     let mut imported: Vec<String> = Vec::new();
-    let targets = rng.range(1, 3);
-    for j in rng.pick_distinct(&others, targets) {
-        let pool = visible(mods, j);
-        let want = rng.range(1, pool.len().min(2));
-        let picks = rng.pick_distinct(&(0..pool.len()).collect::<Vec<_>>(), want);
-        let names: Vec<String> = picks
-            .iter()
-            .map(|&k| pool[k].clone())
-            .filter(|nm| !imported.contains(nm))
-            .collect();
-        if names.is_empty() {
+    for j in targets {
+        let pool = importable(j, &imported);
+        if pool.is_empty() {
             continue;
         }
+        let want = rng.range(1, pool.len().min(2));
+        let picks = rng.pick_distinct(&(0..pool.len()).collect::<Vec<_>>(), want);
+        let names: Vec<String> = picks.iter().map(|&k| pool[k].clone()).collect();
         let spec = if rng.chance(50) {
             relative_spec(i, j)
         } else {
@@ -205,7 +225,7 @@ fn render_module(mods: &[Module], i: usize, rng: &mut Rng) -> String {
         imported.extend(names);
     }
     out.push('\n');
-    for name in &mods[i].funcs {
+    for name in &m.funcs {
         out.push_str(&format!(
             "export function {name}(a: number, b: string): number {{\n"
         ));
@@ -229,8 +249,8 @@ pub enum Edit {
     BodyChange,
     /// A new defaulted parameter on one exported function.
     SignatureChange,
-    /// Renames an exported function that a barrel re-exports, and nothing else, so
-    /// importers go unresolved.
+    /// Renames an exported function that a barrel re-exports (through any number
+    /// of barrels), and nothing else, so importers go unresolved.
     Rename,
     /// A new import of another module's function, called from one function.
     AddImport,
@@ -274,13 +294,15 @@ fn read(dir: &Path, rel: &str) -> String {
     fs::read_to_string(dir.join(rel)).expect("read a synthetic file")
 }
 
-/// The exported functions of `src`: (name, index of the declaration line).
+/// The exported functions of `src`: (name, index of the declaration line). The
+/// `broken` function that [`Edit::BreakSyntax`] appends is not one of them.
 fn functions(src: &str) -> Vec<(String, usize)> {
     src.lines()
         .enumerate()
         .filter_map(|(i, l)| {
             let rest = l.strip_prefix("export function ")?;
-            Some((rest[..rest.find('(')?].to_string(), i))
+            let name = &rest[..rest.find('(')?];
+            (!name.starts_with("broken")).then(|| (name.to_string(), i))
         })
         .collect()
 }
@@ -301,19 +323,123 @@ fn resolve_relative(from: &str, spec: &str) -> Option<String> {
     Some(format!("{}.ts", parts.join("/")))
 }
 
-/// The files that barrels re-export from.
-fn barrel_sources(dir: &Path, files: &[String]) -> Vec<String> {
-    let mut out = Vec::new();
-    for f in files {
-        for line in read(dir, f).lines() {
-            if !line.starts_with("export ") || !line.contains(" from \"") {
-                continue;
+/// A re-export line of a barrel found in a tree: the target file, and for a named
+/// one the (name, alias).
+enum Line {
+    Star(String),
+    Named(String, String, String),
+}
+
+/// A function reached through barrels.
+#[derive(Clone)]
+struct Through {
+    /// The file that declares it, and its name there.
+    file: String,
+    name: String,
+    /// The name a module importing from the barrel sees.
+    seen_as: String,
+    /// The barrels between the importer and the declaration.
+    hops: usize,
+}
+
+/// The re-exports of a tree, by barrel.
+struct Barrels<'a> {
+    dir: &'a Path,
+    lines: BTreeMap<String, Vec<Line>>,
+    memo: BTreeMap<String, Vec<Through>>,
+}
+
+impl<'a> Barrels<'a> {
+    /// Reads every re-export line (`export * from` or `export { a as b } from`) of
+    /// `files`. A file with such a line is a barrel.
+    fn scan(dir: &'a Path, files: &[String]) -> Barrels<'a> {
+        let mut lines: BTreeMap<String, Vec<Line>> = BTreeMap::new();
+        for f in files {
+            let src = read(dir, f);
+            for l in src.lines() {
+                let Some(spec) = l
+                    .contains(" from \"")
+                    .then(|| l.split('"').nth(1))
+                    .flatten()
+                else {
+                    continue;
+                };
+                let Some(target) = resolve_relative(f, spec).filter(|t| files.contains(t)) else {
+                    continue;
+                };
+                let line = if l.starts_with("export * from ") {
+                    Line::Star(target)
+                } else if let Some((name, alias)) = l
+                    .strip_prefix("export { ")
+                    .and_then(|r| r.split(" }").next())
+                    .and_then(|r| r.split_once(" as "))
+                {
+                    Line::Named(target, name.to_string(), alias.to_string())
+                } else {
+                    continue;
+                };
+                lines.entry(f.clone()).or_default().push(line);
             }
-            let spec = line.split('"').nth(1).unwrap_or_default();
-            out.extend(resolve_relative(f, spec));
+        }
+        Barrels {
+            dir,
+            lines,
+            memo: BTreeMap::new(),
         }
     }
-    out
+
+    /// What `file` (a barrel) lets importers reach: lines into plain modules give
+    /// their functions, lines into barrels pass on what those give.
+    fn of(&mut self, file: &str, depth: usize) -> Vec<Through> {
+        if let Some(done) = self.memo.get(file) {
+            return done.clone();
+        }
+        if depth > MAX_HOPS {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        for i in 0..self.lines.get(file).map_or(0, Vec::len) {
+            let (target, pick) = match &self.lines[file][i] {
+                Line::Star(t) => (t.clone(), None),
+                Line::Named(t, name, alias) => (t.clone(), Some((name.clone(), alias.clone()))),
+            };
+            let below: Vec<Through> = if self.lines.contains_key(&target) {
+                self.of(&target, depth + 1)
+            } else {
+                functions(&read(self.dir, &target))
+                    .into_iter()
+                    .map(|(name, _)| Through {
+                        file: target.clone(),
+                        seen_as: name.clone(),
+                        name,
+                        hops: 0,
+                    })
+                    .collect()
+            };
+            for t in below {
+                match &pick {
+                    None => out.push(Through {
+                        hops: t.hops + 1,
+                        ..t
+                    }),
+                    Some((name, alias)) if t.seen_as == *name => out.push(Through {
+                        seen_as: alias.clone(),
+                        hops: t.hops + 1,
+                        ..t
+                    }),
+                    Some(_) => {}
+                }
+            }
+        }
+        self.memo.insert(file.to_string(), out.clone());
+        out
+    }
+
+    /// Every function that some barrel re-exports.
+    fn all(&mut self) -> Vec<Through> {
+        let barrels: Vec<String> = self.lines.keys().cloned().collect();
+        barrels.iter().flat_map(|b| self.of(b, 0)).collect()
+    }
 }
 
 /// The `@/` specifier of a `src/...` file.
@@ -340,10 +466,65 @@ fn insert_before_return(src: &str, at: usize, stmt: &str) -> String {
     lines.join("\n") + "\n"
 }
 
+/// `src` with a body or a signature edit in one of its functions, or `None` when
+/// it has no function to edit.
+fn edit_function_source(src: &str, seed: u64, kind: Edit, rng: &mut Rng) -> Option<String> {
+    let funcs = functions(src);
+    if funcs.is_empty() {
+        return None;
+    }
+    let at = funcs[rng.range(0, funcs.len() - 1)].1;
+    Some(match kind {
+        Edit::SignatureChange => {
+            let line = src.lines().nth(at).unwrap_or_default();
+            let new_line =
+                line.replace("): number {", &format!(", x{seed}: number = 0): number {{"));
+            replace_line(src, at, &new_line)
+        }
+        _ => insert_before_return(src, at, &format!("  const t{seed} = {seed};")),
+    })
+}
+
+/// Writes `new` to `rel` when it differs from `old`, and says whether it did.
+fn write_if_changed(dir: &Path, rel: &str, old: &str, new: &str) -> bool {
+    if old == new {
+        return false;
+    }
+    write_file(dir, rel, new);
+    true
+}
+
+/// A body or signature edit in one function of the file `rel`, chosen from `seed`.
+/// Unlike [`apply_edit`] it reads and writes that one file only, so a harness can
+/// time saves without a tree scan. A body edit adds a statement and a signature
+/// edit adds a defaulted parameter named after `seed`, so use a new seed for each
+/// save of the same file. Returns `{rel}`, or an empty set when the file has no
+/// function to edit.
+///
+/// # Panics
+///
+/// When `kind` is not [`Edit::BodyChange`] or [`Edit::SignatureChange`].
+pub fn edit_function(dir: &Path, rel: &str, seed: u64, kind: Edit) -> BTreeSet<String> {
+    assert!(
+        matches!(kind, Edit::BodyChange | Edit::SignatureChange),
+        "edit_function takes BodyChange or SignatureChange, not {kind:?}"
+    );
+    let mut rng = Rng(seed ^ ((kind as u64 + 1) << 56));
+    let src = read(dir, rel);
+    let mut changed = BTreeSet::new();
+    if let Some(new) = edit_function_source(&src, seed, kind, &mut rng)
+        && write_if_changed(dir, rel, &src, &new)
+    {
+        changed.insert(rel.to_string());
+    }
+    changed
+}
+
 /// Applies one edit to the project in `dir`, chosen deterministically from the
 /// tree and `seed`, and returns the changed relative paths (`/`-separated; the
-/// deleted path for [`Edit::DeleteFile`]). The set is empty only when the tree has
-/// nothing the edit could touch.
+/// deleted path for [`Edit::DeleteFile`]), exactly the files whose bytes changed.
+/// The set is empty only when the tree has nothing the edit could touch. It scans
+/// the whole tree; use [`edit_function`] to edit a file you already know.
 pub fn apply_edit(dir: &Path, seed: u64, edit: Edit) -> BTreeSet<String> {
     let mut rng = Rng(seed ^ ((edit as u64 + 1) << 56));
     let files = ts_files(dir);
@@ -358,7 +539,19 @@ pub fn apply_edit(dir: &Path, seed: u64, edit: Edit) -> BTreeSet<String> {
         .cloned()
         .collect();
     match edit {
-        Edit::BodyChange | Edit::SignatureChange | Edit::AddImport => {
+        Edit::BodyChange | Edit::SignatureChange => {
+            if with_funcs.is_empty() {
+                return changed;
+            }
+            let file = with_funcs[rng.range(0, with_funcs.len() - 1)].clone();
+            let src = read(dir, &file);
+            if let Some(new) = edit_function_source(&src, seed, edit, &mut rng)
+                && write_if_changed(dir, &file, &src, &new)
+            {
+                changed.insert(file);
+            }
+        }
+        Edit::AddImport => {
             if with_funcs.is_empty() {
                 return changed;
             }
@@ -366,64 +559,62 @@ pub fn apply_edit(dir: &Path, seed: u64, edit: Edit) -> BTreeSet<String> {
             let src = read(dir, &file);
             let funcs = functions(&src);
             let at = funcs[rng.range(0, funcs.len() - 1)].1;
-            let new = match edit {
-                Edit::SignatureChange => {
-                    let line = src.lines().nth(at).unwrap_or_default();
-                    let new_line =
-                        line.replace("): number {", &format!(", x{seed}: number = 0): number {{"));
-                    replace_line(&src, at, &new_line)
-                }
-                Edit::BodyChange => {
-                    insert_before_return(&src, at, &format!("  const t{seed} = {seed};"))
-                }
-                _ => {
-                    let others: Vec<&String> = with_funcs.iter().filter(|f| **f != file).collect();
-                    if others.is_empty() {
-                        return changed;
-                    }
-                    let target = others[rng.range(0, others.len() - 1)];
-                    let callee = functions(&read(dir, target))[0].0.clone();
-                    let local = format!("added{seed}");
-                    let body = insert_before_return(
-                        &src,
-                        at,
-                        &format!("  const {local}v = {local}(a, b);"),
-                    );
-                    format!(
-                        "import {{ {callee} as {local} }} from \"{}\";\n{body}",
-                        alias_of(target)
-                    )
-                }
-            };
-            write_file(dir, &file, &new);
-            changed.insert(file);
+            let others: Vec<&String> = with_funcs.iter().filter(|f| **f != file).collect();
+            if others.is_empty() {
+                return changed;
+            }
+            let target = others[rng.range(0, others.len() - 1)];
+            let callee = functions(&read(dir, target))[0].0.clone();
+            let local = format!("added{seed}");
+            let body =
+                insert_before_return(&src, at, &format!("  const {local}v = {local}(a, b);"));
+            let new = format!(
+                "import {{ {callee} as {local} }} from \"{}\";\n{body}",
+                alias_of(target)
+            );
+            if write_if_changed(dir, &file, &src, &new) {
+                changed.insert(file);
+            }
         }
         Edit::Rename => {
-            // Prefer a function that a barrel re-exports.
-            let sources: Vec<String> = barrel_sources(dir, &files)
+            // A function that some barrel re-exports, through any number of
+            // barrels; any function when the tree has no barrel.
+            let reexported: BTreeSet<(String, String)> = Barrels::scan(dir, &files)
+                .all()
                 .into_iter()
-                .filter(|s| with_funcs.contains(s))
+                .map(|t| (t.file, t.name))
                 .collect();
-            let pool = if sources.is_empty() {
-                &with_funcs
+            let pool: Vec<(String, String)> = if reexported.is_empty() {
+                with_funcs
+                    .iter()
+                    .flat_map(|f| {
+                        functions(&read(dir, f))
+                            .into_iter()
+                            .map(|(name, _)| (f.clone(), name))
+                    })
+                    .collect()
             } else {
-                &sources
+                reexported.into_iter().collect()
             };
             if pool.is_empty() {
                 return changed;
             }
-            let file = pool[rng.range(0, pool.len() - 1)].clone();
+            let (file, name) = pool[rng.range(0, pool.len() - 1)].clone();
             let src = read(dir, &file);
-            let funcs = functions(&src);
-            let (name, at) = funcs[rng.range(0, funcs.len() - 1)].clone();
+            let at = functions(&src)
+                .into_iter()
+                .find(|(n, _)| *n == name)
+                .expect("the function was found in this file")
+                .1;
             let line = src.lines().nth(at).unwrap_or_default();
             let new_line = line.replacen(
                 &format!("export function {name}("),
                 &format!("export function {name}R("),
                 1,
             );
-            write_file(dir, &file, &replace_line(&src, at, &new_line));
-            changed.insert(file);
+            if write_if_changed(dir, &file, &src, &replace_line(&src, at, &new_line)) {
+                changed.insert(file);
+            }
         }
         Edit::RemoveImport => {
             let with_imports: Vec<&String> = files
@@ -448,8 +639,9 @@ pub fn apply_edit(dir: &Path, seed: u64, edit: Edit) -> BTreeSet<String> {
                 .filter(|(i, _)| *i != drop)
                 .map(|(_, l)| l)
                 .collect();
-            write_file(dir, &file, &(kept.join("\n") + "\n"));
-            changed.insert(file);
+            if write_if_changed(dir, &file, &src, &(kept.join("\n") + "\n")) {
+                changed.insert(file);
+            }
         }
         Edit::AddFile => {
             let mut k = 0;
@@ -501,7 +693,7 @@ pub fn apply_edit(dir: &Path, seed: u64, edit: Edit) -> BTreeSet<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::time::Instant;
 
     use tempfile::TempDir;
 
@@ -543,6 +735,15 @@ mod tests {
         out
     }
 
+    /// The paths whose bytes differ between two trees, or that exist in one only.
+    fn diff(a: &BTreeMap<String, Vec<u8>>, b: &BTreeMap<String, Vec<u8>>) -> BTreeSet<String> {
+        a.keys()
+            .chain(b.keys())
+            .filter(|k| a.get(*k) != b.get(*k))
+            .cloned()
+            .collect()
+    }
+
     fn status(dir: &Path, rel: &str) -> ParseStatus {
         extract(&read(dir, rel), Lang::TypeScript).status
     }
@@ -551,6 +752,21 @@ mod tests {
         for rel in ts_files(dir) {
             assert_eq!(status(dir, &rel), ParseStatus::Parsed, "{rel}");
         }
+    }
+
+    fn is_barrel_file(rel: &str) -> bool {
+        let idx: usize = rel[rel.len() - 7..rel.len() - 3].parse().unwrap();
+        is_barrel(idx)
+    }
+
+    fn imports_a_barrel(src: &str) -> bool {
+        src.lines()
+            .filter(|l| l.starts_with("import "))
+            .filter_map(|l| l.split('"').nth(1))
+            .any(|spec| {
+                let idx: usize = spec[spec.len() - 4..].parse().unwrap();
+                is_barrel(idx)
+            })
     }
 
     #[test]
@@ -591,19 +807,41 @@ mod tests {
         assert!(seen_alias_import && through_barrel);
     }
 
-    fn is_barrel_file(rel: &str) -> bool {
-        let idx: usize = rel[rel.len() - 7..rel.len() - 3].parse().unwrap();
-        is_barrel(idx)
+    #[test]
+    fn a_module_never_imports_its_own_functions() {
+        for (seed, files) in [(7, 200), (1, 60), (5, 30)] {
+            let dir = TempDir::new().unwrap();
+            project(dir.path(), seed, files);
+            for rel in ts_files(dir.path()) {
+                let src = read(dir.path(), &rel);
+                let own: Vec<String> = functions(&src).into_iter().map(|(n, _)| n).collect();
+                for line in src.lines().filter(|l| l.starts_with("import ")) {
+                    let names = line.split(['{', '}']).nth(1).unwrap();
+                    for name in names.split(',').map(str::trim) {
+                        assert!(!own.iter().any(|o| o == name), "{rel} imports {name}");
+                    }
+                }
+            }
+        }
     }
 
-    fn imports_a_barrel(src: &str) -> bool {
-        src.lines()
-            .filter(|l| l.starts_with("import "))
-            .filter_map(|l| l.split('"').nth(1))
-            .any(|spec| {
-                let idx: usize = spec[spec.len() - 4..].parse().unwrap();
-                is_barrel(idx)
-            })
+    #[test]
+    fn barrels_chain_over_several_hops() {
+        let mut deepest = 0;
+        for seed in 0..10 {
+            let dir = TempDir::new().unwrap();
+            project(dir.path(), seed, 100);
+            assert_all_parse(dir.path());
+            let files = ts_files(dir.path());
+            let hops = Barrels::scan(dir.path(), &files)
+                .all()
+                .iter()
+                .map(|t| t.hops)
+                .max()
+                .unwrap();
+            deepest = deepest.max(hops);
+        }
+        assert!(deepest >= 4, "the longest chain has {deepest} hops");
     }
 
     #[test]
@@ -615,15 +853,7 @@ mod tests {
             let changed = apply_edit(dir.path(), 5, edit);
             assert!(!changed.is_empty(), "{edit:?}");
             let after = tree(dir.path());
-            for rel in &changed {
-                match edit {
-                    Edit::DeleteFile => {
-                        assert!(before.contains_key(rel) && !after.contains_key(rel))
-                    }
-                    Edit::AddFile => assert!(!before.contains_key(rel) && after.contains_key(rel)),
-                    _ => assert_ne!(before.get(rel), after.get(rel), "{edit:?} {rel}"),
-                }
-            }
+            assert_eq!(changed, diff(&before, &after), "{edit:?}");
             if edit == Edit::BreakSyntax {
                 for rel in &changed {
                     assert_eq!(status(dir.path(), rel), ParseStatus::ParsedWithErrors);
@@ -635,18 +865,90 @@ mod tests {
     }
 
     #[test]
+    fn the_changed_set_is_exactly_the_files_whose_bytes_changed() {
+        // Broken files stay in the tree, so later edits meet `export function broken(`.
+        let dir = TempDir::new().unwrap();
+        project(dir.path(), 4, 30);
+        for seed in 0..40 {
+            for edit in ALL_EDITS {
+                let before = tree(dir.path());
+                let changed = apply_edit(dir.path(), seed, edit);
+                assert_eq!(changed, diff(&before, &tree(dir.path())), "{edit:?} {seed}");
+            }
+        }
+    }
+
+    #[test]
     fn rename_renames_a_function_that_a_barrel_re_exports() {
-        for seed in 0..20 {
+        for seed in 0..50 {
             let dir = TempDir::new().unwrap();
             project(dir.path(), 11, 30);
             let files = ts_files(dir.path());
-            let sources = barrel_sources(dir.path(), &files);
+            let before = tree(dir.path());
+            let reachable: BTreeSet<(String, String)> = Barrels::scan(dir.path(), &files)
+                .all()
+                .into_iter()
+                .map(|t| (t.file, t.name))
+                .collect();
             let changed = apply_edit(dir.path(), seed, Edit::Rename);
+            assert_eq!(changed.len(), 1);
             let file = changed.iter().next().unwrap();
-            assert!(sources.contains(file), "{file} is not behind a barrel");
-            let renamed = read(dir.path(), file);
-            assert!(renamed.contains("R(a: number"), "{renamed}");
+            let old_src = String::from_utf8(before[file].clone()).unwrap();
+            let new_src = read(dir.path(), file);
+            let old_name = functions(&old_src)
+                .into_iter()
+                .map(|(n, _)| n)
+                .find(|n| !new_src.contains(&format!("export function {n}(")))
+                .expect("a function lost its name");
+            assert!(new_src.contains(&format!("export function {old_name}R(")));
+            // Some barrel line names the old function, or star-exports its file.
+            let barrels = Barrels::scan(dir.path(), &files);
+            let reexports = barrels.lines.values().flatten().any(|l| match l {
+                Line::Named(t, n, _) => t == file && *n == old_name,
+                Line::Star(t) => t == file,
+            });
+            assert!(reexports, "{file}::{old_name} is not re-exported");
+            assert!(reachable.contains(&(file.clone(), old_name)));
         }
+    }
+
+    #[test]
+    fn edit_function_edits_one_known_file_only() {
+        for kind in [Edit::BodyChange, Edit::SignatureChange] {
+            let dir = TempDir::new().unwrap();
+            project(dir.path(), 11, 30);
+            let before = tree(dir.path());
+            let rel = "src/d000/m0003.ts";
+            let changed = edit_function(dir.path(), rel, 9, kind);
+            assert_eq!(changed, BTreeSet::from([rel.to_string()]));
+            assert_eq!(diff(&before, &tree(dir.path())), changed);
+            assert_all_parse(dir.path());
+            // The same inputs on an identical tree give the same bytes.
+            let other = TempDir::new().unwrap();
+            project(other.path(), 11, 30);
+            edit_function(other.path(), rel, 9, kind);
+            assert_eq!(tree(dir.path()), tree(other.path()));
+            // A new seed edits again.
+            assert_eq!(edit_function(dir.path(), rel, 10, kind).len(), 1);
+        }
+    }
+
+    #[test]
+    fn edit_function_on_a_file_without_functions_changes_nothing() {
+        let dir = TempDir::new().unwrap();
+        project(dir.path(), 11, 30);
+        let before = tree(dir.path());
+        // m0000 is a barrel.
+        assert!(edit_function(dir.path(), "src/d000/m0000.ts", 1, Edit::BodyChange).is_empty());
+        assert_eq!(before, tree(dir.path()));
+    }
+
+    #[test]
+    #[should_panic(expected = "edit_function takes BodyChange or SignatureChange")]
+    fn edit_function_refuses_other_kinds() {
+        let dir = TempDir::new().unwrap();
+        project(dir.path(), 11, 30);
+        edit_function(dir.path(), "src/d000/m0003.ts", 1, Edit::Rename);
     }
 
     #[test]
@@ -674,6 +976,17 @@ mod tests {
             let cb = apply_edit(b.path(), 9, edit);
             assert_eq!(ca, cb, "{edit:?}");
             assert_eq!(tree(a.path()), tree(b.path()), "{edit:?}");
+        }
+    }
+
+    #[test]
+    #[ignore = "timing, run with --release -- --ignored --nocapture"]
+    fn project_generation_time() {
+        for files in [1_000, 5_000] {
+            let dir = TempDir::new().unwrap();
+            let t = Instant::now();
+            project(dir.path(), 7, files);
+            eprintln!("project({files}): {:?}", t.elapsed());
         }
     }
 }
