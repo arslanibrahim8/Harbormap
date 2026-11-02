@@ -31,7 +31,23 @@ trap 'exit 143' TERM
 mkdir -p "$dest"
 
 # Line-based parse: one "name url commit" line per [[repo]] table.
-# Read from process substitution, not a pipe, so `exit` below ends the script.
+if [ ! -r "$manifest" ]; then
+  echo "fetch.sh: cannot read $manifest" >&2
+  exit 1
+fi
+# Captured first so a failing awk also stops the script (set -e).
+repos=$(awk -F' *= *' '
+  /^\[\[repo\]\]/ { if (name != "") print name, url, commit; name = url = commit = "" }
+  /^name *=/      { gsub(/"/, "", $2); name = $2 }
+  /^url *=/       { gsub(/"/, "", $2); url = $2 }
+  /^commit *=/    { gsub(/"/, "", $2); commit = $2 }
+  END { if (name != "") print name, url, commit }
+' "$manifest")
+if [ -z "$repos" ]; then
+  echo "fetch.sh: no repositories in $manifest" >&2
+  exit 1
+fi
+
 while read -r name url commit; do
   repo="$dest/$name"
 
@@ -62,10 +78,4 @@ while read -r name url commit; do
 
   sha=$(git -C "$repo" rev-parse --verify 'HEAD^{commit}')
   echo "$name $sha"
-done < <(awk -F' *= *' '
-  /^\[\[repo\]\]/ { if (name != "") print name, url, commit; name = url = commit = "" }
-  /^name *=/      { gsub(/"/, "", $2); name = $2 }
-  /^url *=/       { gsub(/"/, "", $2); url = $2 }
-  /^commit *=/    { gsub(/"/, "", $2); commit = $2 }
-  END { if (name != "") print name, url, commit }
-' "$manifest")
+done <<< "$repos"
