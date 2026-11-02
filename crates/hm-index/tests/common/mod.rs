@@ -116,3 +116,186 @@ fn copy_tree(from: &Path, to: &Path) -> io::Result<()> {
     }
     Ok(())
 }
+
+/// An indexer for a copy of fixture `name` with an in-memory store, not yet run. The
+/// `TempDir` comes last: drop the indexer first, because Windows cannot delete a
+/// folder that SQLite or the watcher holds open.
+pub fn indexer_for(name: &str) -> (hm_index::index::Indexer, tempfile::TempDir) {
+    let dir = copy_fixture(name);
+    let store = hm_store::Store::open_in_memory().expect("open a store");
+    let ix = hm_index::index::Indexer::open(dir.path(), store).expect("open the indexer");
+    (ix, dir)
+}
+
+/// A cold full pass over fixture `name` in place (it is only read) into a new
+/// in-memory store.
+pub fn fresh_index(name: &str) -> hm_index::index::Indexer {
+    fresh_index_of(&fixture(name))
+}
+
+/// A cold full pass over `dir` into a new in-memory store.
+pub fn fresh_index_of(dir: &Path) -> hm_index::index::Indexer {
+    let store = hm_store::Store::open_in_memory().expect("open a store");
+    let mut ix = hm_index::index::Indexer::open(dir, store).expect("open the indexer");
+    ix.full().expect("index the folder");
+    ix
+}
+
+/// A copy of fixture `name`, already indexed. The `TempDir` comes last, as in
+/// `indexer_for`.
+pub fn indexed(name: &str) -> (hm_index::index::Indexer, tempfile::TempDir) {
+    let (mut ix, dir) = indexer_for(name);
+    ix.full().expect("index the fixture");
+    (ix, dir)
+}
+
+/// Replaces the text `from` with `to` in `rel` under `dir`; `from` must be there.
+pub fn edit(dir: &Path, rel: &str, from: &str, to: &str) {
+    let path = dir.join(rel);
+    let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    assert!(text.contains(from), "{rel} does not contain {from:?}");
+    fs::write(&path, text.replacen(from, to, 1)).expect("write the edited file");
+}
+
+/// A set of owned strings, for comparing path lists.
+pub fn set<const N: usize>(items: [&str; N]) -> std::collections::BTreeSet<String> {
+    items.iter().map(|s| s.to_string()).collect()
+}
+
+/// Every row of the store as sorted text, ids replaced by readable names. It leaves
+/// out what changes between runs (mtimes, `indexed_at`), so two stores that hold the
+/// same index dump the same text.
+pub fn dump(store: &hm_store::Store) -> String {
+    use hm_core::ids::file_id;
+    use hm_index::facts::FileFacts;
+    use hm_index::query::display_name;
+    use hm_index::ts::resolve::symbol_ids;
+    use std::collections::HashMap;
+
+    let conn = store.conn();
+    let col = |sql: &str| -> Vec<Vec<String>> {
+        let mut stmt = conn.prepare(sql).expect("prepare");
+        let n = stmt.column_count();
+        stmt.query_map([], |row| {
+            (0..n)
+                .map(|i| {
+                    Ok(match row.get_ref(i)? {
+                        rusqlite::types::ValueRef::Null => "-".to_string(),
+                        rusqlite::types::ValueRef::Integer(v) => v.to_string(),
+                        rusqlite::types::ValueRef::Real(v) => v.to_string(),
+                        rusqlite::types::ValueRef::Text(t) => String::from_utf8_lossy(t).into(),
+                        rusqlite::types::ValueRef::Blob(_) => "<blob>".to_string(),
+                    })
+                })
+                .collect()
+        })
+        .expect("query")
+        .collect::<Result<_, _>>()
+        .expect("rows")
+    };
+
+    let mut names: HashMap<String, String> = HashMap::new();
+    let mut paths: HashMap<String, String> = HashMap::new();
+    for row in col("SELECT path, facts_json FROM file") {
+        let (rel, json) = (&row[0], &row[1]);
+        names.insert(file_id(rel), display_name(rel, None));
+        paths.insert(file_id(rel), rel.clone());
+        if json != "-" {
+            let facts: FileFacts = serde_json::from_str(json).expect("facts_json reads");
+            for (id, sym) in symbol_ids(rel, &facts).into_iter().zip(&facts.symbols) {
+                names.insert(id, display_name(rel, Some(sym)));
+            }
+        }
+    }
+    let name = |id: &str| names.get(id).cloned().unwrap_or_else(|| format!("?{id}"));
+    let path = |id: &str| paths.get(id).cloned().unwrap_or_else(|| format!("?{id}"));
+
+    let mut sections: Vec<(&str, Vec<String>)> = Vec::new();
+    let sorted = |mut v: Vec<String>| {
+        v.sort();
+        v
+    };
+    sections.push((
+        "file",
+        sorted(
+            col("SELECT path, lang, class, loc, parse_status, content_hash, interface_hash, facts_hash FROM file")
+                .iter()
+                .map(|r| r.join(" | "))
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "symbol",
+        sorted(
+            col("SELECT file_id, kind, name, owner, sig, sig_hash, body_hash, l0, l1, exported, lines, branches, id FROM symbol")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {}",
+                        name(&r[12]),
+                        path(&r[0]),
+                        r[1..12].join(" | ")
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "edge",
+        sorted(
+            col("SELECT kind, src_id, dst_id, file_id, line, rule, prov, conf FROM edge")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} -> {} | {} | {} | {} | {} | {}",
+                        r[0],
+                        name(&r[1]),
+                        name(&r[2]),
+                        path(&r[3]),
+                        r[4],
+                        r[5],
+                        r[6],
+                        r[7]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "ref",
+        sorted(
+            col("SELECT file_id, kind, text, line, status FROM ref")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        r[1],
+                        r[2],
+                        r[3],
+                        r[4]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "reverse_import",
+        sorted(
+            col("SELECT dst_file_id, src_file_id FROM reverse_import")
+                .iter()
+                .map(|r| format!("{} <- {}", path(&r[0]), path(&r[1])))
+                .collect(),
+        ),
+    ));
+
+    let mut out = String::new();
+    for (title, rows) in sections {
+        out.push_str(&format!("[{title}] {}\n", rows.len()));
+        for row in rows {
+            out.push_str(&row);
+            out.push('\n');
+        }
+    }
+    out
+}
