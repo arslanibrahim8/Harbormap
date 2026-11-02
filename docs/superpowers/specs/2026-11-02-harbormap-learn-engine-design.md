@@ -775,7 +775,7 @@ A read-only viewer with syntax highlighting. It shows the journey quote's lines 
 | github.com/benbjohnson/wtf | MIT | `05bc90c940d5` | Go web + CLI + SQLite + websocket; interface with 3 implementations; generated templates absent | 4 (create dial, GitHub sign-in, CLI sets value → browser updates, list dials) |
 | github.com/spring-projects/spring-petclinic | Apache-2.0 | `500158f73241` | Spring MVC + Thymeleaf + JPA; hidden hops (`@ModelAttribute`, interface repositories) | 4 (search owners, add owner, book visit, list vets) |
 | Harbormap (this repository) | AGPL-3.0 | pinned per run | Rust CLI workspace | 3 (`harbormap` with no args, `harbormap why 3000`, a secret on a command line stays hidden) |
-| A public Next.js App Router app | MIT, chosen in plan L1 | pinned | Next.js App Router + server actions | 3–4 |
+| github.com/vercel/next-learn (dashboard/final-example) | MIT | `bb2558441a66` | Next.js App Router + server actions + NextAuth | 3–4 (chosen in L3) |
 | A private project | — | pinned | Next.js App Router web app | 4 (kept outside the repository) |
 
 **Gold paths**

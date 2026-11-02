@@ -1,0 +1,13 @@
+[[repo]]
+name = "next-learn"
+url = "https://github.com/vercel/next-learn"
+commit = "bb2558441a6673ab76c89914c25018bffa27a2ba"
+licence = "MIT"
+subdir = "dashboard/final-example"
+
+[[repo]]
+name = "fastapi-template"
+url = "https://github.com/fastapi/full-stack-fastapi-template"
+commit = "f4bcfaba7c85be3c6332cc74a20819f586dcdbc6"
+licence = "MIT"
+subdir = "frontend"
