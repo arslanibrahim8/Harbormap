@@ -97,8 +97,9 @@ thread_local! {
 }
 
 /// Extracts the facts of `src`. A file with syntax errors still yields the facts that
-/// parsed, with status `ParsedWithErrors`. A language L1 does not parse, or a grammar
-/// the pinned tree-sitter core refuses to load, yields no facts and `ParsedWithErrors`.
+/// parsed, with status `ParsedWithErrors`. A language L1 does not parse, or a grammar the
+/// pinned core refuses to load (`set_language` fails), yields no facts and
+/// `ParsedWithErrors`. A bundled query that does not compile is a bug and panics.
 pub fn extract(src: &str, lang: Lang) -> FileFacts {
     let failed = || FileFacts::empty(ParseStatus::ParsedWithErrors);
     let Some(q) = queries(lang) else {
@@ -306,7 +307,10 @@ impl<'s> Extractor<'s> {
                 let target = if let Some(clause) = first_child_of_kind(h, "extends_clause") {
                     clause.child_by_field_name("value")?
                 } else {
-                    h.named_child(0)?
+                    // The JS grammar puts the expression directly in the heritage; in TS a
+                    // lone `implements` clause is not an `extends`.
+                    h.named_child(0)
+                        .filter(|c| c.kind() != "implements_clause")?
                 };
                 Some(HeritageFact {
                     class: class_name.clone(),

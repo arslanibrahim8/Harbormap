@@ -298,3 +298,17 @@ fn a_local_export_clause_marks_the_symbol_exported() {
     let f = extract("function a() {}\nexport { a as b };", Lang::TypeScript);
     assert!(f.symbols[0].exported);
 }
+
+#[test]
+fn implements_alone_is_not_heritage() {
+    let alone = extract("class A implements I {}", Lang::TypeScript);
+    assert!(alone.heritage.is_empty(), "{:?}", alone.heritage);
+
+    let both = extract("class A extends B implements I {}", Lang::TypeScript);
+    assert_eq!(both.heritage.len(), 1);
+    assert_eq!(both.heritage[0].extends, "B");
+
+    let js = extract("class A extends B {}", Lang::JavaScript);
+    assert_eq!(js.heritage.len(), 1);
+    assert_eq!(js.heritage[0].extends, "B");
+}
