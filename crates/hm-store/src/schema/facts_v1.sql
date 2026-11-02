@@ -17,3 +17,4 @@ CREATE TABLE ref(file_id TEXT NOT NULL REFERENCES file(id) ON DELETE CASCADE, ki
   PRIMARY KEY(file_id, kind, text, line));
 CREATE TABLE reverse_import(dst_file_id TEXT NOT NULL, src_file_id TEXT NOT NULL
   REFERENCES file(id) ON DELETE CASCADE, PRIMARY KEY(dst_file_id, src_file_id));
+CREATE INDEX reverse_import_src ON reverse_import(src_file_id);

@@ -221,3 +221,83 @@ fn a_reopened_store_parses_nothing_again() {
     assert_eq!((r.hashed, r.parsed), (1, 1));
     assert_eq!(dump(ix.store()), dump(fresh_index_of(dir.path()).store()));
 }
+
+#[test]
+fn every_read_file_has_its_line_count_and_unread_ones_have_zero() {
+    let (ix, dir) = indexed("ts-basic");
+    for rel in [
+        "docs/guide.md",
+        "src/scripts/tool.py",
+        "tsconfig.json",
+        "Dockerfile",
+    ] {
+        let lines = fs::read_to_string(dir.path().join(rel))
+            .unwrap()
+            .lines()
+            .count();
+        assert!(lines > 0, "{rel}");
+        assert_eq!(
+            scalar(
+                ix.store(),
+                &format!("SELECT loc FROM file WHERE path = '{rel}'")
+            ),
+            lines.to_string(),
+            "{rel}"
+        );
+    }
+}
+
+#[test]
+fn a_stale_class_or_status_is_rewritten_even_with_the_same_bytes() {
+    let (mut ix, _dir) = indexed("ts-basic");
+    ix.store()
+        .conn()
+        .execute_batch(
+            "UPDATE file SET class = 'doc' WHERE path = 'src/db.ts';
+             UPDATE file SET parse_status = 'not_parsed' WHERE path = 'src/scripts/tool.py';",
+        )
+        .unwrap();
+    // Same size and mtime, but the rows no longer say what a cold pass would write.
+    let r = ix.full().unwrap();
+    assert_eq!(r.hashed, 2);
+    assert_eq!(dump(ix.store()), dump(fresh_index("ts-basic").store()));
+}
+
+#[test]
+fn a_pass_with_nothing_to_do_rewrites_no_derived_rows() {
+    let (mut ix, dir) = indexed("ts-basic");
+    let conn = ix.store().conn();
+    // Temp triggers record every write to the rows a resolve produces.
+    let mut sql = String::from("CREATE TEMP TABLE writes(what TEXT);");
+    for table in ["edge", "ref", "reverse_import", "symbol"] {
+        for op in ["INSERT", "DELETE"] {
+            sql.push_str(&format!(
+                "CREATE TEMP TRIGGER w_{table}_{op} AFTER {op} ON main.{table}
+                 BEGIN INSERT INTO temp.writes VALUES ('{op} {table}'); END;"
+            ));
+        }
+    }
+    conn.execute_batch(&sql).unwrap();
+    let writes = |ix: &Indexer| scalar(ix.store(), "SELECT count(*) FROM temp.writes");
+
+    let before = dump(ix.store());
+    ix.full().unwrap();
+    assert_eq!(writes(&ix), "0");
+    assert_eq!(dump(ix.store()), before);
+
+    // A touched file (same bytes) is not a change to resolve either.
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .open(dir.path().join("src/db.ts"))
+        .unwrap();
+    file.set_modified(SystemTime::now() + Duration::from_secs(20))
+        .unwrap();
+    drop(file);
+    ix.full().unwrap();
+    assert_eq!(writes(&ix), "0");
+
+    // A real edit does resolve again.
+    edit(dir.path(), "src/db.ts", "export", "// c\nexport");
+    ix.full().unwrap();
+    assert_ne!(writes(&ix), "0");
+}

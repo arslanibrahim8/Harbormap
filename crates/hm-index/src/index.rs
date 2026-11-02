@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use hm_core::ids::file_id;
-use hm_core::model::Confidence;
 use hm_store::{Store, StoreError};
 use rusqlite::{Transaction, params};
 use serde::Serialize;
@@ -23,6 +22,8 @@ use crate::walk::{FileClass, Skip, WalkedFile, walk};
 
 /// Where every L1 edge comes from.
 const PROVENANCE: &str = "parsed";
+/// `Confidence::Sure` as the store spells it (checked by a test).
+const CONF_SURE: &str = "sure";
 
 #[derive(Debug)]
 pub enum IndexError {
@@ -101,6 +102,8 @@ pub struct IndexReport {
 
 /// A file row as the last pass stored it.
 struct Stored {
+    class: String,
+    lang: Option<String>,
     size: i64,
     mtime_ns: i64,
     content_hash: String,
@@ -203,8 +206,9 @@ impl Indexer {
             let old = stored.get(&f.rel);
             let have_facts = self.facts.contains_key(&f.rel);
             if let Some(skip) = f.skip {
-                let same =
-                    old.is_some_and(|s| same_stat(s, f) && s.parse_status == skip_name(skip));
+                let same = old.is_some_and(|s| {
+                    same_stat(s, f) && s.parse_status == skip_name(skip) && same_kind(s, f)
+                });
                 changes.push(Some(if same {
                     Change::Unchanged
                 } else {
@@ -218,9 +222,7 @@ impl Indexer {
                     i,
                     Job {
                         file: f,
-                        stored_hash: old
-                            .filter(|s| !s.content_hash.is_empty())
-                            .map(|s| s.content_hash.as_str()),
+                        stored: old.filter(|s| !s.content_hash.is_empty()),
                         have_facts,
                     },
                 ));
@@ -230,7 +232,10 @@ impl Indexer {
         for (i, result) in run_jobs(&jobs) {
             changes[i] = Some(result?);
         }
-        let changes: Vec<Change> = changes.into_iter().flatten().collect();
+        let changes: Vec<Change> = changes
+            .into_iter()
+            .map(|c| c.expect("every file has a change"))
+            .collect();
 
         // The files that still exist, with the facts they will have.
         let live: Vec<(&WalkedFile, &Change)> = walked
@@ -258,11 +263,18 @@ impl Indexer {
                 _ => {}
             }
         }
+        // Edges depend on other files, so any change to the set of files or to a
+        // file's facts means resolving again. A touched file has the same bytes.
+        let vanished: Vec<&String> = stored.keys().filter(|p| !known.contains(*p)).collect();
+        let dirty = !vanished.is_empty()
+            || changes
+                .iter()
+                .any(|c| !matches!(c, Change::Unchanged | Change::Touched));
         let tsconfigs = load_tsconfigs(&self.root, &known);
         let resolver = ModuleResolver::new(known.clone(), tsconfigs);
 
         let outcome = self.store.write(|tx| {
-            for path in stored.keys().filter(|p| !known.contains(*p)) {
+            for path in &vanished {
                 tx.execute("DELETE FROM file WHERE path = ?1", [path])?;
             }
             for (f, change) in &live {
@@ -272,8 +284,10 @@ impl Indexer {
                 facts: &facts,
                 modules: &resolver,
             };
-            for rel in facts.keys() {
-                replace_resolved(tx, &project, rel)?;
+            if dirty {
+                for rel in facts.keys() {
+                    replace_resolved(tx, &project, rel)?;
+                }
             }
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -294,8 +308,11 @@ impl Indexer {
                 self.resolver = resolver;
             }
             Err(err) => {
-                // The map was partly rebuilt; the store is the truth.
-                self.facts = load_facts(&self.store)?;
+                // The map was partly rebuilt; the store is the truth. If it cannot be
+                // read either, the map stays empty and the next pass parses again.
+                if let Ok(facts) = load_facts(&self.store) {
+                    self.facts = facts;
+                }
                 return Err(err.into());
             }
         }
@@ -339,6 +356,11 @@ fn unparsed_status(f: &WalkedFile) -> &'static str {
     }
 }
 
+/// Whether the stored class and language are what the walk reports now.
+fn same_kind(s: &Stored, f: &WalkedFile) -> bool {
+    s.class == f.class.as_str() && s.lang.as_deref() == f.lang.map(|l| l.as_str())
+}
+
 fn same_stat(s: &Stored, f: &WalkedFile) -> bool {
     // An mtime of 0 means the platform gave none, so it proves nothing.
     f.mtime_ns != 0 && s.mtime_ns == f.mtime_ns && s.size == f.size as i64
@@ -346,7 +368,9 @@ fn same_stat(s: &Stored, f: &WalkedFile) -> bool {
 
 /// Whether the stored row is what a pass would write for `f` again.
 fn fits(s: &Stored, f: &WalkedFile, have_facts: bool) -> bool {
-    if parses(f) {
+    if !same_kind(s, f) {
+        false
+    } else if parses(f) {
         have_facts && matches!(s.parse_status.as_str(), "parsed" | "parsed_with_errors")
     } else {
         s.parse_status == unparsed_status(f)
@@ -356,8 +380,8 @@ fn fits(s: &Stored, f: &WalkedFile, have_facts: bool) -> bool {
 /// One file to read.
 struct Job<'a> {
     file: &'a WalkedFile,
-    /// The content hash of the stored row, when it has one.
-    stored_hash: Option<&'a str>,
+    /// The stored row, when it has a content hash.
+    stored: Option<&'a Stored>,
     /// Whether the in-memory facts hold this file.
     have_facts: bool,
 }
@@ -400,14 +424,21 @@ fn read_one(job: &Job) -> io::Result<Change> {
     };
     let hash = content_hash(&bytes);
     let lang = f.lang.filter(|_| parses(f));
-    if job.stored_hash == Some(hash.as_str()) && (lang.is_none() || job.have_facts) {
+    // Same bytes and the row is what a cold pass would write: only stat changed.
+    if job
+        .stored
+        .is_some_and(|s| s.content_hash == hash && fits(s, f, job.have_facts))
+    {
         return Ok(Change::Touched);
     }
+    let newlines = bytes.iter().filter(|b| **b == b'\n').count();
+    let unterminated = bytes.last().is_some_and(|b| *b != b'\n');
+    let loc = (newlines + usize::from(unterminated)) as u32;
     let Some(lang) = lang else {
         return Ok(Change::Fresh {
             status: unparsed_status(f),
             hash,
-            loc: 0,
+            loc,
             parsed: None,
         });
     };
@@ -416,12 +447,10 @@ fn read_one(job: &Job) -> io::Result<Change> {
         ParseStatus::Parsed => "parsed",
         ParseStatus::ParsedWithErrors => "parsed_with_errors",
     };
-    let newlines = bytes.iter().filter(|b| **b == b'\n').count();
-    let unterminated = bytes.last().is_some_and(|b| *b != b'\n');
     Ok(Change::Fresh {
         status,
         hash,
-        loc: (newlines + usize::from(unterminated)) as u32,
+        loc,
         parsed: Some(Box::new(Parsed {
             json: serde_json::to_string(&facts).map_err(io::Error::other)?,
             interface_hash: interface_hash(&facts),
@@ -446,7 +475,8 @@ fn write_change(tx: &Transaction, f: &WalkedFile, change: &Change) -> rusqlite::
         }
         Change::Skipped(status) => {
             upsert_file(tx, &id, f, lang, "", 0, status, None)?;
-            clear_derived(tx, &id)?;
+            clear_symbols(tx, &id)?;
+            clear_resolved(tx, &id)?;
         }
         Change::Fresh {
             status,
@@ -455,9 +485,11 @@ fn write_change(tx: &Transaction, f: &WalkedFile, change: &Change) -> rusqlite::
             parsed,
         } => {
             upsert_file(tx, &id, f, lang, hash, *loc, status, parsed.as_deref())?;
-            clear_derived(tx, &id)?;
-            if let Some(p) = parsed {
-                insert_symbols(tx, &id, &f.rel, &p.facts)?;
+            clear_symbols(tx, &id)?;
+            match parsed {
+                Some(p) => insert_symbols(tx, &id, &f.rel, &p.facts)?,
+                // A parsed file's rows are replaced when the pass resolves it.
+                None => clear_resolved(tx, &id)?,
             }
         }
     }
@@ -504,10 +536,15 @@ fn upsert_file(
     Ok(())
 }
 
-/// Removes what a file's old content produced; the new rows follow.
-fn clear_derived(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
+fn clear_symbols(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
+    tx.prepare_cached("DELETE FROM symbol WHERE file_id = ?1")?
+        .execute([id])?;
+    Ok(())
+}
+
+/// Removes the rows that resolving a file wrote.
+fn clear_resolved(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
     for sql in [
-        "DELETE FROM symbol WHERE file_id = ?1",
         "DELETE FROM edge WHERE file_id = ?1",
         "DELETE FROM ref WHERE file_id = ?1",
         "DELETE FROM reverse_import WHERE src_file_id = ?1",
@@ -552,25 +589,15 @@ fn insert_symbols(
 /// rows with the result. The file's `file` row must exist.
 fn replace_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Result<()> {
     let id = file_id(rel);
-    for sql in [
-        "DELETE FROM edge WHERE file_id = ?1",
-        "DELETE FROM ref WHERE file_id = ?1",
-        "DELETE FROM reverse_import WHERE src_file_id = ?1",
-    ] {
-        tx.prepare_cached(sql)?.execute([&id])?;
-    }
+    clear_resolved(tx, &id)?;
     let resolved = resolve_file(project, rel);
-    let conf = serde_json::to_value(Confidence::Sure)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_string))
-        .unwrap_or_else(|| "sure".to_string());
     let mut edge = tx.prepare_cached(
         "INSERT INTO edge(kind, src_id, dst_id, file_id, line, rule, prov, conf)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )?;
     for e in &resolved.edges {
         edge.execute(params![
-            e.kind, e.src_id, e.dst_id, id, e.line, e.rule, PROVENANCE, conf
+            e.kind, e.src_id, e.dst_id, id, e.line, e.rule, PROVENANCE, CONF_SURE
         ])?;
     }
     let mut reference = tx.prepare_cached(
@@ -588,17 +615,19 @@ fn replace_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite:
 }
 
 fn load_stored(store: &Store) -> rusqlite::Result<BTreeMap<String, Stored>> {
-    let mut stmt = store
-        .conn()
-        .prepare("SELECT path, size, mtime_ns, content_hash, parse_status FROM file")?;
+    let mut stmt = store.conn().prepare(
+        "SELECT path, class, lang, size, mtime_ns, content_hash, parse_status FROM file",
+    )?;
     let rows = stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
             Stored {
-                size: row.get(1)?,
-                mtime_ns: row.get(2)?,
-                content_hash: row.get(3)?,
-                parse_status: row.get(4)?,
+                class: row.get(1)?,
+                lang: row.get(2)?,
+                size: row.get(3)?,
+                mtime_ns: row.get(4)?,
+                content_hash: row.get(5)?,
+                parse_status: row.get(6)?,
             },
         ))
     })?;
@@ -636,4 +665,13 @@ fn counts(conn: &rusqlite::Connection, sql: &str) -> rusqlite::Result<BTreeMap<S
         Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?))
     })?;
     rows.collect()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_confidence_constant_is_how_the_model_spells_sure() {
+        let sure = serde_json::to_value(hm_core::model::Confidence::Sure).unwrap();
+        assert_eq!(sure, super::CONF_SURE);
+    }
 }
