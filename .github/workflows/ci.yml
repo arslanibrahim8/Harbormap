@@ -185,20 +185,37 @@ jobs:
             echo "::warning title=Latency target missed::$line"
           done
 
-          # Regressions: more than 20% above the baseline fails.
+          # Regressions: more than 20% above the baseline fails. Both files must hold
+          # the three numbers the comparison reads; anything else fails the job.
+          numbers='(.body.p95|numbers) and (.sig.p95|numbers) and (.cold_ms|numbers)'
+          if ! jq -e "$numbers" "$best" > /dev/null; then
+            echo "::error title=Invalid latency result::$best lacks body.p95, sig.p95 or cold_ms as numbers"
+            exit 1
+          fi
           if [ ! -f "$BASELINE" ]; then
             echo "::warning title=No latency baseline::$BASELINE does not exist yet; commit the uploaded latency-best.json from the first green run on main."
             echo "No baseline yet, so no regression check." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          if ! jq -e "$numbers" "$BASELINE" > /dev/null; then
+            echo "::error title=Invalid latency baseline::$BASELINE is not JSON with numbers at body.p95, sig.p95 and cold_ms"
+            exit 1
+          fi
           failed=0
           for metric in body.p95 sig.p95 cold_ms; do
             got=$(jq ".$metric" "$best")
             base=$(jq ".$metric" "$BASELINE")
-            if jq -en --argjson got "$got" --argjson base "$base" '$got > $base * 1.2' > /dev/null; then
-              echo "::error title=Latency regression::$metric is $got ms, more than 20% above the baseline $base ms"
-              failed=1
-            fi
+            # A boolean from jq, so that a jq error cannot read as "no regression".
+            regressed=$(jq -rn --argjson got "$got" --argjson base "$base" '$got > $base * 1.2')
+            case "$regressed" in
+              true)
+                echo "::error title=Latency regression::$metric is $got ms, more than 20% above the baseline $base ms"
+                failed=1 ;;
+              false) ;;
+              *)
+                echo "::error title=Latency comparison failed::could not compare $metric ($got against $base)"
+                failed=1 ;;
+            esac
           done
           exit "$failed"
       - uses: actions/upload-artifact@v7

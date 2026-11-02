@@ -16,7 +16,7 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
 use hm_index::index::{Delta, Indexer};
@@ -27,6 +27,21 @@ use hm_store::Store;
 
 /// How long to wait for a delta before the run is given up.
 const DELTA_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// Every flag the harness takes; anything else is a typo that would silently skip a
+/// measurement, so it is refused.
+const FLAGS: [&str; 7] = [
+    "files",
+    "saves",
+    "seed",
+    "max-p95-body-ms",
+    "max-p95-sig-ms",
+    "max-cold-ms",
+    "branch-switch",
+];
+
+const USAGE: &str = "usage: latency --files N --saves S [--seed K] --max-p95-body-ms X \
+--max-p95-sig-ms Y --max-cold-ms Z [--branch-switch N]";
 
 struct Args {
     files: u32,
@@ -44,7 +59,8 @@ fn parse_args() -> Result<Args, String> {
     while let Some(flag) = argv.next() {
         let name = flag
             .strip_prefix("--")
-            .ok_or_else(|| format!("unexpected argument {flag}"))?;
+            .filter(|name| FLAGS.contains(name))
+            .ok_or_else(|| format!("unknown argument {flag}\n{USAGE}"))?;
         let value = argv.next().ok_or_else(|| format!("{flag} needs a value"))?;
         values.insert(name.to_string(), value);
     }
@@ -122,9 +138,16 @@ fn wait_for(deltas: &Receiver<(Instant, Delta)>, mut wanted: BTreeSet<String>) -
     let give_up = Instant::now() + DELTA_TIMEOUT;
     loop {
         let left = give_up.saturating_duration_since(Instant::now());
-        let (at, delta) = deltas
-            .recv_timeout(left)
-            .unwrap_or_else(|_| panic!("no delta for {} within {DELTA_TIMEOUT:?}", wanted.len()));
+        let (at, delta) = match deltas.recv_timeout(left) {
+            Ok(received) => received,
+            Err(RecvTimeoutError::Disconnected) => panic!("the apply thread stopped"),
+            Err(RecvTimeoutError::Timeout) => {
+                panic!(
+                    "no delta for {} files within {DELTA_TIMEOUT:?}",
+                    wanted.len()
+                )
+            }
+        };
         for path in &delta.files_changed {
             wanted.remove(path);
         }
@@ -183,15 +206,23 @@ fn run(args: &Args) -> Result<serde_json::Value, String> {
         fresh_seed
     };
     let (mut body, mut sig) = (Vec::new(), Vec::new());
+    let mut last: Option<usize> = None;
     for i in 0..args.saves {
         let (kind, samples) = if i % 2 == 0 {
             (Edit::BodyChange, &mut body)
         } else {
             (Edit::SignatureChange, &mut sig)
         };
-        // A file with no function to edit is left alone; try another.
+        // A file with no function to edit is left alone; try another. Never the same
+        // file twice in a row, so a late second event for the previous write cannot
+        // satisfy this save's wait.
         let (t_write, changed) = loop {
-            let rel = &files[rng.below(files.len())];
+            let mut pick = rng.below(files.len());
+            while files.len() > 1 && Some(pick) == last {
+                pick = rng.below(files.len());
+            }
+            last = Some(pick);
+            let rel = &files[pick];
             while deltas.try_recv().is_ok() {}
             let t_write = Instant::now();
             let changed = synth::edit_function(&root, rel, next_seed(), kind);
