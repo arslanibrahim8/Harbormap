@@ -31,6 +31,17 @@ pub fn copy_fixture(name: &str) -> tempfile::TempDir {
     dir
 }
 
+/// A resolver for fixture `name`: the walked files are the known set and every
+/// tsconfig in it is loaded.
+pub fn resolver_for(name: &str) -> hm_index::ts::resolve::ModuleResolver {
+    let root = fixture(name);
+    let walked = hm_index::walk::walk(&root).expect("walk the fixture");
+    let known: std::collections::BTreeSet<String> =
+        walked.files.iter().map(|f| f.rel.clone()).collect();
+    let tsconfigs = hm_index::ts::tsconfig::load_tsconfigs(&root, &known);
+    hm_index::ts::resolve::ModuleResolver::new(known, tsconfigs)
+}
+
 fn copy_tree(from: &Path, to: &Path) -> io::Result<()> {
     for entry in fs::read_dir(from)? {
         let entry = entry?;
