@@ -123,6 +123,8 @@ pub struct Delta {
     pub symbols_body_changed: Vec<String>,
     /// Symbols that kept their id and got a new signature hash.
     pub symbols_sig_changed: Vec<String>,
+    /// Edge rows inserted and deleted. An edge whose rule alone changed counts as one
+    /// removed and one added.
     pub edges_added: u32,
     pub edges_removed: u32,
 }
@@ -342,26 +344,34 @@ impl Indexer {
     /// what depends on them, in one transaction. A path that exists is always read
     /// and hashed: coarse mtimes miss fast saves of the same size. Paths the walk
     /// rules reject are ignored. A path that no longer exists removes its file, or
-    /// every indexed file under it when it was a folder. A changed ignore file, or an
+    /// every indexed file under it when it was a folder. A folder that exists (moved
+    /// or copied in) is walked with the same rules. A changed ignore file, or an
     /// indexer that has not walked yet, makes this a [`rescan`](Indexer::rescan).
     pub fn apply(&mut self, changed: &BTreeSet<String>) -> Result<Delta> {
         let Some(rules) = &self.rules else {
             return self.rescan();
         };
-        let is_ignore_file =
-            |rel: &str| IGNORE_FILES.contains(&rel.rsplit('/').next().unwrap_or(rel));
         if changed
             .iter()
-            .any(|rel| is_ignore_file(rel) && rules.admits(rel))
+            .any(|rel| rel == GIT_EXCLUDE || (is_ignore_file(rel) && rules.admits(rel)))
         {
             return self.rescan();
         }
 
         let mut paths = BTreeSet::new();
         for rel in changed.iter().filter(|rel| !rel.is_empty()) {
-            if !is_file(&abs_path(&self.root, rel))? {
-                // A folder that vanished (or replaced a file) takes its files along.
+            let abs = abs_path(&self.root, rel);
+            if !is_file(&abs)? {
+                // A folder that vanished, moved or replaced a file: its stored files
+                // are read again or removed.
                 paths.extend(stored_under(&self.store, rel)?);
+            }
+            if is_dir(&abs)? && rules.admits_dir(rel) {
+                // A folder moved or copied in: its own ignore file would change the
+                // rules, so that needs a walk.
+                if files_under(&self.root, rules, rel, &mut paths)? {
+                    return self.rescan();
+                }
             }
             paths.insert(rel.clone());
         }
@@ -931,6 +941,49 @@ fn replace_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite:
     Ok(())
 }
 
+/// The repository's own exclude file, which the walk honours like an ignore file.
+const GIT_EXCLUDE: &str = ".git/info/exclude";
+
+/// Whether `rel` names a `.gitignore` or `.harbormapignore`.
+fn is_ignore_file(rel: &str) -> bool {
+    IGNORE_FILES.contains(&rel.rsplit('/').next().unwrap_or(rel))
+}
+
+/// Adds the files under the folder `dir` that `rules` admit to `out`, entering only
+/// the folders it admits and following no symlinks, as the walk does. Returns
+/// whether an admitted ignore file was found among them.
+fn files_under(
+    root: &Path,
+    rules: &WalkRules,
+    dir: &str,
+    out: &mut BTreeSet<String>,
+) -> io::Result<bool> {
+    let entries = match fs::read_dir(abs_path(root, dir)) {
+        Ok(entries) => entries,
+        Err(err) if is_gone(&err) => return Ok(false),
+        Err(err) => return Err(err),
+    };
+    let mut ignore_file = false;
+    for entry in entries {
+        let entry = entry?;
+        // The walk cannot name a file whose name is not UTF-8 either.
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let rel = format!("{dir}/{name}");
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            if rules.admits_dir(&rel) {
+                ignore_file |= files_under(root, rules, &rel, out)?;
+            }
+        } else if file_type.is_file() && rules.admits(&rel) {
+            ignore_file |= is_ignore_file(&rel);
+            out.insert(rel);
+        }
+    }
+    Ok(ignore_file)
+}
+
 /// What a rescan walked: the files that exist and the rules that admitted them.
 struct Rescan {
     known: BTreeSet<String>,
@@ -978,6 +1031,15 @@ fn is_gone(err: &io::Error) -> bool {
 fn is_file(abs: &Path) -> io::Result<bool> {
     match fs::symlink_metadata(abs) {
         Ok(meta) => Ok(meta.is_file()),
+        Err(err) if is_gone(&err) => Ok(false),
+        Err(err) => Err(err),
+    }
+}
+
+/// Whether `abs` is a folder (not a symlink to one).
+fn is_dir(abs: &Path) -> io::Result<bool> {
+    match fs::symlink_metadata(abs) {
+        Ok(meta) => Ok(meta.is_dir()),
         Err(err) if is_gone(&err) => Ok(false),
         Err(err) => Err(err),
     }
@@ -1156,6 +1218,8 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
     let id = file_id(rel);
     let resolved = resolve_file(project, rel);
 
+    // `prov` and `conf` are not in the key: every L1 edge is `parsed` and `sure`. L2
+    // must add them when `inferred` / `probably` edges arrive.
     let old_edges: BTreeSet<(String, String, String, u32, String)> = tx
         .prepare_cached("SELECT kind, src_id, dst_id, line, rule FROM edge WHERE file_id = ?1")?
         .query_map([&id], |row| {

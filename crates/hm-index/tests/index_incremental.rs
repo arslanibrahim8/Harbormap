@@ -491,3 +491,83 @@ fn resolving_every_file_again_writes_only_what_changed() {
     ix.apply(&set(["src/orders/mail.ts"])).unwrap();
     assert_eq!(scalar(ix.store(), "SELECT count(*) FROM temp.writes"), "0");
 }
+
+#[test]
+fn renaming_a_folder_moves_its_files() {
+    let (mut ix, dir) = indexed("ts-basic");
+    fs::rename(dir.path().join("src/orders"), dir.path().join("src/shop")).unwrap();
+    let d = ix.apply(&set(["src/orders", "src/shop"])).unwrap();
+    assert_eq!(d.files_removed.len(), 4);
+    assert_eq!(
+        d.files_changed,
+        vec![
+            "src/shop/index.ts",
+            "src/shop/mail.ts",
+            "src/shop/service.test.ts",
+            "src/shop/service.ts",
+        ]
+    );
+    assert_eq!(dangling_edges(&ix), "0");
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn a_folder_copied_in_is_indexed() {
+    let (mut ix, dir) = indexed("ts-basic");
+    let new = dir.path().join("src/extra/deep");
+    fs::create_dir_all(&new).unwrap();
+    fs::write(
+        dir.path().join("src/extra/a.ts"),
+        "import { b } from \"./deep/b\";\nexport function a() {\n  b();\n}\n",
+    )
+    .unwrap();
+    fs::write(new.join("b.ts"), "export function b() {}\n").unwrap();
+    // A skip folder inside is not entered.
+    fs::create_dir_all(dir.path().join("src/extra/node_modules")).unwrap();
+    fs::write(dir.path().join("src/extra/node_modules/c.js"), "c();\n").unwrap();
+    let d = ix.apply(&set(["src/extra"])).unwrap();
+    assert_eq!(
+        d.files_changed,
+        vec!["src/extra/a.ts", "src/extra/deep/b.ts"]
+    );
+    assert!(has_edge(
+        &ix,
+        "calls",
+        "src/extra/a.ts#a",
+        "src/extra/deep/b.ts#b"
+    ));
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn a_folder_with_its_own_ignore_file_rescans() {
+    let (mut ix, dir) = indexed("ts-basic");
+    fs::create_dir_all(dir.path().join("src/extra")).unwrap();
+    fs::write(dir.path().join("src/extra/.gitignore"), "hidden.ts\n").unwrap();
+    fs::write(
+        dir.path().join("src/extra/hidden.ts"),
+        "export const h = 1;\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("src/extra/seen.ts"),
+        "export const s = 1;\n",
+    )
+    .unwrap();
+    let d = ix.apply(&set(["src/extra"])).unwrap();
+    assert_eq!(
+        d.files_changed,
+        vec!["src/extra/.gitignore", "src/extra/seen.ts"]
+    );
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn a_changed_git_exclude_rescans() {
+    let (mut ix, dir) = indexed("ts-basic");
+    fs::create_dir_all(dir.path().join(".git/info")).unwrap();
+    fs::write(dir.path().join(".git/info/exclude"), "src/legacy.js\n").unwrap();
+    let d = ix.apply(&set([".git/info/exclude"])).unwrap();
+    assert_eq!(d.files_removed, vec!["src/legacy.js"]);
+    assert_cold(&ix, dir.path());
+}
