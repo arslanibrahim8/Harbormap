@@ -13,25 +13,36 @@ publish = false
 [workspace.dependencies]
 hm-core = { path = "crates/hm-core" }
 hm-doctor = { path = "crates/hm-doctor" }
+hm-index = { path = "crates/hm-index" }
 hm-probe = { path = "crates/hm-probe" }
 hm-project = { path = "crates/hm-project" }
+hm-store = { path = "crates/hm-store" }
 anyhow = "1.0.104"
 assert_cmd = "2.2.2"
 blake3 = "1.8.7"
 bollard = "0.21.1"
 clap = { version = "4.6.7", features = ["derive"] }
+directories = "6.0.0"
 dunce = "1.0.5"
 gix = { version = "0.89.0", default-features = false, features = ["sha1"] }
+ignore = "0.4.34"
+jsonc-parser = { version = "0.34.0", features = ["serde"] }
 listeners = "0.6.1"
+notify = "8.2.1"
 predicates = "3.1.4"
 proptest = "1.12.0"
 regex = "1.13.1"
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+streaming-iterator = "0.1.9"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system", "user"] }
 tempfile = "3.27.0"
 tokio = { version = "1.53.3", features = ["rt", "time"] }
 toml = "1.1.8"
+tree-sitter = "0.27.1"
+tree-sitter-javascript = "0.25.0"
+tree-sitter-typescript = "0.23.2"
 url = "2.5.8"
 
 [workspace.lints.rust]
