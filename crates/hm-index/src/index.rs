@@ -1,24 +1,27 @@
 //! The indexer: a full pass that walks a worktree, parses what L1 understands,
 //! resolves names across files and writes everything into the facts store in one
-//! transaction (Learn spec §5).
+//! transaction (Learn spec §5). After a save, `apply` brings the store in line with
+//! the changed files and with what depends on them, so that it always equals a cold
+//! index of the same tree (spec §5.4).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use hm_core::ids::file_id;
 use hm_store::{Store, StoreError};
-use rusqlite::{Transaction, params};
+use rusqlite::{OptionalExtension, Transaction, params};
 use serde::Serialize;
 
-use crate::facts::{FileFacts, ParseStatus};
+use crate::facts::{FileFacts, ImportKind, ImportedName, ParseStatus, SymbolKind};
 use crate::hash::{content_hash, facts_hash, interface_hash};
 use crate::lang::Lang;
-use crate::ts::resolve::{ModuleResolver, Project, resolve_file, symbol_ids};
+use crate::ts::resolve::{ModuleResolver, ModuleTarget, Project, resolve_file, symbol_ids};
 use crate::ts::tsconfig::load_tsconfigs;
-use crate::walk::{FileClass, Skip, WalkedFile, walk};
+use crate::walk::{FileClass, IGNORE_FILES, Skip, WalkRules, WalkedFile, walk, walked_file};
 
 /// Where every L1 edge comes from.
 const PROVENANCE: &str = "parsed";
@@ -100,6 +103,30 @@ pub struct IndexReport {
     pub took_ms: u64,
 }
 
+/// What [`Indexer::apply`] or [`Indexer::rescan`] changed. Paths are relative,
+/// symbols are ids, and every list is sorted. L3 marks journeys and cards from the
+/// `symbols_*` lists.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Delta {
+    /// Files whose content hash changed, new files included.
+    pub files_changed: Vec<String>,
+    /// Files that left the index: deleted, or no longer admitted by the walk.
+    pub files_removed: Vec<String>,
+    /// Files whose interface hash changed (or that gained or lost their facts).
+    pub interface_changed: Vec<String>,
+    /// Files resolved again because of a change elsewhere; the changed and removed
+    /// files themselves are not listed.
+    pub reresolved: Vec<String>,
+    pub symbols_added: Vec<String>,
+    pub symbols_removed: Vec<String>,
+    /// Symbols that kept their id and got a new body hash.
+    pub symbols_body_changed: Vec<String>,
+    /// Symbols that kept their id and got a new signature hash.
+    pub symbols_sig_changed: Vec<String>,
+    pub edges_added: u32,
+    pub edges_removed: u32,
+}
+
 /// A file row as the last pass stored it.
 struct Stored {
     class: String,
@@ -144,19 +171,22 @@ pub struct Indexer {
     /// Facts of every parsed file, by relative path; the same as `file.facts_json`.
     facts: BTreeMap<String, FileFacts>,
     resolver: ModuleResolver,
+    /// The include rules of the last walk; `None` until this indexer has walked.
+    rules: Option<WalkRules>,
 }
 
 impl Indexer {
     /// Wraps `store` for the worktree at `root`, loading what an earlier pass stored.
     pub fn open(root: &Path, store: Store) -> Result<Indexer> {
         let facts = load_facts(&store)?;
-        let known = stored_paths(&store)?;
+        let known = stored_paths(store.conn())?;
         let tsconfigs = load_tsconfigs(root, &known);
         Ok(Indexer {
             root: root.to_path_buf(),
             store,
             facts,
             resolver: ModuleResolver::new(known, tsconfigs),
+            rules: None,
         })
     }
 
@@ -205,17 +235,10 @@ impl Indexer {
         for (i, f) in walked.files.iter().enumerate() {
             let old = stored.get(&f.rel);
             let have_facts = self.facts.contains_key(&f.rel);
-            if let Some(skip) = f.skip {
-                let same = old.is_some_and(|s| {
-                    same_stat(s, f) && s.parse_status == skip_name(skip) && same_kind(s, f)
-                });
-                changes.push(Some(if same {
-                    Change::Unchanged
-                } else {
-                    Change::Skipped(skip_name(skip))
-                }));
-            } else if old.is_some_and(|s| same_stat(s, f) && fits(s, f, have_facts)) {
+            if old.is_some_and(|s| same_stat(s, f) && current(s, f, have_facts)) {
                 changes.push(Some(Change::Unchanged));
+            } else if let Some(skip) = f.skip {
+                changes.push(Some(Change::Skipped(skip_name(skip))));
             } else {
                 changes.push(None);
                 jobs.push((
@@ -289,23 +312,13 @@ impl Indexer {
                     replace_resolved(tx, &project, rel)?;
                 }
             }
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_or(0, |d| d.as_secs());
-            let root = self.root.to_string_lossy();
-            for (key, value) in [("indexed_at", now.to_string()), ("root", root.to_string())] {
-                tx.execute(
-                    "INSERT INTO meta(key, value) VALUES (?1, ?2)
-                     ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                    params![key, value],
-                )?;
-            }
-            Ok(())
+            write_meta(tx, &self.root)
         });
         match outcome {
             Ok(()) => {
                 self.facts = facts;
                 self.resolver = resolver;
+                self.rules = Some(walked.rules);
             }
             Err(err) => {
                 // The map was partly rebuilt; the store is the truth. If it cannot be
@@ -323,6 +336,310 @@ impl Indexer {
         report.refs = counts(conn, "SELECT status, count(*) FROM ref GROUP BY status")?;
         report.took_ms = started.elapsed().as_millis() as u64;
         Ok(report)
+    }
+
+    /// Brings the store in line with the files at `changed` (relative paths) and with
+    /// what depends on them, in one transaction. A path that exists is always read
+    /// and hashed: coarse mtimes miss fast saves of the same size. Paths the walk
+    /// rules reject are ignored. A path that no longer exists removes its file, or
+    /// every indexed file under it when it was a folder. A changed ignore file, or an
+    /// indexer that has not walked yet, makes this a [`rescan`](Indexer::rescan).
+    pub fn apply(&mut self, changed: &BTreeSet<String>) -> Result<Delta> {
+        let Some(rules) = &self.rules else {
+            return self.rescan();
+        };
+        let is_ignore_file =
+            |rel: &str| IGNORE_FILES.contains(&rel.rsplit('/').next().unwrap_or(rel));
+        if changed
+            .iter()
+            .any(|rel| is_ignore_file(rel) && rules.admits(rel))
+        {
+            return self.rescan();
+        }
+
+        let mut paths = BTreeSet::new();
+        for rel in changed.iter().filter(|rel| !rel.is_empty()) {
+            if !is_file(&abs_path(&self.root, rel))? {
+                // A folder that vanished (or replaced a file) takes its files along.
+                paths.extend(stored_under(&self.store, rel)?);
+            }
+            paths.insert(rel.clone());
+        }
+        let stored = load_stored_at(&self.store, &paths)?;
+        let mut files = Vec::new();
+        let mut gone = Vec::new();
+        for rel in paths {
+            let abs = abs_path(&self.root, &rel);
+            if is_file(&abs)? && rules.admits(&rel) {
+                match walked_file(rel.clone(), &abs) {
+                    Ok(f) => files.push(f),
+                    Err(err) if is_gone(&err) => gone.push(rel),
+                    Err(err) => return Err(err.into()),
+                }
+            } else if stored.contains_key(&rel) {
+                gone.push(rel);
+            }
+        }
+        self.bring_in_line(files, gone, &stored, None)
+    }
+
+    /// Walks the worktree and brings the store in line with it, like
+    /// [`full`](Indexer::full), but says what changed. A file whose size and mtime
+    /// match its row is not read. For a branch switch or lost watcher events.
+    pub fn rescan(&mut self) -> Result<Delta> {
+        let walked = walk(&self.root)?;
+        let stored = load_stored(&self.store)?;
+        let known: BTreeSet<String> = walked.files.iter().map(|f| f.rel.clone()).collect();
+        let gone: Vec<String> = stored
+            .keys()
+            .filter(|rel| !known.contains(*rel))
+            .cloned()
+            .collect();
+        let files: Vec<WalkedFile> = walked
+            .files
+            .into_iter()
+            .filter(|f| {
+                let have_facts = self.facts.contains_key(&f.rel);
+                !stored
+                    .get(&f.rel)
+                    .is_some_and(|s| same_stat(s, f) && current(s, f, have_facts))
+            })
+            .collect();
+        let walk = Rescan {
+            known,
+            rules: walked.rules,
+        };
+        self.bring_in_line(files, gone, &stored, Some(walk))
+    }
+
+    /// Reads `files`, removes `gone`, and resolves again what the changes reach, in
+    /// one transaction. `stored` holds the rows of the paths that have one. With
+    /// `rescan`, any change resolves every file again, as [`full`](Indexer::full)
+    /// does; without it, only the files a change can reach (spec §5.4).
+    fn bring_in_line(
+        &mut self,
+        files: Vec<WalkedFile>,
+        gone: Vec<String>,
+        stored: &BTreeMap<String, Stored>,
+        rescan: Option<Rescan>,
+    ) -> Result<Delta> {
+        // 1. Read and hash every file; parse those whose bytes changed.
+        let mut changes: Vec<Option<Change>> = Vec::new();
+        let mut jobs: Vec<(usize, Job)> = Vec::new();
+        for (i, f) in files.iter().enumerate() {
+            let old = stored.get(&f.rel);
+            let have_facts = self.facts.contains_key(&f.rel);
+            match f.skip {
+                // A skipped file is never read; its row says all there is.
+                Some(skip) => changes.push(Some(match old {
+                    Some(s) if current(s, f, have_facts) => {
+                        if same_stat(s, f) {
+                            Change::Unchanged
+                        } else {
+                            Change::Touched
+                        }
+                    }
+                    _ => Change::Skipped(skip_name(skip)),
+                })),
+                None => {
+                    changes.push(None);
+                    jobs.push((
+                        i,
+                        Job {
+                            file: f,
+                            stored: old.filter(|s| !s.content_hash.is_empty()),
+                            have_facts,
+                        },
+                    ));
+                }
+            }
+        }
+        for (i, result) in run_jobs(&jobs) {
+            changes[i] = Some(result?);
+        }
+        let mut gone = gone;
+        let mut writes: Vec<(&WalkedFile, Change)> = Vec::new();
+        for (f, change) in files.iter().zip(changes) {
+            match change.expect("every file has a change") {
+                Change::Unchanged => {}
+                Change::Gone => gone.push(f.rel.clone()),
+                change => writes.push((f, change)),
+            }
+        }
+        let gone: BTreeSet<String> = gone.into_iter().collect();
+        let removed: Vec<String> = gone
+            .iter()
+            .filter(|rel| stored.contains_key(*rel))
+            .cloned()
+            .collect();
+
+        // 2. The new facts, and what changed in them.
+        let mut delta = Delta::default();
+        let mut facts = std::mem::take(&mut self.facts);
+        let mut rewritten: BTreeSet<String> = BTreeSet::new();
+        let mut added: Vec<String> = Vec::new();
+        // Files whose change other files can see, so their importers resolve again.
+        let mut seeds: Vec<String> = Vec::new();
+        for (f, change) in &writes {
+            let hash = match change {
+                Change::Fresh { hash, .. } => hash.as_str(),
+                Change::Skipped(_) => "",
+                _ => continue,
+            };
+            let rel = &f.rel;
+            let old_hash = stored.get(rel).map(|s| s.content_hash.as_str());
+            if old_hash.is_none() {
+                added.push(rel.clone());
+            }
+            if old_hash != Some(hash) {
+                delta.files_changed.push(rel.clone());
+            }
+            let old = facts.remove(rel);
+            let new = match change {
+                Change::Fresh {
+                    parsed: Some(p), ..
+                } => Some(p.facts.clone()),
+                _ => None,
+            };
+            diff_symbols(rel, old.as_ref(), new.as_ref(), &mut delta);
+            let interface = old.as_ref().map(interface_hash) != new.as_ref().map(interface_hash);
+            if interface {
+                delta.interface_changed.push(rel.clone());
+            }
+            if interface
+                || old.as_ref().map(|f| Surface::of(rel, f))
+                    != new.as_ref().map(|f| Surface::of(rel, f))
+            {
+                seeds.push(rel.clone());
+            }
+            if let Some(new) = new {
+                facts.insert(rel.clone(), new);
+            }
+            rewritten.insert(rel.clone());
+        }
+        for rel in &removed {
+            let old = facts.remove(rel);
+            diff_symbols(rel, old.as_ref(), None, &mut delta);
+        }
+
+        // 3. Whether the resolver is rebuilt, which resolves every file again: a new
+        // or removed file can change where any specifier points, and so can a config
+        // file. A rescan does so on any change, as `full` does.
+        let sources = self.resolver.config_sources();
+        let config = delta
+            .files_changed
+            .iter()
+            .chain(&removed)
+            .any(|rel| sources.contains(rel));
+        let rebuild = match &rescan {
+            Some(_) => !rewritten.is_empty() || !removed.is_empty(),
+            None => !added.is_empty() || !removed.is_empty() || config,
+        };
+
+        // 4. One transaction: the files to resolve again, removals, file and symbol
+        // rows, then the resolved rows of those files, written as differences.
+        let (root, resolver) = (&self.root, &self.resolver);
+        let outcome = self.store.write(|tx| {
+            let rebuilt = if rebuild {
+                let known = match &rescan {
+                    Some(walk) => walk
+                        .known
+                        .iter()
+                        .filter(|rel| !gone.contains(*rel))
+                        .cloned()
+                        .collect(),
+                    None => {
+                        let mut known = stored_paths(tx)?;
+                        known.retain(|rel| !gone.contains(rel));
+                        known.extend(added.iter().cloned());
+                        known
+                    }
+                };
+                let tsconfigs = load_tsconfigs(root, &known);
+                Some(ModuleResolver::new(known, tsconfigs))
+            } else {
+                None
+            };
+            let project = Project {
+                facts: &facts,
+                modules: rebuilt.as_ref().unwrap_or(resolver),
+            };
+            // Read before anything is written: the importers as the last pass stored them.
+            let resolve: BTreeSet<String> = if rebuilt.is_some() {
+                facts.keys().cloned().collect()
+            } else {
+                let mut resolve = dependents(tx, &project, &seeds)?;
+                resolve.extend(
+                    rewritten
+                        .iter()
+                        .filter(|rel| facts.contains_key(*rel))
+                        .cloned(),
+                );
+                resolve
+            };
+
+            let mut edges = (0, 0);
+            for rel in &removed {
+                edges.1 += count_edges(tx, &file_id(rel))?;
+                tx.execute("DELETE FROM file WHERE path = ?1", [rel])?;
+            }
+            for (f, change) in &writes {
+                // `write_change` clears the rows of a file that is no longer parsed.
+                if matches!(
+                    change,
+                    Change::Skipped(_) | Change::Fresh { parsed: None, .. }
+                ) {
+                    edges.1 += count_edges(tx, &file_id(&f.rel))?;
+                }
+                write_change(tx, f, change)?;
+            }
+            for rel in &resolve {
+                let (added, removed) = sync_resolved(tx, &project, rel)?;
+                edges.0 += added;
+                edges.1 += removed;
+            }
+            if rescan.is_some() {
+                write_meta(tx, root)?;
+            }
+            Ok((edges, resolve, rebuilt))
+        });
+        let ((edges_added, edges_removed), resolve, rebuilt) = match outcome {
+            Ok(done) => done,
+            Err(err) => {
+                // The map was partly rebuilt; the store is the truth (see `full`).
+                if let Ok(facts) = load_facts(&self.store) {
+                    self.facts = facts;
+                }
+                return Err(err.into());
+            }
+        };
+        self.facts = facts;
+        if let Some(resolver) = rebuilt {
+            self.resolver = resolver;
+        }
+        if let Some(walk) = rescan {
+            self.rules = Some(walk.rules);
+        }
+
+        delta.files_removed = removed;
+        delta.reresolved = resolve
+            .into_iter()
+            .filter(|rel| !rewritten.contains(rel))
+            .collect();
+        delta.edges_added = edges_added;
+        delta.edges_removed = edges_removed;
+        for list in [
+            &mut delta.files_changed,
+            &mut delta.files_removed,
+            &mut delta.interface_changed,
+            &mut delta.symbols_added,
+            &mut delta.symbols_removed,
+            &mut delta.symbols_body_changed,
+            &mut delta.symbols_sig_changed,
+        ] {
+            list.sort();
+        }
+        Ok(delta)
     }
 }
 
@@ -614,28 +931,377 @@ fn replace_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite:
     Ok(())
 }
 
-fn load_stored(store: &Store) -> rusqlite::Result<BTreeMap<String, Stored>> {
-    let mut stmt = store.conn().prepare(
-        "SELECT path, class, lang, size, mtime_ns, content_hash, parse_status FROM file",
+/// What a rescan walked: the files that exist and the rules that admitted them.
+struct Rescan {
+    known: BTreeSet<String>,
+    rules: WalkRules,
+}
+
+/// Whether the stored row is what a pass would write for `f`, size and mtime aside.
+fn current(s: &Stored, f: &WalkedFile, have_facts: bool) -> bool {
+    match f.skip {
+        Some(skip) => s.parse_status == skip_name(skip) && same_kind(s, f),
+        None => fits(s, f, have_facts),
+    }
+}
+
+fn write_meta(tx: &Transaction, root: &Path) -> rusqlite::Result<()> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let root = root.to_string_lossy();
+    for (key, value) in [("indexed_at", now.to_string()), ("root", root.to_string())] {
+        tx.execute(
+            "INSERT INTO meta(key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+    }
+    Ok(())
+}
+
+/// The path of `rel` (`/`-separated) under `root`.
+fn abs_path(root: &Path, rel: &str) -> PathBuf {
+    rel.split('/')
+        .fold(root.to_path_buf(), |path, part| path.join(part))
+}
+
+/// A path that names nothing any more, or names a file inside what is now a file.
+fn is_gone(err: &io::Error) -> bool {
+    matches!(
+        err.kind(),
+        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+    )
+}
+
+/// Whether `abs` is a regular file. Like the walk, symlinks are not followed.
+fn is_file(abs: &Path) -> io::Result<bool> {
+    match fs::symlink_metadata(abs) {
+        Ok(meta) => Ok(meta.is_file()),
+        Err(err) if is_gone(&err) => Ok(false),
+        Err(err) => Err(err),
+    }
+}
+
+/// What other files read of one file's facts when they are resolved: its symbol
+/// ids, each symbol's owner, name, kind and export flags, its exports, and the
+/// imports that an `export { a }` hands on. Lines are left out, so a body edit that
+/// moves code does not reach importers.
+#[derive(PartialEq)]
+struct Surface<'a> {
+    ids: Vec<String>,
+    symbols: Vec<(&'a str, &'a str, SymbolKind, bool, bool)>,
+    exports: Vec<(&'a str, Option<&'a str>, Option<&'a str>, bool)>,
+    forwarded: Vec<(&'a str, ImportKind, &'a [ImportedName], bool)>,
+}
+
+impl<'a> Surface<'a> {
+    fn of(rel: &str, facts: &'a FileFacts) -> Surface<'a> {
+        let locals: Vec<&str> = facts
+            .exports
+            .iter()
+            .filter(|e| !e.star && e.from.is_none())
+            .map(|e| e.local.as_deref().unwrap_or(&e.name))
+            .collect();
+        Surface {
+            ids: symbol_ids(rel, facts),
+            symbols: facts
+                .symbols
+                .iter()
+                .map(|s| {
+                    (
+                        s.owner.as_str(),
+                        s.name.as_str(),
+                        s.kind,
+                        s.exported,
+                        s.default_export,
+                    )
+                })
+                .collect(),
+            exports: facts
+                .exports
+                .iter()
+                .map(|e| {
+                    (
+                        e.name.as_str(),
+                        e.local.as_deref(),
+                        e.from.as_deref(),
+                        e.star,
+                    )
+                })
+                .collect(),
+            forwarded: facts
+                .imports
+                .iter()
+                .filter(|i| {
+                    i.kind != ImportKind::ReExport
+                        && i.names.iter().any(|n| locals.contains(&n.local.as_str()))
+                })
+                .map(|i| {
+                    (
+                        i.specifier.as_str(),
+                        i.kind,
+                        i.names.as_slice(),
+                        i.type_only,
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Adds the symbol changes of the file at `rel` from `old` to `new` facts to `delta`.
+fn diff_symbols(rel: &str, old: Option<&FileFacts>, new: Option<&FileFacts>, delta: &mut Delta) {
+    let by_id = |facts: Option<&FileFacts>| -> BTreeMap<String, (String, String)> {
+        facts.map_or_else(BTreeMap::new, |f| {
+            symbol_ids(rel, f)
+                .into_iter()
+                .zip(&f.symbols)
+                .map(|(id, s)| (id, (s.sig_hash.clone(), s.body_hash.clone())))
+                .collect()
+        })
+    };
+    let (old, new) = (by_id(old), by_id(new));
+    for (id, (sig, body)) in &new {
+        match old.get(id) {
+            None => delta.symbols_added.push(id.clone()),
+            Some((old_sig, old_body)) => {
+                if old_sig != sig {
+                    delta.symbols_sig_changed.push(id.clone());
+                }
+                if old_body != body {
+                    delta.symbols_body_changed.push(id.clone());
+                }
+            }
+        }
+    }
+    delta
+        .symbols_removed
+        .extend(old.into_keys().filter(|id| !new.contains_key(id)));
+}
+
+/// How many files a change travels through files that hand names on: as many as the
+/// re-export hops `resolve_export` follows (spec §6.2).
+const FORWARD_HOPS: usize = 5;
+
+/// The files whose resolution can read the facts of a file in `seeds`: their
+/// importers, and the importers of every importer that hands a name on from one
+/// (a re-export, or an `export { a }` of an import), for up to [`FORWARD_HOPS`] hops.
+fn dependents(
+    conn: &rusqlite::Connection,
+    project: &Project,
+    seeds: &[String],
+) -> rusqlite::Result<BTreeSet<String>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT f.path FROM reverse_import r JOIN file f ON f.id = r.src_file_id
+         WHERE r.dst_file_id = ?1",
     )?;
-    let rows = stmt.query_map([], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            Stored {
-                class: row.get(1)?,
-                lang: row.get(2)?,
-                size: row.get(3)?,
-                mtime_ns: row.get(4)?,
-                content_hash: row.get(5)?,
-                parse_status: row.get(6)?,
-            },
-        ))
-    })?;
+    let mut out = BTreeSet::new();
+    let mut seen: BTreeSet<String> = seeds.iter().cloned().collect();
+    let mut level = seeds.to_vec();
+    for hop in 0..=FORWARD_HOPS {
+        let mut next = Vec::new();
+        for target in &level {
+            let importers = stmt
+                .query_map([file_id(target)], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            for importer in importers {
+                if hop < FORWARD_HOPS
+                    && forwards(project, &importer, target)
+                    && seen.insert(importer.clone())
+                {
+                    next.push(importer.clone());
+                }
+                out.insert(importer);
+            }
+        }
+        if next.is_empty() {
+            break;
+        }
+        level = next;
+    }
+    Ok(out)
+}
+
+/// Whether resolving a name exported by `rel` can lead on into `target`: `rel`
+/// re-exports from it, or exports a name that it imports from it.
+fn forwards(p: &Project, rel: &str, target: &str) -> bool {
+    let Some(facts) = p.facts.get(rel) else {
+        return false;
+    };
+    let into =
+        |spec: &str| matches!(p.modules.resolve(rel, spec), ModuleTarget::File(f) if f == target);
+    facts.exports.iter().any(|e| match &e.from {
+        Some(spec) => into(spec),
+        None => {
+            let local = e.local.as_deref().unwrap_or(&e.name);
+            facts.imports.iter().any(|i| {
+                i.kind != ImportKind::ReExport
+                    && i.names.iter().any(|n| n.local == local)
+                    && into(&i.specifier)
+            })
+        }
+    })
+}
+
+fn count_edges(tx: &Transaction, id: &str) -> rusqlite::Result<u32> {
+    tx.prepare_cached("SELECT count(*) FROM edge WHERE file_id = ?1")?
+        .query_row([id], |row| row.get(0))
+}
+
+/// Resolves the file at `rel` and writes only the difference from its stored
+/// `edge`, `ref` and `reverse_import` rows, so resolving a file again whose result
+/// did not change writes nothing. Returns the number of edges added and removed.
+fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Result<(u32, u32)> {
+    let id = file_id(rel);
+    let resolved = resolve_file(project, rel);
+
+    let old_edges: BTreeSet<(String, String, String, u32, String)> = tx
+        .prepare_cached("SELECT kind, src_id, dst_id, line, rule FROM edge WHERE file_id = ?1")?
+        .query_map([&id], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    let new_edges: BTreeSet<(String, String, String, u32, String)> = resolved
+        .edges
+        .iter()
+        .map(|e| {
+            (
+                e.kind.to_string(),
+                e.src_id.clone(),
+                e.dst_id.clone(),
+                e.line,
+                e.rule.to_string(),
+            )
+        })
+        .collect();
+    let mut delete = tx.prepare_cached(
+        "DELETE FROM edge WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4",
+    )?;
+    let gone: Vec<_> = old_edges.difference(&new_edges).collect();
+    for (kind, src, dst, line, _) in &gone {
+        delete.execute(params![kind, src, dst, line])?;
+    }
+    let mut insert = tx.prepare_cached(
+        "INSERT INTO edge(kind, src_id, dst_id, file_id, line, rule, prov, conf)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    )?;
+    let fresh: Vec<_> = new_edges.difference(&old_edges).collect();
+    for (kind, src, dst, line, rule) in &fresh {
+        insert.execute(params![
+            kind, src, dst, id, line, rule, PROVENANCE, CONF_SURE
+        ])?;
+    }
+
+    let old_refs: BTreeSet<(String, String, u32, String)> = tx
+        .prepare_cached("SELECT kind, text, line, status FROM ref WHERE file_id = ?1")?
+        .query_map([&id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    let new_refs: BTreeSet<(String, String, u32, String)> = resolved
+        .refs
+        .iter()
+        .map(|r| {
+            (
+                r.kind.to_string(),
+                r.text.clone(),
+                r.line,
+                r.status.to_string(),
+            )
+        })
+        .collect();
+    let mut delete = tx.prepare_cached(
+        "DELETE FROM ref WHERE file_id = ?1 AND kind = ?2 AND text = ?3 AND line = ?4",
+    )?;
+    for (kind, text, line, _) in old_refs.difference(&new_refs) {
+        delete.execute(params![id, kind, text, line])?;
+    }
+    let mut insert = tx.prepare_cached(
+        "INSERT INTO ref(file_id, kind, text, line, status) VALUES (?1, ?2, ?3, ?4, ?5)",
+    )?;
+    for (kind, text, line, status) in new_refs.difference(&old_refs) {
+        insert.execute(params![id, kind, text, line, status])?;
+    }
+
+    let old_imports: BTreeSet<String> = tx
+        .prepare_cached("SELECT dst_file_id FROM reverse_import WHERE src_file_id = ?1")?
+        .query_map([&id], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    let new_imports: BTreeSet<String> = resolved.imports_files.iter().map(|f| file_id(f)).collect();
+    let mut delete = tx
+        .prepare_cached("DELETE FROM reverse_import WHERE dst_file_id = ?1 AND src_file_id = ?2")?;
+    for dst in old_imports.difference(&new_imports) {
+        delete.execute(params![dst, id])?;
+    }
+    let mut insert =
+        tx.prepare_cached("INSERT INTO reverse_import(dst_file_id, src_file_id) VALUES (?1, ?2)")?;
+    for dst in new_imports.difference(&old_imports) {
+        insert.execute(params![dst, id])?;
+    }
+    Ok((fresh.len() as u32, gone.len() as u32))
+}
+
+/// The columns `stored_row` reads.
+const STORED_COLUMNS: &str = "path, class, lang, size, mtime_ns, content_hash, parse_status";
+
+fn stored_row(row: &rusqlite::Row) -> rusqlite::Result<(String, Stored)> {
+    Ok((
+        row.get(0)?,
+        Stored {
+            class: row.get(1)?,
+            lang: row.get(2)?,
+            size: row.get(3)?,
+            mtime_ns: row.get(4)?,
+            content_hash: row.get(5)?,
+            parse_status: row.get(6)?,
+        },
+    ))
+}
+
+fn load_stored(store: &Store) -> rusqlite::Result<BTreeMap<String, Stored>> {
+    let mut stmt = store
+        .conn()
+        .prepare(&format!("SELECT {STORED_COLUMNS} FROM file"))?;
+    let rows = stmt.query_map([], stored_row)?;
     rows.collect()
 }
 
-fn stored_paths(store: &Store) -> rusqlite::Result<BTreeSet<String>> {
-    let mut stmt = store.conn().prepare("SELECT path FROM file")?;
+/// The stored rows of `paths`, for those that have one.
+fn load_stored_at(
+    store: &Store,
+    paths: &BTreeSet<String>,
+) -> rusqlite::Result<BTreeMap<String, Stored>> {
+    let mut stmt = store.conn().prepare(&format!(
+        "SELECT {STORED_COLUMNS} FROM file WHERE path = ?1"
+    ))?;
+    let mut out = BTreeMap::new();
+    for path in paths {
+        if let Some((path, row)) = stmt.query_row([path], stored_row).optional()? {
+            out.insert(path, row);
+        }
+    }
+    Ok(out)
+}
+
+/// The stored paths under the folder `dir`.
+fn stored_under(store: &Store, dir: &str) -> rusqlite::Result<Vec<String>> {
+    // Every path that starts with `dir/` sorts between `dir/` and `dir0`.
+    let mut stmt = store
+        .conn()
+        .prepare("SELECT path FROM file WHERE path >= ?1 AND path < ?2")?;
+    let rows = stmt.query_map([format!("{dir}/"), format!("{dir}0")], |row| row.get(0))?;
+    rows.collect()
+}
+
+fn stored_paths(conn: &rusqlite::Connection) -> rusqlite::Result<BTreeSet<String>> {
+    let mut stmt = conn.prepare("SELECT path FROM file")?;
     let rows = stmt.query_map([], |row| row.get(0))?;
     rows.collect()
 }

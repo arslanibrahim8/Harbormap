@@ -32,7 +32,7 @@ const SKIP_DIRS: &[&str] = &[
 ];
 
 /// The names of the ignore files the walk honours, highest precedence first.
-const IGNORE_FILES: &[&str] = &[".harbormapignore", ".gitignore"];
+pub(crate) const IGNORE_FILES: &[&str] = &[".harbormapignore", ".gitignore"];
 
 /// How much of a file is read to detect binary and minified content.
 const SNIFF_BYTES: u64 = 64 * 1024;
@@ -333,7 +333,7 @@ fn matcher_for(root: &Path, rel: &str, abs: &Path) -> Matcher {
 }
 
 /// Reads the facts about one file: size, mtime, language, and whether it is skipped.
-fn walked_file(rel: String, abs: &Path) -> io::Result<WalkedFile> {
+pub(crate) fn walked_file(rel: String, abs: &Path) -> io::Result<WalkedFile> {
     let meta = std::fs::metadata(abs)?;
     let size = meta.len();
     let mtime_ns = meta
