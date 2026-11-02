@@ -208,7 +208,7 @@ pub struct EdgeRow {
 /// A reference that is not an edge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RefRow {
-    /// `import` or `call`; an `extends` that does not resolve is stored as `call`.
+    /// `import`, `call` or `extends`.
     pub kind: &'static str,
     pub text: String,
     pub line: u32,
@@ -275,16 +275,9 @@ fn export_at(p: &Project, rel: &str, name: &str, hops: u32) -> Option<(String, u
     let facts = p.facts.get(rel)?;
     let found = |i: usize| Some((rel.to_string(), i));
 
-    if name == "default" {
-        if let Some(i) = facts.symbols.iter().position(|s| s.default_export) {
-            return found(i);
-        }
-    } else if let Some(i) = unique_top_level(facts, name, |s| s.exported) {
-        return found(i);
-    }
-
     // An explicit export fact: `export { a as b }`, `export { a as b } from`,
-    // `export default a`.
+    // `export default a`, and the fact every `export function a` gives. It comes first:
+    // with `export { a as b }` only `b` is exported, although `a` is flagged.
     if let Some(e) = facts.exports.iter().find(|e| !e.star && e.name == name) {
         let local = e.local.as_deref().unwrap_or(name);
         if let Some(spec) = &e.from {
@@ -305,6 +298,26 @@ fn export_at(p: &Project, rel: &str, name: &str, hops: u32) -> Option<(String, u
             } => export_at(p, &target, &imported, hops + 1),
             _ => None,
         };
+    }
+
+    // A symbol exported by its declaration without a fact (CommonJS), unless an
+    // `export { .. }` list only re-labels it.
+    let relabelled = |s: &SymbolFact| {
+        facts
+            .exports
+            .iter()
+            .any(|e| !e.star && e.from.is_none() && e.local.as_deref() == Some(&s.name))
+    };
+    if name == "default" {
+        if let Some(i) = facts
+            .symbols
+            .iter()
+            .position(|s| s.default_export && !relabelled(s))
+        {
+            return found(i);
+        }
+    } else if let Some(i) = unique_top_level(facts, name, |s| s.exported && !relabelled(s)) {
+        return found(i);
     }
 
     // `export * from` carries every name but the default; two stars that offer
@@ -455,14 +468,19 @@ pub fn resolve_file(p: &Project, rel: &str) -> ResolvedFile {
     }
 
     for h in &facts.heritage {
-        let src = r.class_id(&h.class, h.line);
+        // No top-level class spans the line (`const K = class extends B {}`): there
+        // is no source symbol, so the heritage stays a ref rather than a file edge.
+        let Some(src) = r.class_id(&h.class, h.line) else {
+            r.reference("extends", h.extends.clone(), h.line, "unresolved");
+            continue;
+        };
         let (receiver, callee) = split_path(&h.extends);
         match r.resolve_name(receiver, callee, false, None, true) {
             Outcome::Edge { file, symbol, .. } => {
                 let dst = r.symbol_id_of(&file, symbol);
                 r.edge("extends", src, dst, h.line, "ts.extends");
             }
-            Outcome::Ref { status } => r.reference("call", h.extends.clone(), h.line, status),
+            Outcome::Ref { status } => r.reference("extends", h.extends.clone(), h.line, status),
         }
     }
 
@@ -572,12 +590,14 @@ impl Resolver<'_, '_> {
     /// The id of the symbol that holds a call, or the file id at top level. The call
     /// fact gives `(owner, name)` only, so of several symbols with that pair (a getter
     /// and a setter, a merged `interface` and `class`) the one that can hold calls and
-    /// spans the line is the one; of two such, the smaller.
+    /// spans the line is the one. Of two such, the smaller; when the smallest span is
+    /// shared (a one-line getter and setter) nothing says which one holds the call, so
+    /// it goes to the file rather than to a guess.
     fn call_source(&mut self, c: &CallFact) -> String {
         let Some((owner, name)) = &c.owner else {
             return self.file.clone();
         };
-        let holder = self
+        let holders: Vec<(usize, u32)> = self
             .facts
             .symbols
             .iter()
@@ -592,16 +612,18 @@ impl Resolver<'_, '_> {
                     && s.l0 <= c.line
                     && c.line <= s.l1
             })
-            .min_by_key(|(_, s)| s.l1 - s.l0)
-            .map(|(i, _)| i);
-        match holder {
-            Some(i) => self.symbol_id_of(self.rel, i),
-            None => self.file.clone(),
+            .map(|(i, s)| (i, s.l1 - s.l0))
+            .collect();
+        let smallest = holders.iter().map(|&(_, span)| span).min();
+        let mut tightest = holders.iter().filter(|&&(_, span)| Some(span) == smallest);
+        match (tightest.next(), tightest.next()) {
+            (Some(&(i, _)), None) => self.symbol_id_of(self.rel, i),
+            _ => self.file.clone(),
         }
     }
 
-    /// The id of the class `name` of this file that spans `line`.
-    fn class_id(&mut self, name: &str, line: u32) -> String {
+    /// The id of the class `name` of this file that spans `line`, if there is one.
+    fn class_id(&mut self, name: &str, line: u32) -> Option<String> {
         let class = self.facts.symbols.iter().position(|s| {
             s.kind == SymbolKind::Class
                 && s.owner.is_empty()
@@ -609,10 +631,7 @@ impl Resolver<'_, '_> {
                 && s.l0 <= line
                 && line <= s.l1
         });
-        match class {
-            Some(i) => self.symbol_id_of(self.rel, i),
-            None => self.file.clone(),
-        }
+        class.map(|i| self.symbol_id_of(self.rel, i))
     }
 
     /// Resolves `receiver.callee` (or `callee`) as seen from this file. `owner` is the

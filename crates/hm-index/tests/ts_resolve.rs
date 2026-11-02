@@ -6,7 +6,7 @@ use std::fs;
 use std::collections::BTreeMap;
 
 use common::{named_edges_for, resolver_for};
-use hm_index::facts::FileFacts;
+use hm_index::facts::{FileFacts, HeritageFact};
 use hm_index::lang::Lang;
 use hm_index::ts::resolve::{
     ModuleResolver, ModuleTarget, Project, ResolvedFile, resolve_export, resolve_file, symbol_ids,
@@ -677,8 +677,8 @@ fn require_jsx_extends_and_type_only_imports() {
     for expected in [
         reference("call", "typed", "unresolved"),
         reference("call", "gone", "unresolved"),
-        reference("call", "Component", "external"),
-        reference("call", "Missing", "unresolved"),
+        reference("extends", "Component", "external"),
+        reference("extends", "Missing", "unresolved"),
         reference("import", "./gone", "unresolved"),
         reference("import", "react", "external"),
     ] {
@@ -727,4 +727,88 @@ fn resolution_is_sorted_and_deduplicated() {
     assert_eq!(keys, sorted);
     sorted.dedup();
     assert_eq!(keys, sorted);
+}
+
+#[test]
+fn an_unresolved_extends_is_an_extends_ref() {
+    let (edges, refs) = resolved(&[("a.ts", "class A extends Missing {}\n")], "a.ts");
+    assert!(edges.is_empty(), "{edges:?}");
+    assert_eq!(refs, [reference("extends", "Missing", "unresolved")]);
+}
+
+#[test]
+fn only_the_exported_name_resolves_through_an_alias() {
+    let (facts, modules) = resolve_all(&[
+        ("alias.ts", "function a() {}\nexport { a as b };\n"),
+        (
+            "swap.ts",
+            "function a() {}\nfunction b() {}\nexport { a as b, b as a };\n",
+        ),
+        ("decl.ts", "export function c() {}\nexport { c as d };\n"),
+    ]);
+    let p = Project {
+        facts: &facts,
+        modules: &modules,
+    };
+    let at = |rel: &str, name: &str| {
+        resolve_export(&p, rel, name).map(|(r, i)| format!("{r}#{}", facts[&r].symbols[i].name))
+    };
+    assert_eq!(at("alias.ts", "b"), Some("alias.ts#a".into()));
+    assert_eq!(at("alias.ts", "a"), None);
+    assert_eq!(at("swap.ts", "b"), Some("swap.ts#a".into()));
+    assert_eq!(at("swap.ts", "a"), Some("swap.ts#b".into()));
+    // Exported by its declaration and under a second name: both resolve.
+    assert_eq!(at("decl.ts", "c"), Some("decl.ts#c".into()));
+    assert_eq!(at("decl.ts", "d"), Some("decl.ts#c".into()));
+}
+
+#[test]
+fn a_call_in_one_of_two_same_line_accessors_goes_to_the_file() {
+    let files = [(
+        "a.ts",
+        "function f() {}\nclass C { get x() { return f(); } set x(v: number) { f(); } }\n",
+    )];
+    let (edges, refs) = resolved(&files, "a.ts");
+    // Nothing says which accessor holds the call, so the file does, not a guess.
+    assert_eq!(edges, [edge("calls", "a.ts", "a.ts#f", "ts.call.local")]);
+    assert!(refs.is_empty(), "{refs:?}");
+}
+
+#[test]
+fn an_extends_without_a_class_to_hold_it_is_a_ref() {
+    let (mut facts, modules) = resolve_all(&[
+        ("base.ts", "export class Base {}\n"),
+        (
+            "a.ts",
+            "import { Base } from \"./base\";\nconst K = class extends Base {};\n",
+        ),
+    ]);
+    // The extractor emits heritage only for a named top-level class, so a heritage
+    // fact with no class symbol to hold it is built by hand.
+    assert!(facts["a.ts"].heritage.is_empty());
+    facts.get_mut("a.ts").unwrap().heritage.push(HeritageFact {
+        class: "K".into(),
+        extends: "Base".into(),
+        line: 2,
+    });
+    let project = Project {
+        facts: &facts,
+        modules: &modules,
+    };
+    let r = resolve_file(&project, "a.ts");
+    let file = hm_core::ids::file_id("a.ts");
+    assert!(
+        !r.edges.iter().any(|e| e.kind == "extends"),
+        "an extends edge starts at the file {file}: {:?}",
+        r.edges
+    );
+    let refs: Vec<_> = r
+        .refs
+        .iter()
+        .map(|x| (x.kind, x.text.as_str(), x.status))
+        .collect();
+    assert!(
+        refs.contains(&("extends", "Base", "unresolved")),
+        "{refs:?}"
+    );
 }
