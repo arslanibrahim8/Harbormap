@@ -169,6 +169,18 @@ fn card_without_an_index_indexes_first() {
 }
 
 #[test]
+fn card_sees_an_edit_made_after_the_last_index() {
+    let s = setup();
+    let text = stdout_of(&mut s.harbormap(&["card", "src/db.ts"]));
+    assert!(!text.contains("later"), "{text}");
+    let db = s.project.path().join("src/db.ts");
+    let source = fs::read_to_string(&db).unwrap();
+    fs::write(&db, format!("{source}\nexport function later() {{}}\n")).unwrap();
+    let text = stdout_of(&mut s.harbormap(&["card", "src/db.ts"]));
+    assert!(text.contains("later"), "{text}");
+}
+
+#[test]
 fn card_shows_a_symbol_and_json() {
     let s = setup();
     let text = stdout_of(&mut s.harbormap(&["card", "src/orders/service.ts#placeOrder"]));

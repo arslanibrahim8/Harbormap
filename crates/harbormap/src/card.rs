@@ -5,7 +5,7 @@ use std::process::ExitCode;
 
 use anyhow::{Context, bail};
 
-use hm_index::location::{facts_db, worktree_root};
+use hm_index::location::worktree_root;
 use hm_index::query::{FileCard, SymbolCard, file_card, symbol_card};
 use hm_project::git::discover;
 use hm_project::paths::within;
@@ -21,13 +21,10 @@ pub fn run(args: &CardArgs, json: bool) -> anyhow::Result<ExitCode> {
     };
     let (root, rel) = locate(Path::new(path))?;
 
-    // A worktree that was never indexed gets one pass first (Learn spec §4). Opening
-    // creates the file, so ask before.
-    let never_indexed = !facts_db(&root).exists();
+    // A reader runs one indexing pass first (Learn spec §4), so the card shows the
+    // tree as it is now. Files whose size and mtime match their rows are not read.
     let mut indexer = open(&root)?;
-    if never_indexed {
-        indexer.full()?;
-    }
+    indexer.full()?;
     let store = indexer.store();
     let missing = || {
         anyhow::anyhow!(
