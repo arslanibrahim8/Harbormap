@@ -28,6 +28,10 @@ pub const MAX_WAIT: Duration = Duration::from_millis(500);
 /// the other skipped folders get no watch at all.
 const PER_FOLDER_WATCHES: bool = cfg!(target_os = "linux");
 
+/// The repository's own exclude file. The walk honours it, but the rules reject
+/// everything under `.git`, so a change to it is turned into a rescan.
+const GIT_EXCLUDE: &str = ".git/info/exclude";
+
 /// The changes that settled together.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Batch {
@@ -115,7 +119,8 @@ pub struct Watcher {
 
 impl Watcher {
     /// Starts watching `root`. `dirs` are the admitted folders from the walk (`""` is
-    /// the root); `rules` drop the paths the walk would not index.
+    /// the root); `rules` drop the paths the walk would not index. When the rules
+    /// change (an ignore file was edited), start a new watcher with the new ones.
     pub fn start(root: &Path, rules: WalkRules, dirs: &[String]) -> io::Result<Watcher> {
         let root = dunce::canonicalize(root)?;
         let (control, events) = mpsc::channel::<Msg>();
@@ -131,6 +136,13 @@ impl Watcher {
             for dir in dirs {
                 watcher
                     .watch(&join_rel(&root, dir), RecursiveMode::NonRecursive)
+                    .map_err(io::Error::other)?;
+            }
+            // For `.git/info/exclude`; a repository without the folder has no file.
+            let info = root.join(".git").join("info");
+            if info.is_dir() {
+                watcher
+                    .watch(&info, RecursiveMode::NonRecursive)
                     .map_err(io::Error::other)?;
             }
         } else {
@@ -231,6 +243,10 @@ impl Run {
                 continue;
             };
             if rel.is_empty() {
+                continue;
+            }
+            if rel == GIT_EXCLUDE {
+                self.debouncer.push_rescan(now);
                 continue;
             }
             let is_dir = fs::symlink_metadata(path).is_ok_and(|m| m.is_dir());

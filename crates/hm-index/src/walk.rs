@@ -10,6 +10,7 @@ use std::time::UNIX_EPOCH;
 use ignore::WalkBuilder;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
+use crate::hash::content_hash;
 use crate::lang::Lang;
 
 /// Files larger than this are counted but not parsed.
@@ -126,11 +127,23 @@ struct Matcher {
     /// Lower wins within one folder: `.harbormapignore`, `.gitignore`, then
     /// `.git/info/exclude`.
     priority: u8,
+    /// The content hash of the ignore file, so that two sets of rules compare.
+    hash: String,
     ignore: Gitignore,
 }
 
-/// The walker's include rules, for asking about one path without walking.
-#[derive(Debug, Clone)]
+impl PartialEq for Matcher {
+    fn eq(&self, other: &Matcher) -> bool {
+        (&self.dir, self.depth, self.priority, &self.hash)
+            == (&other.dir, other.depth, other.priority, &other.hash)
+    }
+}
+
+impl Eq for Matcher {}
+
+/// The walker's include rules, for asking about one path without walking. Two rules
+/// are equal when they come from the same ignore files with the same content.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WalkRules {
     root: PathBuf,
     /// Deepest folder first; in one folder `.harbormapignore` before `.gitignore`.
@@ -299,6 +312,7 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
                 dir: String::new(),
                 depth: 0,
                 priority: 2,
+                hash: hash_of(&exclude),
                 ignore,
             });
         }
@@ -375,8 +389,16 @@ fn matcher_for(root: &Path, rel: &str, abs: &Path) -> Matcher {
         dir: dir.to_string(),
         depth,
         priority,
+        hash: hash_of(abs),
         ignore,
     }
+}
+
+/// The content hash of the file at `abs`, empty when it cannot be read.
+fn hash_of(abs: &Path) -> String {
+    std::fs::read(abs)
+        .map(|bytes| content_hash(&bytes))
+        .unwrap_or_default()
 }
 
 /// Reads the facts about one file: size, mtime, language, and whether it is skipped.

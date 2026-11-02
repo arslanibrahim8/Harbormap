@@ -1,16 +1,16 @@
 //! `harbormap index`: read a project into the facts store, print what was found and,
 //! with `--watch`, keep the store current.
 
+use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::Path;
 use std::process::ExitCode;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
 
 use hm_index::index::{Delta, IndexReport, Indexer};
 use hm_index::location::{facts_db, worktree_root};
-use hm_index::walk::walk;
 use hm_index::watch::{Batch, Watcher};
 use hm_store::Store;
 
@@ -192,16 +192,29 @@ fn plural<'a>(n: u32, one: &'a str, many: &'a str) -> &'a str {
 /// One line per settled batch of changes, until the process is stopped: text, or with
 /// `json` one JSON object per line.
 fn watch(indexer: &mut Indexer, root: &Path, json: bool) -> anyhow::Result<()> {
-    let walked = walk(root).context("cannot read the project")?;
-    let watcher = Watcher::start(root, walked.rules, &walked.dirs)
-        .context("cannot watch the project for changes")?;
+    let mut watcher = start_watcher(indexer, root)?;
+    // A save made while the first pass ran may have come before the watch began, so
+    // the watch begins with a rescan. Such a catch-up prints a line only when it
+    // found a change.
+    let mut catch_up = true;
     // A batch that failed is not applied again, so the next batch rescans.
     let mut failed = false;
     loop {
-        let Some(mut batch) = watcher.recv_timeout(POLL) else {
-            continue;
+        let quiet = catch_up;
+        let mut batch = if std::mem::take(&mut catch_up) {
+            Batch {
+                paths: BTreeSet::new(),
+                rescan: true,
+                first_event: Instant::now(),
+            }
+        } else {
+            let Some(batch) = watcher.recv_timeout(POLL) else {
+                continue;
+            };
+            batch
         };
         batch.rescan |= std::mem::take(&mut failed);
+        let rules = indexer.walk_rules().cloned();
         let applied = if batch.rescan {
             indexer.rescan()
         } else {
@@ -215,6 +228,16 @@ fn watch(indexer: &mut Indexer, root: &Path, json: bool) -> anyhow::Result<()> {
                 continue;
             }
         };
+        if indexer.walk_rules() != rules.as_ref() {
+            // An ignore file changed. The watcher still filters with the old rules
+            // (and on Linux lacks watches for the folders the new ones admit), so a
+            // new one replaces it, and a rescan finds what changed in between.
+            watcher = start_watcher(indexer, root)?;
+            catch_up = true;
+        }
+        if quiet && delta == Delta::default() {
+            continue;
+        }
         let took = batch.first_event.elapsed();
         let text = if json {
             batch_json(&batch, took, &delta)
@@ -225,6 +248,17 @@ fn watch(indexer: &mut Indexer, root: &Path, json: bool) -> anyhow::Result<()> {
             return Ok(());
         }
     }
+}
+
+/// A watcher that filters with the indexer's current rules and watches the folders
+/// its last walk admitted.
+fn start_watcher(indexer: &Indexer, root: &Path) -> anyhow::Result<Watcher> {
+    let rules = indexer
+        .walk_rules()
+        .cloned()
+        .context("the project was not read yet")?;
+    Watcher::start(root, rules, indexer.admitted_dirs())
+        .context("cannot watch the project for changes")
 }
 
 /// The files a delta touched, changed and removed ones together.

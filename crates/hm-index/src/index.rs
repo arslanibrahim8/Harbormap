@@ -178,6 +178,8 @@ pub struct Indexer {
     resolver: ModuleResolver,
     /// The include rules of the last walk; `None` until this indexer has walked.
     rules: Option<WalkRules>,
+    /// The folders the last walk admitted.
+    dirs: Vec<String>,
 }
 
 impl Indexer {
@@ -192,11 +194,23 @@ impl Indexer {
             facts,
             resolver: ModuleResolver::new(known, tsconfigs),
             rules: None,
+            dirs: Vec::new(),
         })
     }
 
     pub fn store(&self) -> &Store {
         &self.store
+    }
+
+    /// The include rules of the last walk, which `apply` filters with; `None` until
+    /// this indexer has walked. A watcher must filter with the same rules.
+    pub fn walk_rules(&self) -> Option<&WalkRules> {
+        self.rules.as_ref()
+    }
+
+    /// The folders the last walk admitted (`""` is the root), for a watcher to watch.
+    pub fn admitted_dirs(&self) -> &[String] {
+        &self.dirs
     }
 
     /// Walks the worktree and brings the store in line with it. A file whose size and
@@ -334,6 +348,7 @@ impl Indexer {
                 self.facts = facts;
                 self.resolver = resolver;
                 self.rules = Some(walked.rules);
+                self.dirs = walked.dirs;
             }
             Err(err) => {
                 // The map was partly rebuilt; the store is the truth. If it cannot be
@@ -376,8 +391,13 @@ impl Indexer {
             let abs = abs_path(&self.root, rel);
             if !is_file(&abs)? {
                 // A folder that vanished, moved or replaced a file: its stored files
-                // are read again or removed.
-                paths.extend(stored_under(&self.store, rel)?);
+                // are read again or removed. An ignore file among them took its rules
+                // along, so that needs a walk.
+                let under = stored_under(&self.store, rel)?;
+                if under.iter().any(|rel| is_ignore_file(rel)) {
+                    return self.rescan();
+                }
+                paths.extend(under);
             }
             if is_dir(&abs)? && rules.admits_dir(rel) {
                 // A folder moved or copied in: its own ignore file would change the
@@ -432,6 +452,7 @@ impl Indexer {
         let walk = Rescan {
             known,
             rules: walked.rules,
+            dirs: walked.dirs,
         };
         self.bring_in_line(files, gone, &stored, Some(walk))
     }
@@ -643,6 +664,7 @@ impl Indexer {
         }
         if let Some(walk) = rescan {
             self.rules = Some(walk.rules);
+            self.dirs = walk.dirs;
         }
 
         delta.files_removed = removed;
@@ -1002,10 +1024,12 @@ fn files_under(
     Ok(ignore_file)
 }
 
-/// What a rescan walked: the files that exist and the rules that admitted them.
+/// What a rescan walked: the files that exist, the rules that admitted them and the
+/// folders it entered.
 struct Rescan {
     known: BTreeSet<String>,
     rules: WalkRules,
+    dirs: Vec<String>,
 }
 
 /// Whether the stored row is what a pass would write for `f`, size and mtime aside.

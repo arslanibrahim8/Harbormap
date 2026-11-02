@@ -63,3 +63,23 @@ fn a_new_folder_is_watched_and_its_files_are_reported() {
     assert!(wait_for(&w, "src/fresh/b.ts", Duration::from_secs(3)));
     drop(w);
 }
+
+#[test]
+fn a_changed_git_exclude_asks_for_a_rescan() {
+    let dir = copy_fixture("ts-basic");
+    fs::create_dir_all(dir.path().join(".git/info")).unwrap();
+    let walked = walk(dir.path()).unwrap();
+    let w = Watcher::start(dir.path(), walked.rules.clone(), &walked.dirs).unwrap();
+
+    fs::write(dir.path().join(".git/info/exclude"), "src/legacy.js\n").unwrap();
+    let end = Instant::now() + Duration::from_secs(3);
+    let mut rescan = false;
+    while let Some(left) = end.checked_duration_since(Instant::now()) {
+        if w.recv_timeout(left).is_some_and(|batch| batch.rescan) {
+            rescan = true;
+            break;
+        }
+    }
+    assert!(rescan, "no rescan batch for .git/info/exclude");
+    drop(w);
+}

@@ -339,3 +339,101 @@ fn index_counts_an_unreadable_folder_and_goes_on() {
     assert!(out.status.success(), "{errors}");
     assert!(text.contains("1 unreadable file or folder"), "{text}");
 }
+
+/// `harbormap index --watch --json` running on a project, its lines on a channel.
+struct Watching {
+    child: std::process::Child,
+    lines: std::sync::mpsc::Receiver<serde_json::Value>,
+}
+
+impl Watching {
+    fn start(s: &Setup) -> Watching {
+        use std::io::BufRead;
+        let mut child = std::process::Command::new(assert_cmd::cargo::cargo_bin("harbormap"))
+            .current_dir(s.project.path())
+            .env("HARBORMAP_DATA_DIR", s.data.path())
+            .args(["index", "--watch", "--json"])
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let (send, lines) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for line in std::io::BufReader::new(stdout).lines() {
+                let Ok(line) = line else { return };
+                let value = serde_json::from_str(&line).expect("one JSON object per line");
+                if send.send(value).is_err() {
+                    return;
+                }
+            }
+        });
+        Watching { child, lines }
+    }
+
+    /// The first line that `accept` takes within `within`, skipping the others.
+    fn wait_for(
+        &self,
+        within: std::time::Duration,
+        accept: impl Fn(&serde_json::Value) -> bool,
+    ) -> Option<serde_json::Value> {
+        let end = std::time::Instant::now() + within;
+        while let Some(left) = end.checked_duration_since(std::time::Instant::now()) {
+            match self.lines.recv_timeout(left) {
+                Ok(line) if accept(&line) => return Some(line),
+                Ok(_) => {}
+                Err(_) => return None,
+            }
+        }
+        None
+    }
+}
+
+impl Drop for Watching {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// Whether a batch line names `rel` among its paths.
+fn names(line: &serde_json::Value, rel: &str) -> bool {
+    line["paths"]
+        .as_array()
+        .is_some_and(|paths| paths.iter().any(|p| p == rel))
+}
+
+#[test]
+fn watch_follows_a_folder_that_an_ignore_edit_brings_in() {
+    let s = setup();
+    let wait = std::time::Duration::from_secs(10);
+    let w = Watching::start(&s);
+    assert!(w.wait_for(wait, |l| l.get("parsed").is_some()).is_some());
+    // The watcher is running with the rules of the first pass.
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    // `ignored/` is hidden by .gitignore; this edit brings it in.
+    fs::write(s.project.path().join(".gitignore"), "# nothing\n").unwrap();
+    let line = w.wait_for(wait, |l| names(l, ".gitignore"));
+    assert!(line.is_some(), "no batch for .gitignore");
+    // Let the watcher settle, then save inside the folder that is now on the map.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    fs::write(
+        s.project.path().join("ignored/secret.ts"),
+        "export const x = 1;\nexport function later() {}\n",
+    )
+    .unwrap();
+    let line = w.wait_for(wait, |l| names(l, "ignored/secret.ts"));
+    assert!(line.is_some(), "the save in ignored/ was not seen");
+    drop(w);
+
+    let store = hm_store::Store::open(&s.stores()[0]).unwrap();
+    let later: i64 = store
+        .conn()
+        .query_row(
+            "SELECT count(*) FROM symbol WHERE name = 'later'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(later, 1, "the new symbol is in the store");
+}

@@ -602,3 +602,29 @@ fn an_unreadable_folder_or_file_leaves_the_index_and_comes_back() {
     assert_eq!(d.files_changed.len(), 5);
     assert_cold(&ix, dir.path());
 }
+
+#[test]
+fn a_vanished_folder_with_an_ignore_file_takes_its_rules_along() {
+    let (mut ix, dir) = indexed("ts-basic");
+    let extra = dir.path().join("src/extra");
+    fs::create_dir_all(&extra).unwrap();
+    fs::write(extra.join(".gitignore"), "hidden.ts\n").unwrap();
+    fs::write(extra.join("seen.ts"), "export const s = 1;\n").unwrap();
+    ix.apply(&set(["src/extra"])).unwrap();
+    assert_cold(&ix, dir.path());
+
+    fs::remove_dir_all(&extra).unwrap();
+    let d = ix.apply(&set(["src/extra"])).unwrap();
+    assert_eq!(
+        d.files_removed,
+        vec!["src/extra/.gitignore", "src/extra/seen.ts"]
+    );
+    assert_cold(&ix, dir.path());
+
+    // The folder comes back without its ignore file: nothing hides hidden.ts now.
+    fs::create_dir_all(&extra).unwrap();
+    fs::write(extra.join("hidden.ts"), "export const h = 1;\n").unwrap();
+    let d = ix.apply(&set(["src/extra/hidden.ts"])).unwrap();
+    assert_eq!(d.files_changed, vec!["src/extra/hidden.ts"]);
+    assert_cold(&ix, dir.path());
+}
