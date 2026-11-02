@@ -1,0 +1,34 @@
+[package]
+name = "hm-index"
+description = "Harbormap Learn indexer: walks a worktree, parses source and writes the facts store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+blake3.workspace = true
+directories.workspace = true
+dunce.workspace = true
+hm-core.workspace = true
+hm-project.workspace = true
+hm-store.workspace = true
+ignore.workspace = true
+jsonc-parser.workspace = true
+notify.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+streaming-iterator.workspace = true
+tree-sitter.workspace = true
+tree-sitter-javascript.workspace = true
+tree-sitter-typescript.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

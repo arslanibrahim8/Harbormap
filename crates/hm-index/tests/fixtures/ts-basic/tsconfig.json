@@ -1,0 +1,5 @@
+{
+  // comments and trailing commas are allowed here
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "paths": { "@/*": ["src/*"], }, },
+}
