@@ -1,6 +1,6 @@
 # Harbormap Learn — learn-your-project engine — Design
 
-- **Status:** draft for review, 2026-11-02.
+- **Status:** approved, 2026-11-02. Amended 2026-11-03: technologies (§7.6), Go server entry and inner names (§6.3, §7.2), plan order (§14).
 - **Parent:** [Product design](2026-10-15-harbormap-product-design.md). Amends the
   [v0.1](2026-10-15-harbormap-v0.1-runtime-doctor-design.md) and
   [v0.2](2026-10-15-harbormap-v0.2-harbor-chart-design.md) specs (section 13).
@@ -38,9 +38,10 @@ It does this in the simplest form, visually, and it stays true to the code as th
 4. **Live facts.** Deterministic facts update within 300 ms (p95) of a file save, with zero tokens.
 5. **Verified prose.** Prose is written by Claude Code subagents on the user's own subscription, checked by a script and an independent verifier, and tied to the hash of the facts it was written from.
 6. **Languages.** JS/TS (with TSX), Python, Go, Java and C#, with entry-point and route detection for their common frameworks. Rust is included without routes.
+7. **Technologies.** A list of what the project is built with (languages, frameworks, libraries, tools), with versions, where each is declared and how much the code uses it, explained in plain words (§7.6).
 
 **Non-goals (this milestone)**
-- **Branches tab and project facts.** The git branch map and going-live, CI, cloud and database detection come in the next milestone (section 14).
+- **Branches tab and project facts.** The git branch map and going-live, CI, cloud and hosting detection come in the next milestone (section 14). The technologies list (§7.6) reports only what manifests and imports declare.
 - **Other providers.** API-key and local-model (Ollama) providers come later.
 - **Very large repositories.** WebGL rendering, tile pyramids and repositories over about 10k source files are deferred: the v0.2 large-map work stays in v0.2.
 - **Light theme, other locales, mobile layout.**
@@ -136,6 +137,7 @@ Two layers. Facts never depend on prose.
 | `harbormap journeys` | List suggested and saved journeys |
 | `harbormap journey <id\|query>` | Print a journey: template text, or prose when present |
 | `harbormap card <path>[#symbol]` | Print a file or function card |
+| `harbormap tech [path]` | Print the technologies list (§7.6) |
 | `harbormap facts journey <id>` / `facts card <path>` | Facts bundle for the plugin |
 | `harbormap llm plan [--journey id\|--file path\|--since-commit]` | Cost preview of what is stale |
 | `harbormap llm validate <draft.json>` | Run the prose validator |
@@ -329,7 +331,7 @@ Rules marked [K] were written from memory and are verified against the framework
 | FastAPI | `@app.get`, `@router.post`; `APIRouter(prefix=)`, `include_router(prefix=)`; `Depends(fn)` is an edge [K] | H / M prefix |
 | Flask | `@app.route(methods=)`, `@bp.get`; `register_blueprint(url_prefix=)`; no `methods` = GET [K] | H / M prefix |
 | Django | `urlpatterns` `path`/`re_path`/`include` (dotted string resolved); `as_view()` verbs by method name; DRF routers documented as a limit [K] | M |
-| Go net/http | `HandleFunc("/p", h)`, Go 1.22 `"GET /p"`; wrappers unwrapped one level [K] | H |
+| Go net/http | `HandleFunc("/p", h)`, Go 1.22 `"GET /p"`; wrappers unwrapped one level. The `Handler` field of `http.Server{…}` and the handler argument of `ListenAndServe`/`ListenAndServeTLS` is the server's catch-all entry (`ANY /*`), followed through local variables in the same function [K] | H |
 | Gin, Echo, Chi | `r.GET("/p", h)`, `Group("/api")` within one function; framework import required [K] | H / M groups |
 | ASP.NET Core minimal | `MapGet/MapPost/…`, `MapGroup`; follow extension calls from `Program.cs` | H |
 | ASP.NET controllers | `[ApiController]`/`ControllerBase`, `[Route("api/[controller]")]`, `[HttpGet("x")]` [K] | H |
@@ -393,6 +395,7 @@ A journey must follow **execution order**, so the walk is depth-first in call-si
 9. A generated file that is missing from the repository becomes a step that says so ("built at compile time, not in the repository"). The path is never guessed past it.
 10. **Limits stated, not hidden.** Data that flows by value, not by call (a value stored now and printed later), and event hops without a literal match are not followed. The journey ends with a plain note about what happens next, without a step.
 11. Every journey records the commit and branch it was computed on, and whether the working tree had changes.
+12. **Inner names.** Nested functions are not symbols (plan L1), so a step whose call site sits inside a named nested function or a closure assigned to a variable is labelled with that inner name and cut to its lines: `LoginForm › onSubmit`, `main › handler`. L3 finds the inner name from the file's syntax tree at step time; the symbol table does not change. A long closure (for example a 400-line request handler inside `main`) is split into steps by its call sites like any other symbol.
 
 ### 7.3 Patterns (rules, not LLM)
 
@@ -428,6 +431,26 @@ Wording never uses "bad", "wrong" or "insecure". These rules are the seed of v0.
 ### 7.5 Template text (zero tokens)
 
 Every journey step and card has a template text built only from facts, for example: "Step 3 · `create_order` in services/orders.py · saves to the database · called by POST /api/orders". The panel and CLI always show it until prose exists. When prose is stale, the template is shown beside the old prose.
+
+### 7.6 Technologies (zero tokens)
+
+The technologies list answers "what was this project built with?", so a reader learns the tools before the code.
+
+- **Sources:**
+  - declared dependencies and versions from manifests: `package.json` (dependencies and devDependencies, with the resolved version from the lockfile when present), `pyproject.toml`/`requirements*.txt`, `go.mod`, `pom.xml`/`build.gradle`, `.csproj`, `Cargo.toml`;
+  - language counts from the index;
+  - `Dockerfile` `FROM` lines and `docker-compose` images;
+  - known config files (`next.config.*`, `tsconfig.json`, `drizzle.config.*`, `tailwind.config.*`, `vitest.config.*`, `playwright.config.*`).
+- **Catalog.** An embedded pack maps package names and config files to a technology, a category and a glossary term. Categories: language, framework, UI, data and ORM, auth and security, validation, testing, build and tooling, deploy and infra, other. The pack is data and extendable, like the other packs.
+- **Evidence per item:**
+  - where it is declared (`file:line`) and its version (the declared range, plus the resolved version when a lockfile has it);
+  - how much the code uses it, from the facts: "imported in 42 files";
+  - a declared package that no file imports says "declared, not imported (may be a command-line tool)";
+  - an import with no manifest entry is listed under "used but not declared".
+- **Text.** One plain line per technology from the glossary pack, at both levels ("Drizzle: a library that turns code into database queries"). A package missing from the pack is listed by name with "no description yet"; it never gets an invented description. Its description can be written through the normal prose path (preview and click), as a card batch item.
+- **Links.** Each journey step shows the technologies its file imports as chips, so "this step uses Zod" opens the same item.
+- **Limits.** Beginner shows at most 12 items, grouped by category and ranked by import count, with "+N more"; Builder shows all. A monorepo lists technologies per manifest root.
+- **Scope.** CI, cloud, hosting and going-live detection stay in Project facts (§3).
 
 ## 8. Text: steps, cards, levels, language
 
@@ -714,6 +737,7 @@ One template, dark only, built on the panel draft:
 ### 10.3 Map tab
 
 - **Overview:** ≤ 12 boxes (folder-first groups with roles; v0.2 §3) and one counted arrow per ordered pair.
+- **Technologies:** a strip above the overview with one chip per category; a click opens the technology list (§7.6) in the drawer.
 - **Drill-down:** expanding a box opens it in place with precomputed positions, and neighbours stay put. Neighbours outside the box show as "+N elsewhere" chips.
 - **File edges** are drawn only for the selected file.
 - **Limits:** Beginner ≤ 12 boxes and ≤ 10 arrows; Builder ≤ 25 and ≤ 40; never more than 150 items.
@@ -813,6 +837,9 @@ A read-only viewer with syntax highlighting. It shows the journey quote's lines 
 12. Turkish Beginner sentence cap of 15 words, provisional until measured.
 13. The UI stays English in this milestone; the prose language is a setting.
 14. Reuse of UA's layer path table with attribution; no UA code.
+15. Technologies (§7.6) come from manifests, imports and a catalog pack with zero tokens; an unknown package is named, never described by guess.
+16. Plan order is a TS-first vertical slice (§14), so a real Next.js project shows in the panel before the other languages land.
+17. Go: the `http.Server` handler is the catch-all entry; nested functions and closures label steps by inner name without becoming symbols (§7.2.12).
 
 ## 13. Amendments to existing specs
 
@@ -839,21 +866,27 @@ A read-only viewer with syntax highlighting. It shows the journey quote's lines 
 
 Each plan produces working, tested software.
 
+**Order (amended 2026-11-03).** The plans run as a TS-first vertical slice, so a real Next.js project (the private evaluation project, §11.1) shows in the panel as early as possible: **L1 → L2a → L3 → L5 → L4 → L2b**. Until L4 lands, the panel shows template text (§7.5); the technologies list needs no prose.
+
 - **L1 — Indexer core and TS/JS** (detailed plan: `docs/superpowers/plans/2026-11-02-harbormap-learn-l1-indexer-core.md`).
   - Adds `hm-store` and `hm-index`: walker, file classes and exclusion counts, BLAKE3 hashes, the SQLite schema for files, symbols, edges, refs and reverse imports, and the TS/JS/TSX extractor and resolver (tsconfig paths, barrels).
   - Adds incremental dirty propagation, the `notify` watcher, `harbormap index` and `harbormap card <path>` (template card, facts only).
   - Adds the latency harness and the incremental-equals-cold property test.
   - Done when indexing the evaluation repositories' TS parts and Harbormap's own fixtures meets the latency targets.
-- **L2 — Languages and routes.**
-  - Adds extractors and resolvers for Python, Go, Java, C# and Rust.
-  - Adds the route and entry rules in 6.3 (Next.js first), client → server URL matching, gaps, and patterns (7.3).
+- **L2a — TS/JS routes and Next.js.**
+  - Adds the TS/JS route and entry rules in 6.3 (Next.js app and pages routers, server actions, middleware, Express, NestJS), client → server URL matching, the TS framework-mediated hops, gaps, and the patterns (7.3) for TS libraries.
+  - Adds manifest reading for `package.json` (`bin`/`main`/`scripts`, versions, lockfile) used by entries and §7.6.
   - Golden fixtures per rule.
-  - Done when every evaluation repository indexes with its routes and entries found.
+  - Done when the Next.js evaluation repositories index with their routes and entries found.
+- **L2b — Other languages.**
+  - Adds extractors, resolvers, route and entry rules, and manifests for Python, Go, Java, C# and Rust.
+  - Done when every evaluation repository indexes with its routes and entries found, and the L3 path gates are rechecked on them.
 - **L3 — Journeys and cards (deterministic).**
   - Adds seeds and ranking, path computation (7.2), steps with Rust-cut quotes, structure observations (7.4) and template text (7.5).
   - Adds framework-mediated hops (§6.3), areas, glossary packs (EN/TR), the `journeys`, `journey` and `card` commands, the `journey_edge` index and the working-tree state per journey (needs gix status features).
+  - Adds the technologies list (§7.6): catalog pack, evidence and the `tech` command.
   - Adds the zero-token eval runner.
-  - Done when the path gates in 11.2 pass on the evaluation set.
+  - Done when the path gates in 11.2 pass on the TS/Next.js part of the evaluation set; the rest follows L2b.
 - **L4 — Claude Code plugin and prose pipeline.**
   - Starts by pinning and testing the isolated headless `claude -p` call (§9.1) on the installed Claude Code.
   - Adds facts bundles with callee definitions, code-aware redaction, the Rust validator, `llm plan/validate/commit/write`, the prose store and staleness states, and the per-role headless runner with usage capture.
@@ -862,7 +895,8 @@ Each plan produces working, tested software.
   - Done when the hard and soft prose gates pass on the evaluation set within the token cap.
 - **L5 — Panel.**
   - Adds `hm-layout` (grouping, aggregation, cached positions), `hm-serve`, the TypeScript/SVG panel (Journeys, Map, Code, drawer cards, levels, Write/Refresh with preview), live deltas and the performance budgets.
-  - Done when the panel budgets in 10.5 are met on the evaluation set.
+  - Adds the technologies strip and list (§10.3).
+  - Done when the panel budgets in 10.5 are met on the TS/Next.js part of the evaluation set.
 
 ## 15. Risks and open questions
 
