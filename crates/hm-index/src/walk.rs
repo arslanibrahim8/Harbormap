@@ -40,6 +40,10 @@ const SNIFF_BYTES: u64 = 64 * 1024;
 const BINARY_BYTES: usize = 8 * 1024;
 /// A file whose average line is longer than this (in the first 64 KiB) is minified.
 const MINIFIED_AVG_LINE: usize = 500;
+/// Minified detection needs at least this much text. A short file with one long line
+/// is not worth skipping, and a generated barrel (`export { A, B, ... } from`) is such
+/// a file whose facts later files need.
+const MINIFIED_MIN_BYTES: usize = 16 * 1024;
 /// How much of a file `classify` sees.
 const HEAD_BYTES: usize = 1024;
 
@@ -372,7 +376,7 @@ fn sniff_skip(sniff: &[u8]) -> Option<Skip> {
         return Some(Skip::Binary);
     }
     let lines = sniff.iter().filter(|&&b| b == b'\n').count() + 1;
-    if sniff.len() / lines > MINIFIED_AVG_LINE {
+    if sniff.len() >= MINIFIED_MIN_BYTES && sniff.len() / lines > MINIFIED_AVG_LINE {
         return Some(Skip::TooLarge);
     }
     None

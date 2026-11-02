@@ -64,6 +64,22 @@ fn minified_and_binary_files_are_counted_not_parsed() {
 }
 
 #[test]
+fn a_short_file_with_long_lines_is_not_minified() {
+    // A generated barrel: four `export { Name0, Name1, ... } from` lines of about
+    // 800 bytes are no minified bundle.
+    let dir = tempfile::tempdir().unwrap();
+    let names: Vec<String> = (0..100).map(|i| format!("Name{i}")).collect();
+    let line = format!("export {{ {} }} from './x';\n", names.join(", "));
+    assert!(line.len() > 500);
+    fs::write(dir.path().join("index.ts"), line.repeat(4)).unwrap();
+
+    let r = walk(dir.path()).unwrap();
+    let barrel = r.files.iter().find(|f| f.rel == "index.ts").unwrap();
+    assert_eq!(barrel.skip, None);
+    assert_eq!(barrel.class, FileClass::Source);
+}
+
+#[test]
 fn ignore_rules_apply_in_a_copy_without_git() {
     let dir = copy_fixture("ts-basic"); // a tempdir, not a git repository
     let r = walk(dir.path()).unwrap();
