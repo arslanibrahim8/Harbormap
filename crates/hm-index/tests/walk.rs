@@ -218,3 +218,47 @@ fn a_generated_marker_in_the_first_five_lines_counts() {
     let far = b"1\n2\n3\n4\n5\n// @generated\n";
     assert_eq!(classify("src/a.ts", far), FileClass::Source);
 }
+
+#[test]
+fn ignored_skip_folders_are_still_counted() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    fs::write(p.join(".gitignore"), "node_modules/\ndist/\n").unwrap();
+    fs::create_dir_all(p.join("node_modules/x")).unwrap();
+    fs::create_dir_all(p.join("dist")).unwrap();
+    fs::create_dir_all(p.join("pkg/node_modules")).unwrap();
+    fs::create_dir_all(p.join(".git")).unwrap();
+    fs::write(p.join("node_modules/x/i.js"), "x\n").unwrap();
+    fs::write(p.join("dist/b.js"), "x\n").unwrap();
+    fs::write(p.join("pkg/node_modules/j.js"), "x\n").unwrap();
+    fs::write(p.join("a.ts"), "x\n").unwrap();
+
+    let r = walk(p).unwrap();
+    assert_eq!(r.skipped_dirs.get("node_modules"), Some(&2));
+    assert_eq!(r.skipped_dirs.get("dist"), Some(&1));
+    assert_eq!(r.skipped_dirs.len(), 2); // `.git` is not counted
+    let rels: Vec<&str> = r.files.iter().map(|f| f.rel.as_str()).collect();
+    assert_eq!(rels, [".gitignore", "a.ts"]);
+}
+
+#[test]
+fn admits_dir_answers_for_folders() {
+    let dir = copy_fixture("ts-basic");
+    let r = walk(dir.path()).unwrap();
+    for hidden in [
+        "dist",
+        "node_modules",
+        "ignored",
+        "src/node_modules",
+        ".git",
+    ] {
+        assert!(!r.rules.admits_dir(hidden), "{hidden}");
+    }
+    for shown in ["src/orders", "src", "docs", ""] {
+        assert!(r.rules.admits_dir(shown), "{shown}");
+    }
+    // `admits` still takes the last component for a file.
+    assert!(r.rules.admits("dist") && r.rules.admits("ignored"));
+    assert!(!r.rules.admits("ignored/secret.ts") && !r.rules.admits("dist/bundle.js"));
+    assert!(r.rules.admits("src/new.ts"));
+}

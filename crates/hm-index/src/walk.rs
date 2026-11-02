@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
 
 use ignore::WalkBuilder;
@@ -132,11 +131,25 @@ impl WalkRules {
     /// be `.git` or a skip directory, and no ignore file may hide it. The last
     /// component is taken to be a file, so only `.git` and ignore rules apply to it.
     pub fn admits(&self, rel: &str) -> bool {
+        self.admits_as(rel, false)
+    }
+
+    /// Whether the walker would enter the folder at `rel`: like [`admits`], but the
+    /// last component is a directory too, so skip names and dir-only ignore patterns
+    /// (`ignored/`) apply to it.
+    ///
+    /// [`admits`]: WalkRules::admits
+    pub fn admits_dir(&self, rel: &str) -> bool {
+        self.admits_as(rel, true)
+    }
+
+    fn admits_as(&self, rel: &str, last_is_dir: bool) -> bool {
         let parts: Vec<&str> = rel.split('/').filter(|p| !p.is_empty()).collect();
         let Some((last, dirs)) = parts.split_last() else {
             return true;
         };
-        if *last == ".git" || dirs.iter().any(|d| *d == ".git" || SKIP_DIRS.contains(d)) {
+        let never = |d: &str| d == ".git" || SKIP_DIRS.contains(&d);
+        if dirs.iter().any(|d| never(d)) || *last == ".git" || (last_is_dir && never(last)) {
             return false;
         }
         // Like git, a path under an ignored folder stays hidden even if a deeper
@@ -147,7 +160,7 @@ impl WalkRules {
                 prefix.push('/');
             }
             prefix.push_str(part);
-            let is_dir = i + 1 < parts.len();
+            let is_dir = last_is_dir || i + 1 < parts.len();
             if self.hides(&prefix, is_dir) {
                 return false;
             }
@@ -182,12 +195,14 @@ impl WalkRules {
 /// Symlinks are not followed, so nothing outside the root is read and nothing inside
 /// it is seen twice.
 pub fn walk(root: &Path) -> io::Result<WalkResult> {
-    let skipped = Arc::new(Mutex::new(BTreeMap::<String, u32>::new()));
-    let counter = Arc::clone(&skipped);
+    let mut skipped_dirs = BTreeMap::<String, u32>::new();
     let mut builder = WalkBuilder::new(root);
     builder
         .hidden(false)
+        // Only ignore files inside the root count, so the result does not depend on
+        // where the root sits and `WalkRules` can reproduce it.
         .parents(false)
+        // No `.ignore` / `.rgignore` files: Harbormap has its own `.harbormapignore`.
         .ignore(false)
         .git_ignore(true)
         .git_global(false)
@@ -204,14 +219,10 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
                 // A directory, or a file in a linked worktree; never reported.
                 return false;
             }
+            // Skip directories are counted by `count_skip_dirs`, which also sees the
+            // ones that ignore rules hide before this filter runs.
             let is_dir = entry.file_type().is_some_and(|t| t.is_dir());
-            if is_dir && SKIP_DIRS.contains(&name.as_ref()) {
-                if let Ok(mut counts) = counter.lock() {
-                    *counts.entry(name.into_owned()).or_insert(0) += 1;
-                }
-                return false;
-            }
-            true
+            !(is_dir && SKIP_DIRS.contains(&name.as_ref()))
         });
 
     let mut files = Vec::new();
@@ -236,6 +247,7 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
             continue;
         };
         if file_type.is_dir() {
+            count_skip_dirs(entry.path(), &mut skipped_dirs);
             dirs.push(rel);
         } else if file_type.is_file() {
             let name = entry.file_name().to_string_lossy();
@@ -271,7 +283,6 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
     ignore_files.sort();
     // Deepest folder first, then by priority within a folder.
     matchers.sort_by_key(|m| (std::cmp::Reverse(m.depth), m.priority));
-    let skipped_dirs = skipped.lock().map(|g| g.clone()).unwrap_or_default();
     Ok(WalkResult {
         files,
         skipped_dirs,
@@ -282,6 +293,22 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
             matchers,
         },
     })
+}
+
+/// Counts the skip-named directories directly inside `dir`, whether or not an ignore
+/// rule hides them: only files hidden by the user's rules go unreported, not the
+/// folders Harbormap itself decides never to enter.
+fn count_skip_dirs(dir: &Path, counts: &mut BTreeMap<String, u32>) {
+    let Ok(children) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for child in children.flatten() {
+        let name = child.file_name();
+        let name = name.to_string_lossy();
+        if SKIP_DIRS.contains(&name.as_ref()) && child.file_type().is_ok_and(|t| t.is_dir()) {
+            *counts.entry(name.into_owned()).or_insert(0) += 1;
+        }
+    }
 }
 
 /// Builds the matcher of the ignore file at `abs`, which sits at `rel` under `root`.
