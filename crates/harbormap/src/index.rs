@@ -28,14 +28,17 @@ pub fn run(args: &IndexArgs, json: bool) -> anyhow::Result<ExitCode> {
     let root = worktree_root(&start)?;
     let mut indexer = open(&root)?;
     let report = indexer.full()?;
-    let text = if json {
+    let text = if json && args.watch {
+        // A stream: one object per line, the report first.
+        format!("{}\n", serde_json::to_string(&report)?)
+    } else if json {
         format!("{}\n", serde_json::to_string_pretty(&report)?)
     } else {
         render(&folder_name(&root), &report)
     };
     write_stdout(&text)?;
     if args.watch {
-        watch(&mut indexer, &root, &report)?;
+        watch(&mut indexer, &root, &report, json)?;
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -183,8 +186,14 @@ fn edge_total(report: &IndexReport) -> u32 {
     report.edges.values().sum()
 }
 
-/// One line per settled batch of changes, until the process is stopped.
-fn watch(indexer: &mut Indexer, root: &Path, first: &IndexReport) -> anyhow::Result<()> {
+/// One line per settled batch of changes, until the process is stopped: text, or with
+/// `json` one JSON object per line.
+fn watch(
+    indexer: &mut Indexer,
+    root: &Path,
+    first: &IndexReport,
+    json: bool,
+) -> anyhow::Result<()> {
     let walked = walk(root).context("cannot read the project")?;
     let watcher = Watcher::start(root, walked.rules, &walked.dirs)
         .context("cannot watch the project for changes")?;
@@ -203,7 +212,12 @@ fn watch(indexer: &mut Indexer, root: &Path, first: &IndexReport) -> anyhow::Res
         };
         // `full()` gives totals, so the change in edges is their difference.
         let now = edge_total(&report);
-        let text = batch_line(&batch, batch.first_event.elapsed(), edges, now);
+        let took = batch.first_event.elapsed();
+        let text = if json {
+            batch_json(&batch, took, edges, now)
+        } else {
+            batch_line(&batch, took, edges, now)
+        };
         edges = now;
         if !write_line(&text)? {
             return Ok(());
@@ -225,6 +239,18 @@ fn batch_line(batch: &Batch, took: Duration, before: u32, after: u32) -> String 
         after.saturating_sub(before),
         before.saturating_sub(after),
     )
+}
+
+/// `{"paths":[...],"files":1,"took_ms":7,"edges_added":0,"edges_removed":0}`
+fn batch_json(batch: &Batch, took: Duration, before: u32, after: u32) -> String {
+    serde_json::json!({
+        "paths": batch.paths,
+        "files": batch.paths.len(),
+        "took_ms": took.as_millis() as u64,
+        "edges_added": after.saturating_sub(before),
+        "edges_removed": before.saturating_sub(after),
+    })
+    .to_string()
 }
 
 /// Prints one line and flushes. `false` when the reader has gone away.

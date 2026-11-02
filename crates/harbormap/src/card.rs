@@ -7,6 +7,7 @@ use anyhow::{Context, bail};
 
 use hm_index::location::{facts_db, worktree_root};
 use hm_index::query::{FileCard, SymbolCard, file_card, symbol_card};
+use hm_project::git::discover;
 use hm_project::paths::within;
 
 use crate::cli::CardArgs;
@@ -67,18 +68,24 @@ pub fn run(args: &CardArgs, json: bool) -> anyhow::Result<ExitCode> {
 }
 
 /// The worktree that holds `path` (relative to the current folder, or absolute) and the
-/// path inside it, `/`-separated.
+/// path inside it, `/`-separated. The worktree comes from the target's own folder; the
+/// current folder only resolves a relative target, except that outside any git
+/// repository a project folder the target sits under is taken as the project.
 fn locate(path: &Path) -> anyhow::Result<(PathBuf, String)> {
     let cwd = std::env::current_dir().context("cannot read the current folder")?;
     let abs = canonical(&cwd.join(path));
-    let mut root = worktree_root(&cwd)?;
-    if !within(&abs, &root, cfg!(windows)) {
-        // A path in another project: its own worktree holds it.
-        let mut dir = abs.as_path();
-        while !dir.is_dir() {
-            dir = dir.parent().unwrap_or(&root);
-        }
-        root = worktree_root(dir)?;
+    // The nearest folder that exists, starting at the target itself or its parent.
+    let mut dir = abs.as_path();
+    while !dir.is_dir() {
+        dir = dir.parent().unwrap_or(&cwd);
+    }
+    let mut root = worktree_root(dir)?;
+    if discover(dir).is_none()
+        && let Ok(base) = worktree_root(&cwd)
+        && within(&abs, &base, cfg!(windows))
+    {
+        // No git around the target: the folder the user is working in is the project.
+        root = base;
     }
     let rel = abs
         .strip_prefix(&root)

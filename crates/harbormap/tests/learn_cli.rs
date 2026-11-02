@@ -220,6 +220,73 @@ fn card_run_from_a_subfolder_finds_the_git_worktree() {
     assert_eq!(s.stores().len(), 1, "both runs used the same store");
 }
 
+fn git_init(dir: &Path) {
+    let git = std::process::Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(dir)
+        .status()
+        .expect("git is installed");
+    assert!(git.success());
+}
+
+#[test]
+fn card_from_a_plain_parent_folder_uses_the_targets_worktree() {
+    let parent = tempfile::tempdir().unwrap();
+    let proj = parent.path().join("proj");
+    fs::create_dir_all(&proj).unwrap();
+    copy_tree(&ts_basic(), &proj);
+    git_init(&proj);
+    let other = parent.path().join("other");
+    fs::create_dir_all(&other).unwrap();
+    fs::write(other.join("x.ts"), "export const x = 1;\n").unwrap();
+    let data = tempfile::tempdir().unwrap();
+    let run = |args: &[&str]| {
+        let mut cmd = Command::cargo_bin("harbormap").unwrap();
+        cmd.current_dir(parent.path())
+            .env("HARBORMAP_DATA_DIR", data.path())
+            .args(args);
+        stdout_of(&mut cmd)
+    };
+
+    let text = run(&["card", "proj/src/orders/service.ts"]);
+    assert!(text.contains("placeOrder"), "{text}");
+    let json = run(&["card", "proj/src/orders/service.ts", "--json"]);
+    let card: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(card["path"], "src/orders/service.ts");
+    let stores = fs::read_dir(data.path().join("learn"))
+        .unwrap()
+        .flatten()
+        .filter(|e| e.path().join("facts.sqlite").exists())
+        .count();
+    assert_eq!(stores, 1, "only proj was indexed, not the parent");
+}
+
+#[test]
+fn card_from_the_home_folder_finds_a_project_under_it() {
+    let home = tempfile::tempdir().unwrap();
+    let proj = home.path().join("Projects").join("shop");
+    fs::create_dir_all(&proj).unwrap();
+    copy_tree(&ts_basic(), &proj);
+    git_init(&proj);
+    let data = tempfile::tempdir().unwrap();
+    for target in [
+        proj.join("src/db.ts"),
+        PathBuf::from("Projects/shop/src/db.ts"),
+    ] {
+        Command::cargo_bin("harbormap")
+            .unwrap()
+            .current_dir(home.path())
+            .env("HARBORMAP_DATA_DIR", data.path())
+            .env("HOME", home.path())
+            .env("USERPROFILE", home.path())
+            .arg("card")
+            .arg(&target)
+            .assert()
+            .success()
+            .stdout(contains("src/db.ts"));
+    }
+}
+
 #[test]
 fn index_refuses_the_home_folder() {
     let s = setup();
