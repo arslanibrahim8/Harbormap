@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 
-use hm_index::index::{IndexReport, Indexer};
+use hm_index::index::{Delta, IndexReport, Indexer};
 use hm_index::location::{facts_db, worktree_root};
 use hm_index::walk::walk;
 use hm_index::watch::{Batch, Watcher};
@@ -38,7 +38,7 @@ pub fn run(args: &IndexArgs, json: bool) -> anyhow::Result<ExitCode> {
     };
     write_stdout(&text)?;
     if args.watch {
-        watch(&mut indexer, &root, &report, json)?;
+        watch(&mut indexer, &root, json)?;
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -182,52 +182,48 @@ fn plural<'a>(n: u32, one: &'a str, many: &'a str) -> &'a str {
     if n == 1 { one } else { many }
 }
 
-fn edge_total(report: &IndexReport) -> u32 {
-    report.edges.values().sum()
-}
-
 /// One line per settled batch of changes, until the process is stopped: text, or with
 /// `json` one JSON object per line.
-fn watch(
-    indexer: &mut Indexer,
-    root: &Path,
-    first: &IndexReport,
-    json: bool,
-) -> anyhow::Result<()> {
+fn watch(indexer: &mut Indexer, root: &Path, json: bool) -> anyhow::Result<()> {
     let walked = walk(root).context("cannot read the project")?;
     let watcher = Watcher::start(root, walked.rules, &walked.dirs)
         .context("cannot watch the project for changes")?;
-    let mut edges = edge_total(first);
     loop {
         let Some(batch) = watcher.recv_timeout(POLL) else {
             continue;
         };
-        // Task 8: switch to apply()/rescan()
-        let report = match indexer.full() {
-            Ok(report) => report,
+        let applied = if batch.rescan {
+            indexer.rescan()
+        } else {
+            indexer.apply(&batch.paths)
+        };
+        let delta = match applied {
+            Ok(delta) => delta,
             Err(error) => {
                 eprintln!("harbormap: {error}");
                 continue;
             }
         };
-        // `full()` gives totals, so the change in edges is their difference.
-        let now = edge_total(&report);
         let took = batch.first_event.elapsed();
         let text = if json {
-            batch_json(&batch, took, edges, now)
+            batch_json(&batch, took, &delta)
         } else {
-            batch_line(&batch, took, edges, now)
+            batch_line(&batch, took, &delta)
         };
-        edges = now;
         if !write_line(&text)? {
             return Ok(());
         }
     }
 }
 
+/// The files a delta touched, changed and removed ones together.
+fn delta_files(delta: &Delta) -> u32 {
+    (delta.files_changed.len() + delta.files_removed.len()) as u32
+}
+
 /// `src/db.ts · 1 file · 7 ms · +0 −0 edges`
-fn batch_line(batch: &Batch, took: Duration, before: u32, after: u32) -> String {
-    let n = batch.paths.len() as u32;
+fn batch_line(batch: &Batch, took: Duration, delta: &Delta) -> String {
+    let n = delta_files(delta);
     let what = match (batch.rescan, batch.paths.first()) {
         (true, _) | (_, None) => "rescan".to_string(),
         (false, Some(first)) => printable(first),
@@ -236,19 +232,19 @@ fn batch_line(batch: &Batch, took: Duration, before: u32, after: u32) -> String 
         "{what} · {n} {} · {} ms · +{} −{} edges",
         plural(n, "file", "files"),
         took.as_millis(),
-        after.saturating_sub(before),
-        before.saturating_sub(after),
+        delta.edges_added,
+        delta.edges_removed,
     )
 }
 
 /// `{"paths":[...],"files":1,"took_ms":7,"edges_added":0,"edges_removed":0}`
-fn batch_json(batch: &Batch, took: Duration, before: u32, after: u32) -> String {
+fn batch_json(batch: &Batch, took: Duration, delta: &Delta) -> String {
     serde_json::json!({
         "paths": batch.paths,
-        "files": batch.paths.len(),
+        "files": delta_files(delta),
         "took_ms": took.as_millis() as u64,
-        "edges_added": after.saturating_sub(before),
-        "edges_removed": before.saturating_sub(after),
+        "edges_added": delta.edges_added,
+        "edges_removed": delta.edges_removed,
     })
     .to_string()
 }

@@ -785,6 +785,19 @@ mod tests {
     }
 
     #[test]
+    fn a_cold_index_parses_every_synthetic_file_cleanly() {
+        let dir = TempDir::new().unwrap();
+        project(dir.path(), 7, 50);
+        let store = hm_store::Store::open_in_memory().unwrap();
+        let report = crate::index::Indexer::open(dir.path(), store)
+            .unwrap()
+            .full()
+            .unwrap();
+        assert_eq!(report.parsed, 50);
+        assert_eq!(report.parsed_with_errors, 0);
+    }
+
+    #[test]
     fn the_project_has_the_promised_shape() {
         let dir = TempDir::new().unwrap();
         project(dir.path(), 3, 45);

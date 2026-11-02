@@ -119,3 +119,91 @@ jobs:
         shell: bash
         run: echo "HM_E2E_DOCKER=1" >> "$GITHUB_ENV"
       - run: cargo test --locked -p harbormap --test e2e -- --ignored --nocapture
+
+  latency:
+    # Timing on a shared runner is noisy, so it runs after the tests and keeps the
+    # best of three runs. Missing the spec targets (§5.7) is a warning; being more
+    # than 20% slower than the committed baseline (§11.3) fails the job.
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # The spec targets for 1000 files; the harness exits 2 when one is missed.
+      TARGETS: --max-p95-body-ms 300 --max-p95-sig-ms 500 --max-cold-ms 2000
+      BASELINE: crates/hm-index/latency-baseline.json
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install --profile minimal --no-self-update
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo build --locked --release -p hm-index --example latency
+      - name: Measure save latency (best of three)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            # Exit 2 means a spec target was missed; that is judged below, not here.
+            status=0
+            target/release/examples/latency --files 1000 --saves 200 --seed 7 \
+              $TARGETS --branch-switch 300 > "run-$i.json" || status=$?
+            if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then
+              echo "::error::the latency harness failed (exit $status)"
+              exit "$status"
+            fi
+            cat "run-$i.json"
+          done
+          # The best run is the one with the lowest sum of its three judged times.
+          jq -s 'min_by(.body.p95 + .sig.p95 + .cold_ms)' run-1.json run-2.json run-3.json \
+            > latency-best.json
+          cat latency-best.json
+      - name: Compare with the spec targets and the baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          best=latency-best.json
+          {
+            echo "### Save latency, 1000 files (best of 3, ms)"
+            echo
+            echo "| Case | Measured | Spec target |"
+            echo "|---|---|---|"
+            jq -r '"| Body edit p95 | \(.body.p95) | 300 |",
+                   "| Signature edit p95 | \(.sig.p95) | 500 |",
+                   "| Cold index | \(.cold_ms) | 2000 |",
+                   "| Branch switch, 300 files | \(.branch_switch_ms) | 1500 |"' "$best"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Spec targets: a miss is a finding, not a failed build.
+          jq -r '[ (select(.body.p95 > 300) | "body edit p95 \(.body.p95) ms is above 300 ms"),
+                   (select(.sig.p95 > 500) | "signature edit p95 \(.sig.p95) ms is above 500 ms"),
+                   (select(.cold_ms > 2000) | "cold index \(.cold_ms) ms is above 2000 ms"),
+                   (select(.branch_switch_ms > 1500) | "branch switch \(.branch_switch_ms) ms is above 1500 ms") ]
+                 | .[]' "$best" | while read -r line; do
+            echo "::warning title=Latency target missed::$line"
+          done
+
+          # Regressions: more than 20% above the baseline fails.
+          if [ ! -f "$BASELINE" ]; then
+            echo "::warning title=No latency baseline::$BASELINE does not exist yet; commit the uploaded latency-best.json from the first green run on main."
+            echo "No baseline yet, so no regression check." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          failed=0
+          for metric in body.p95 sig.p95 cold_ms; do
+            got=$(jq ".$metric" "$best")
+            base=$(jq ".$metric" "$BASELINE")
+            if jq -en --argjson got "$got" --argjson base "$base" '$got > $base * 1.2' > /dev/null; then
+              echo "::error title=Latency regression::$metric is $got ms, more than 20% above the baseline $base ms"
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: latency-best
+          path: latency-best.json
+          if-no-files-found: ignore
