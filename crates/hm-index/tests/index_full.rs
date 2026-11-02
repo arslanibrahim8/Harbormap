@@ -330,3 +330,33 @@ fn unreadable_folders_and_files_are_counted_and_the_pass_goes_on() {
     );
     assert_eq!(dump(s), dump(fresh_index_of(dir.path()).store()));
 }
+
+#[test]
+fn the_report_names_the_ignore_files_and_the_config_notes() {
+    let (mut ix, dir) = indexer_for("ts-basic");
+    let r = ix.full().unwrap();
+    assert_eq!(r.ignore_files, vec![".gitignore"]);
+    assert!(r.notes.is_empty(), "{:?}", r.notes);
+
+    fs::create_dir_all(dir.path().join(".git/info")).unwrap();
+    fs::write(dir.path().join(".git/info/exclude"), "*.log\n").unwrap();
+    fs::create_dir_all(dir.path().join("pkg")).unwrap();
+    fs::write(
+        dir.path().join("pkg/tsconfig.json"),
+        r#"{ "extends": "@tsconfig/node20/tsconfig.json" }"#,
+    )
+    .unwrap();
+    fs::write(dir.path().join("pkg/.harbormapignore"), "tmp/\n").unwrap();
+    let r = ix.full().unwrap();
+    assert_eq!(
+        r.ignore_files,
+        vec![".git/info/exclude", ".gitignore", "pkg/.harbormapignore"]
+    );
+    assert_eq!(
+        r.notes,
+        vec![
+            "pkg/tsconfig.json extends @tsconfig/node20/tsconfig.json, which Harbormap \
+             does not read"
+        ]
+    );
+}

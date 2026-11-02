@@ -112,7 +112,8 @@ pub struct WalkResult {
     /// relative and sorted. Nothing below such a folder is seen. A file that can be
     /// stat-ed but not opened is in `files` with [`Skip::Unreadable`].
     pub unreadable: Vec<String>,
-    /// Relative paths of the `.gitignore` / `.harbormapignore` files the walk applied.
+    /// Relative paths of the ignore files the walk applied, sorted: `.gitignore`,
+    /// `.harbormapignore` and the repository's `.git/info/exclude`.
     pub ignore_files: Vec<String>,
     pub rules: WalkRules,
 }
@@ -315,6 +316,7 @@ pub fn walk(root: &Path) -> io::Result<WalkResult> {
                 hash: hash_of(&exclude),
                 ignore,
             });
+            ignore_files.push(".git/info/exclude".to_string());
         }
     }
 

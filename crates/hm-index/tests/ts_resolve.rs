@@ -812,3 +812,31 @@ fn an_extends_without_a_class_to_hold_it_is_a_ref() {
         "{refs:?}"
     );
 }
+
+#[test]
+fn an_extends_chain_cut_at_the_depth_limit_is_noted() {
+    // tsconfig.json → c1.json → … → c12.json: more hops than are followed.
+    let mut files: Vec<(String, String)> = vec![(
+        "tsconfig.json".to_string(),
+        r#"{ "extends": "./c1.json" }"#.to_string(),
+    )];
+    for k in 1..=12 {
+        files.push((
+            format!("c{k}.json"),
+            format!(r#"{{ "extends": "./c{}.json" }}"#, k + 1),
+        ));
+    }
+    let files: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(rel, text)| (rel.as_str(), text.as_str()))
+        .collect();
+    let (_dir, configs, _) = project(&files);
+    assert!(
+        configs
+            .notes
+            .iter()
+            .any(|n| n.contains("tsconfig.json") && n.contains("10")),
+        "{:?}",
+        configs.notes
+    );
+}

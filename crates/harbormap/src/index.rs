@@ -160,6 +160,10 @@ pub fn render(name: &str, report: &IndexReport) -> String {
             &format!("Not on this map: {}", skipped.join(", ")),
         );
     }
+    if !report.ignore_files.is_empty() {
+        let files: Vec<String> = report.ignore_files.iter().map(|f| printable(f)).collect();
+        line(&mut out, &format!("Ignore files: {}", files.join(", ")));
+    }
 
     line(
         &mut out,
@@ -172,6 +176,9 @@ pub fn render(name: &str, report: &IndexReport) -> String {
             count(&report.refs, "external"),
         ),
     );
+    for note in &report.notes {
+        line(&mut out, &format!("Note: {}", printable(note)));
+    }
     line(&mut out, &format!("Took {} ms", report.took_ms));
     out
 }

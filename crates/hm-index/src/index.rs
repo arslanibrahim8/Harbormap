@@ -103,6 +103,13 @@ pub struct IndexReport {
     pub edges: BTreeMap<String, u32>,
     /// Ref count by status (`unresolved`, `external`).
     pub refs: BTreeMap<String, u32>,
+    /// The ignore files the walk applied, `.git/info/exclude` included; relative and
+    /// sorted.
+    pub ignore_files: Vec<String>,
+    /// What the pass could not follow in the project's configuration (a tsconfig
+    /// `extends` that names a package, a config that does not parse), one line each,
+    /// sorted.
+    pub notes: Vec<String>,
     pub took_ms: u64,
 }
 
@@ -219,9 +226,12 @@ impl Indexer {
     /// edge depends on files other than its own. All writes share one transaction.
     pub fn full(&mut self) -> Result<IndexReport> {
         let started = Instant::now();
-        let walked = walk(&self.root)?;
+        let mut walked = walk(&self.root)?;
         let stored = load_stored(&self.store)?;
-        let mut report = IndexReport::default();
+        let mut report = IndexReport {
+            ignore_files: std::mem::take(&mut walked.ignore_files),
+            ..IndexReport::default()
+        };
         for f in &walked.files {
             *report
                 .files
@@ -323,6 +333,8 @@ impl Indexer {
                 .iter()
                 .any(|c| !matches!(c, Change::Unchanged | Change::Touched));
         let tsconfigs = load_tsconfigs(&self.root, &known);
+        report.notes = tsconfigs.notes.clone();
+        report.notes.sort();
         let resolver = ModuleResolver::new(known.clone(), tsconfigs);
 
         let outcome = self.store.write(|tx| {

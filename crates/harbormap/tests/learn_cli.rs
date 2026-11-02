@@ -110,6 +110,7 @@ fn index_prints_counts_and_writes_the_store_outside_the_project() {
         "{text}"
     );
     assert!(text.contains("(16 files)"), "{text}");
+    assert!(text.contains("\n  Ignore files: .gitignore\n"), "{text}");
     assert!(
         text.lines().last().unwrap().trim().starts_with("Took "),
         "{text}"
@@ -126,6 +127,8 @@ fn index_json_is_the_report() {
     let report: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(report["parsed"], 10);
     assert_eq!(report["edges"]["calls"], 8);
+    assert_eq!(report["ignore_files"], serde_json::json!([".gitignore"]));
+    assert_eq!(report["notes"], serde_json::json!([]));
 }
 
 #[test]

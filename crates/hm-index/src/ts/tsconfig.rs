@@ -54,7 +54,8 @@ struct Raw {
 
 /// Loads every `tsconfig.json` and `jsconfig.json` in `known` (relative paths of the
 /// walked files) from under `root`. Relative `extends` values are followed up to 10
-/// hops; a package name in `extends` is not fetched and adds a line to `notes`. A
+/// hops (a longer chain adds a line to `notes`); a package name in `extends` is not
+/// fetched and adds a line to `notes`. A
 /// config that cannot be read or parsed is listed in `failed`, and its folder gets no
 /// entry in `by_dir`, so the nearest ancestor config applies there.
 pub fn load_tsconfigs(root: &Path, known: &BTreeSet<String>) -> TsConfigs {
@@ -88,7 +89,18 @@ fn load_raw(
     stack: &mut Vec<String>,
     notes: &mut Vec<String>,
 ) -> Option<Raw> {
-    if stack.len() > MAX_EXTENDS_HOPS || stack.iter().any(|s| s == rel) {
+    if stack.iter().any(|s| s == rel) {
+        return None;
+    }
+    if stack.len() > MAX_EXTENDS_HOPS {
+        push_note(
+            notes,
+            format!(
+                "{} extends more than {MAX_EXTENDS_HOPS} files deep, so Harbormap does not \
+                 read {rel}",
+                stack[0]
+            ),
+        );
         return None;
     }
     let Ok(text) = fs::read_to_string(root.join(rel)) else {
