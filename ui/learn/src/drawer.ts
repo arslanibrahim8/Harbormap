@@ -178,6 +178,22 @@ export function createCardLoader(deps: CardDeps) {
 // ---- Drawing ---------------------------------------------------------------
 
 let payload: CardPayload | null = null;
+const cardListeners: (() => void)[] = [];
+
+/** The card on screen, or null when the drawer is closed or still loading. The map
+ * reads the links of a file card from it. */
+export function currentCard(): CardPayload | null {
+  return payload;
+}
+
+/** Call `fn` whenever the card on screen changes (shown, refreshed or closed). */
+export function onCard(fn: () => void): void {
+  cardListeners.push(fn);
+}
+
+function cardChanged(): void {
+  for (const fn of cardListeners) fn();
+}
 /** Which card the drawer last drew, so a redraw of the same card can keep the
  * Technical details fold open and the scroll position. */
 let renderedKey: string | null = null;
@@ -334,6 +350,7 @@ const loader = createCardLoader({
   show: (p) => {
     payload = p;
     render();
+    cardChanged();
   },
   gone: (t) => {
     closeDrawer();
@@ -343,6 +360,7 @@ const loader = createCardLoader({
     payload = null;
     renderedKey = null;
     show(h("p", { class: "problem" }, "⚠ Could not load this card."));
+    cardChanged();
   },
 });
 
@@ -366,6 +384,7 @@ export function closeDrawer(): void {
   renderedKey = null;
   drawer().hidden = true;
   setState({ selected: null });
+  cardChanged();
 }
 
 /** Fetch the open card again, after the facts changed. Does nothing when the

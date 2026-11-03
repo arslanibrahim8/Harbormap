@@ -17,6 +17,7 @@ export interface LiveDeps {
 
 export function createLive(deps: LiveDeps) {
   let request = 0;
+  const factListeners: ((d: FactsDelta) => void)[] = [];
 
   /** Fetch the overview into the state. A response older than the one on screen, or
    * overtaken by a newer request, is dropped. Rejects when the server cannot be
@@ -48,6 +49,7 @@ export function createLive(deps: LiveDeps) {
       },
       (d: FactsDelta) => {
         setState({ updatedMs: d.at_ms });
+        for (const fn of factListeners) fn(d);
         quietly(loadOverview());
         // Any file's change can alter the open card ("Who uses it", the callers),
         // so it is fetched on every delta; the Code tab only when its own file moved.
@@ -61,9 +63,15 @@ export function createLive(deps: LiveDeps) {
     );
   }
 
-  return { loadOverview, start };
+  /** Call `fn` with every facts delta (the map refetches the groups it shows). */
+  function onFacts(fn: (d: FactsDelta) => void): void {
+    factListeners.push(fn);
+  }
+
+  return { loadOverview, start, onFacts };
 }
 
 const live = createLive({ fetchOverview, subscribe, refreshDrawer, reloadCode });
 export const loadOverview = live.loadOverview;
 export const startLive = live.start;
+export const onFacts = live.onFacts;

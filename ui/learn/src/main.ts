@@ -5,8 +5,10 @@ import { byId } from "./dom.ts";
 import { initCode } from "./code.ts";
 import { initDrawer } from "./drawer.ts";
 import { loadOverview, startLive } from "./live.ts";
+import { renderMap } from "./map.ts";
 import { initSidebar } from "./sidebar.ts";
 import { initTabs } from "./tabs.ts";
+import { initTechStrip } from "./techstrip.ts";
 import { initTopbar } from "./topbar.ts";
 
 initTopbar();
@@ -14,6 +16,8 @@ initTabs();
 initSidebar();
 initDrawer();
 initCode();
+renderMap(byId("map"));
+initTechStrip();
 
 loadOverview().catch((e: unknown) => {
   const msg = e instanceof Error ? e.message : "Could not reach the server";
