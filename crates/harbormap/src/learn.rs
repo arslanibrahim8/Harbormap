@@ -5,8 +5,8 @@ use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, ExitCode, Stdio};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -75,25 +75,57 @@ pub fn run(args: &LearnArgs, json: bool) -> anyhow::Result<ExitCode> {
             }
         }
 
-        // The indexer has its own thread: it blocks on the watcher and on SQLite.
+        // The indexer has its own thread: it blocks on the watcher and on SQLite. When
+        // it ends, however it ends, the server stops too: a panel that keeps showing
+        // old facts is worse than one that is gone.
         let stop = Arc::new(AtomicBool::new(false));
-        let live = {
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<anyhow::Result<()>>();
+        let failure: Arc<Mutex<Option<anyhow::Error>>> = Arc::default();
+        {
             let (handle, stop) = (server.handle(), Arc::clone(&stop));
             std::thread::spawn(move || {
-                if let Err(error) = live_loop(&mut indexer, &root, &name, &handle, json, &stop) {
-                    eprintln!("harbormap: {error:#}");
+                let result = live_loop(&mut indexer, &root, &name, &handle, json, &stop);
+                let _ = done_tx.send(result);
+            });
+        }
+        let shutdown = {
+            let failure = Arc::clone(&failure);
+            async move {
+                let ctrl_c = async {
+                    if let Err(error) = tokio::signal::ctrl_c().await {
+                        // Without the handler Ctrl-C kills the process the hard way; the
+                        // server keeps serving until the indexer stops.
+                        eprintln!("harbormap: cannot listen for Ctrl-C: {error}");
+                        std::future::pending::<()>().await;
+                    }
+                };
+                tokio::select! {
+                    () = ctrl_c => {}
+                    done = done_rx => {
+                        // A broken pipe on the JSON stream is a clean end (`Ok`).
+                        let error = match done {
+                            Ok(Ok(())) => None,
+                            Ok(Err(error)) => Some(error),
+                            Err(_) => Some(anyhow::anyhow!("the indexer stopped unexpectedly")),
+                        };
+                        *failure.lock().unwrap_or_else(PoisonError::into_inner) = error;
+                    }
                 }
-            })
+            }
         };
-        let served = server
-            .run(async {
-                let _ = tokio::signal::ctrl_c().await;
-            })
-            .await;
-        // The thread notices at its next look around; the process does not wait for it.
+        let served = server.run(shutdown).await;
+        // On Ctrl-C the thread notices at its next look around; the process does not
+        // wait for it.
         stop.store(true, Ordering::Relaxed);
-        drop(live);
-        served.context("the server stopped")
+        served.context("the server stopped")?;
+        match failure
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     })?;
     Ok(ExitCode::SUCCESS)
 }

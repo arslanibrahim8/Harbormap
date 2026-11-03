@@ -158,6 +158,8 @@ impl Learn {
     fn events(&self) -> Events {
         let res = ureq::Agent::config_builder()
             .http_status_as_error(false)
+            // The stream itself is endless; only the answer must come.
+            .timeout_recv_response(Some(Duration::from_secs(10)))
             .build()
             .new_agent()
             .get(format!("http://127.0.0.1:{}/api/events", self.port))
@@ -308,12 +310,13 @@ fn a_saved_file_arrives_as_a_facts_event() {
         "write -> facts event: {} ms",
         at.duration_since(started).as_millis()
     );
-    assert_eq!(delta["seq"], 1);
+    // A write that arrives as two batches makes two events.
+    assert!(delta["seq"].as_u64().unwrap() >= 1);
     assert!(delta["files_removed"].as_array().unwrap().is_empty());
 
     // The model moved with the event.
     let (_, overview) = live.get("/api/overview");
-    assert_eq!(overview["seq"], 1);
+    assert!(overview["seq"].as_u64().unwrap() >= 1);
 }
 
 #[test]
@@ -392,6 +395,57 @@ fn learn_without_json_prints_the_link() {
         lines[1]
     );
     assert_eq!(lines[2], "  Ctrl-C stops it.");
+}
+
+/// A reader that goes away must end `learn --json` cleanly at the next delta, not
+/// leave a panel serving old facts.
+#[test]
+fn closing_the_json_stream_stops_learn_with_exit_zero() {
+    struct Kill(Child);
+    impl Drop for Kill {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let project = tempfile::tempdir().unwrap();
+    shop(project.path());
+    let data = tempfile::tempdir().unwrap();
+    let mut child = Kill(
+        Command::new(env!("CARGO_BIN_EXE_harbormap"))
+            .args(["learn", "--no-open", "--json"])
+            .arg(project.path())
+            .env("HARBORMAP_DATA_DIR", data.path())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let stdout = child.0.stdout.take().unwrap();
+    let (tx, rx) = mpsc::channel();
+    // The thread reads the link and ends, which closes the read side of the pipe.
+    thread::spawn(move || {
+        let mut line = String::new();
+        let _ = BufReader::new(stdout).read_line(&mut line);
+        let _ = tx.send(line);
+    });
+    rx.recv_timeout(START_TIMEOUT).expect("the link is printed");
+    // Past the catch-up rescan, then a save: its delta hits the closed pipe.
+    thread::sleep(Duration::from_secs(1));
+    write(
+        project.path(),
+        "src/db/client.ts",
+        "export function insert(table: string, row: object) { return row; }\n\
+         export function find(table: string) { return []; }\n",
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let status = loop {
+        if let Some(status) = child.0.try_wait().unwrap() {
+            break status;
+        }
+        assert!(Instant::now() < deadline, "learn is still running");
+        thread::sleep(Duration::from_millis(50));
+    };
+    assert_eq!(status.code(), Some(0));
 }
 
 /// The `.ts` files of a synthetic project, relative and sorted.
