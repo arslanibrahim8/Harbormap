@@ -588,9 +588,10 @@ fn this_calls_and_ambiguous_owners_are_attributed_by_line() {
     assert_eq!(helper.1, "a.ts#C.x");
     assert_eq!(helper.3, "ts.call.this");
     assert!(edges.iter().any(|e| e.2 == "a.ts#C.other"));
-    // `this.nothing()` and the bare `helper()` at top level resolve to nothing.
+    // `this.nothing()` resolves to nothing; `helper` is a method, not a module-level
+    // name, so the bare `helper()` at top level is a local ref.
     assert!(refs.contains(&reference("call", "this.nothing", "unresolved")));
-    assert!(refs.contains(&reference("call", "helper", "unresolved")));
+    assert!(refs.contains(&reference("call", "helper", "local")));
     assert!(!edges.iter().any(|e| e.2.ends_with("#nothing")));
 }
 
@@ -678,7 +679,7 @@ fn require_jsx_extends_and_type_only_imports() {
         reference("call", "typed", "unresolved"),
         reference("call", "gone", "unresolved"),
         reference("extends", "Component", "external"),
-        reference("extends", "Missing", "unresolved"),
+        reference("extends", "Missing", "local"),
         reference("import", "./gone", "unresolved"),
         reference("import", "react", "external"),
     ] {
@@ -733,7 +734,7 @@ fn resolution_is_sorted_and_deduplicated() {
 fn an_unresolved_extends_is_an_extends_ref() {
     let (edges, refs) = resolved(&[("a.ts", "class A extends Missing {}\n")], "a.ts");
     assert!(edges.is_empty(), "{edges:?}");
-    assert_eq!(refs, [reference("extends", "Missing", "unresolved")]);
+    assert_eq!(refs, [reference("extends", "Missing", "local")]);
 }
 
 #[test]
@@ -839,4 +840,117 @@ fn an_extends_chain_cut_at_the_depth_limit_is_noted() {
         "{:?}",
         configs.notes
     );
+}
+
+#[test]
+fn globals_are_builtin_refs() {
+    let files = [(
+        "a.ts",
+        "export function run(s: string, f: () => void) {\n\
+         \x20 JSON.parse(s);\n\
+         \x20 new Date();\n\
+         \x20 console.log(s);\n\
+         \x20 setTimeout(f);\n\
+         \x20 document.querySelector('a');\n\
+         \x20 process.exit(1);\n\
+         \x20 Object.keys(s).map(f);\n\
+         }\n",
+    )];
+    let (edges, refs) = resolved(&files, "a.ts");
+    assert!(edges.is_empty(), "{edges:?}");
+    assert_eq!(
+        refs,
+        vec![
+            reference("call", "Date", "builtin"),
+            reference("call", "JSON.parse", "builtin"),
+            reference("call", "Object.keys", "builtin"),
+            reference("call", "Object.keys(s).map", "builtin"),
+            reference("call", "console.log", "builtin"),
+            reference("call", "document.querySelector", "builtin"),
+            reference("call", "process.exit", "builtin"),
+            reference("call", "setTimeout", "builtin"),
+        ]
+    );
+}
+
+#[test]
+fn calls_on_local_values_are_local_refs() {
+    let files = [(
+        "a.ts",
+        "export function f(items: number[]) {\n\
+         \x20 items.map(g);\n\
+         \x20 const h = () => 1;\n\
+         \x20 h();\n\
+         \x20 items.filter(Boolean).length.toString();\n\
+         }\n\
+         function g() {}\n",
+    )];
+    let (_, refs) = resolved(&files, "a.ts");
+    for expected in [
+        reference("call", "items.map", "local"),
+        reference("call", "h", "local"),
+    ] {
+        assert!(refs.contains(&expected), "missing {expected:?} in {refs:?}");
+    }
+    assert!(
+        refs.iter().all(|r| r.2 != "unresolved"),
+        "no module-level name is involved: {refs:?}"
+    );
+}
+
+#[test]
+fn module_level_names_that_do_not_resolve_stay_unresolved() {
+    let files = [(
+        "a.ts",
+        "import { a } from './missing';\n\
+         import def, * as ns from './missing';\n\
+         export const db = make();\n\
+         function make() { return { insert() {} }; }\n\
+         export function go() {\n\
+         \x20 a();\n\
+         \x20 db.insert();\n\
+         \x20 ns.thing();\n\
+         \x20 def();\n\
+         \x20 this.nothing();\n\
+         }\n\
+         class K extends Missing {}\n\
+         class L extends Object {}\n\
+         class M extends other.Base {}\n",
+    )];
+    let (_, refs) = resolved(&files, "a.ts");
+    for expected in [
+        reference("call", "a", "unresolved"),
+        reference("call", "db.insert", "unresolved"),
+        reference("call", "ns.thing", "unresolved"),
+        reference("call", "def", "unresolved"),
+        reference("call", "this.nothing", "unresolved"),
+    ] {
+        assert!(refs.contains(&expected), "missing {expected:?} in {refs:?}");
+    }
+    // `make` resolves to an edge, so it is not a ref at all.
+    assert!(!refs.iter().any(|r| r.1 == "make"), "{refs:?}");
+    // Heritage follows the same rules.
+    assert!(refs.contains(&reference("extends", "Missing", "local")));
+    assert!(refs.contains(&reference("extends", "Object", "builtin")));
+    assert!(refs.contains(&reference("extends", "other.Base", "local")));
+}
+
+#[test]
+fn a_binding_shadows_a_global_name() {
+    let files = [(
+        "a.ts",
+        "import { fetch } from './missing';\n\
+         function Date() {}\n\
+         export const console = make();\n\
+         function make() { return { log() {} }; }\n\
+         export function go() {\n\
+         \x20 fetch('/x');\n\
+         \x20 console.log(1);\n\
+         \x20 JSON.parse('1');\n\
+         }\n",
+    )];
+    let (_, refs) = resolved(&files, "a.ts");
+    assert!(refs.contains(&reference("call", "fetch", "unresolved")));
+    assert!(refs.contains(&reference("call", "console.log", "unresolved")));
+    assert!(refs.contains(&reference("call", "JSON.parse", "builtin")));
 }

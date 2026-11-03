@@ -212,7 +212,7 @@ pub struct RefRow {
     pub kind: &'static str,
     pub text: String,
     pub line: u32,
-    /// `unresolved` or `external`.
+    /// `unresolved`, `external`, `builtin` or `local`.
     pub status: &'static str,
 }
 
@@ -224,6 +224,78 @@ pub struct ResolvedFile {
     /// The files this one imports (of any import kind), as relative paths.
     pub imports_files: BTreeSet<String>,
 }
+
+/// Names that the language, the browser or Node provide without an import, sorted for
+/// binary search (byte order). A call on one of them that nothing in the file binds is
+/// a `builtin` ref.
+const JS_GLOBALS: &[&str] = &[
+    "AbortController",
+    "Array",
+    "BigInt",
+    "Blob",
+    "Boolean",
+    "Buffer",
+    "Date",
+    "Error",
+    "File",
+    "FormData",
+    "Headers",
+    "Intl",
+    "JSON",
+    "Map",
+    "Math",
+    "Number",
+    "Object",
+    "Promise",
+    "Proxy",
+    "Reflect",
+    "RegExp",
+    "Request",
+    "Response",
+    "Set",
+    "String",
+    "Symbol",
+    "TextDecoder",
+    "TextEncoder",
+    "URL",
+    "URLSearchParams",
+    "WeakMap",
+    "WeakSet",
+    "__dirname",
+    "__filename",
+    "alert",
+    "clearInterval",
+    "clearTimeout",
+    "confirm",
+    "console",
+    "crypto",
+    "decodeURIComponent",
+    "document",
+    "encodeURIComponent",
+    "exports",
+    "fetch",
+    "global",
+    "globalThis",
+    "history",
+    "isFinite",
+    "isNaN",
+    "localStorage",
+    "location",
+    "module",
+    "navigator",
+    "parseFloat",
+    "parseInt",
+    "performance",
+    "process",
+    "queueMicrotask",
+    "requestAnimationFrame",
+    "require",
+    "sessionStorage",
+    "setInterval",
+    "setTimeout",
+    "structuredClone",
+    "window",
+];
 
 /// How many re-exports are followed before a name counts as unresolved (spec §6.2).
 const MAX_EXPORT_HOPS: u32 = 5;
@@ -553,11 +625,15 @@ pub fn resolve_file(p: &Project, rel: &str) -> ResolvedFile {
     for h in &facts.heritage {
         // No top-level class spans the line (`const K = class extends B {}`): there
         // is no source symbol, so the heritage stays a ref rather than a file edge.
+        let (receiver, callee) = split_path(&h.extends);
         let Some(src) = r.class_id(&h.class, h.line) else {
-            r.reference("extends", h.extends.clone(), h.line, "unresolved");
+            let status = match r.resolve_name(receiver, callee, false, None, true) {
+                Outcome::Ref { status } => status,
+                Outcome::Edge { .. } => "unresolved",
+            };
+            r.reference("extends", h.extends.clone(), h.line, status);
             continue;
         };
-        let (receiver, callee) = split_path(&h.extends);
         match r.resolve_name(receiver, callee, false, None, true) {
             Outcome::Edge { file, symbol, .. } => {
                 let dst = r.symbol_id_of(&file, symbol);
@@ -695,6 +771,58 @@ impl Resolver<'_, '_> {
     /// enclosing symbol of a call, for `this`. With `heritage` set the name is the
     /// operand of `extends`, so a class's static members do not apply.
     fn resolve_name(
+        &mut self,
+        receiver: Option<&str>,
+        callee: &str,
+        jsx: bool,
+        owner: Option<&(String, String)>,
+        heritage: bool,
+    ) -> Outcome {
+        match self.pin_name(receiver, callee, jsx, owner, heritage) {
+            Outcome::Ref {
+                status: "unresolved",
+            } => Outcome::Ref {
+                status: self.noise_status(receiver, callee),
+            },
+            outcome => outcome,
+        }
+    }
+
+    /// Whether `name` is bound at module level: a top-level symbol, an import or
+    /// `require` binding (a type-only import too), or a recorded module-level binding.
+    fn module_bound(&self, name: &str) -> bool {
+        let (p, rel, facts) = (self.p, self.rel, self.facts);
+        facts
+            .symbols
+            .iter()
+            .any(|s| s.owner.is_empty() && s.name == name)
+            || binding_of(p, rel, facts, name, true).is_some()
+            || facts
+                .web
+                .bindings
+                .iter()
+                .any(|b| b.owner.is_none() && b.name == name)
+    }
+
+    /// The status of a ref that pinned to nothing: `unresolved` when its root name is
+    /// bound at module level (the target is just not pinned), else `builtin` for a
+    /// known global and `local` for anything else (a parameter, a local variable, a
+    /// nested function). `this`, `super` and a root that is no identifier (`"a".trim()`,
+    /// `[].concat()`) name nothing here, so they stay `unresolved`.
+    fn noise_status(&self, receiver: Option<&str>, callee: &str) -> &'static str {
+        let root = root_ident(receiver.unwrap_or(callee));
+        if root.is_empty() || matches!(root, "this" | "super") || self.module_bound(root) {
+            "unresolved"
+        } else if JS_GLOBALS.binary_search(&root).is_ok() {
+            "builtin"
+        } else {
+            "local"
+        }
+    }
+
+    /// Pins `receiver.callee` (or `callee`) to one symbol, else says why it is a ref.
+    /// Names that are bound nowhere in the module are told apart by `resolve_name`.
+    fn pin_name(
         &mut self,
         receiver: Option<&str>,
         callee: &str,
@@ -847,6 +975,27 @@ impl Resolver<'_, '_> {
             }
             ModuleTarget::External(_) => Outcome::Ref { status: "external" },
             _ => UNRESOLVED,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::JS_GLOBALS;
+
+    #[test]
+    fn the_globals_table_is_sorted_and_whole() {
+        assert!(JS_GLOBALS.windows(2).all(|w| w[0] < w[1]), "{JS_GLOBALS:?}");
+        assert_eq!(JS_GLOBALS.len(), 66);
+        for name in [
+            "JSON",
+            "Date",
+            "console",
+            "setTimeout",
+            "process",
+            "document",
+        ] {
+            assert!(JS_GLOBALS.binary_search(&name).is_ok(), "{name}");
         }
     }
 }
