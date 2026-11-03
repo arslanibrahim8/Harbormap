@@ -112,10 +112,17 @@ fn index_prints_counts_and_writes_the_store_outside_the_project() {
     );
     assert!(text.contains("node_modules (1 folder)"), "{text}");
     assert!(text.contains("dist (1 folder)"), "{text}");
+    // Ref statuses are printed once, on their own line.
     assert!(
-        text.contains("Symbols 12 · imports 9 · calls 8 · unresolved 2 · external 3"),
+        text.contains("\n  Symbols 12 · imports 9 · calls 8\n"),
         "{text}"
     );
+    assert!(
+        text.contains("\n  refs: 2 unresolved · 3 external"),
+        "{text}"
+    );
+    assert_eq!(text.matches("unresolved").count(), 1, "{text}");
+    assert!(!text.contains("inferred links"), "{text}");
     assert!(text.contains("(16 files)"), "{text}");
     assert!(text.contains("\n  Ignore files: .gitignore\n"), "{text}");
     assert!(
@@ -467,6 +474,30 @@ fn index_prints_routes_summary() {
     let s = setup_with("client-hops");
     let text = stdout_of(&mut s.harbormap(&["index"]));
     assert!(text.contains("\n  Routes: 4 API\n"), "{text}");
+    // `calls` counts the calls in the code; the links the rules infer (here the
+    // `http_calls` from client code to the routes) have their own count.
+    let store = hm_store::Store::open(&s.stores()[0]).unwrap();
+    let count = |sql: &str| -> i64 { store.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
+    let parsed = count("SELECT count(*) FROM edge WHERE kind = 'calls' AND prov = 'parsed'");
+    let inferred = count("SELECT count(*) FROM edge WHERE prov = 'inferred'");
+    assert!(inferred > 0);
+    assert!(
+        text.contains(&format!(" · calls {parsed} · inferred links {inferred}\n")),
+        "{text}"
+    );
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout_of(&mut s.harbormap(&["index", "--json"]))).unwrap();
+    // A kind without edges is absent.
+    assert_eq!(json["edges"]["calls"].as_i64().unwrap_or(0), parsed);
+    assert_eq!(
+        json["inferred_edges"]
+            .as_object()
+            .unwrap()
+            .values()
+            .map(|v| v.as_i64().unwrap())
+            .sum::<i64>(),
+        inferred
+    );
     assert!(
         text.contains("\n  API · GET /api/orders → app/api/orders/route.ts#GET\n"),
         "{text}"

@@ -207,17 +207,18 @@ pub fn render(name: &str, report: &IndexReport, routes: &[RouteRow]) -> String {
         line(&mut out, &format!("Ignore files: {}", files.join(", ")));
     }
 
-    line(
-        &mut out,
-        &format!(
-            "Symbols {} · imports {} · calls {} · unresolved {} · external {}",
-            report.symbols,
-            count(&report.edges, "imports"),
-            count(&report.edges, "calls"),
-            count(&report.refs, "unresolved"),
-            count(&report.refs, "external"),
-        ),
+    // Ref statuses have their own line below.
+    let mut counts = format!(
+        "Symbols {} · imports {} · calls {}",
+        report.symbols,
+        count(&report.edges, "imports"),
+        count(&report.edges, "calls"),
     );
+    let inferred: u32 = report.inferred_edges.values().sum();
+    if inferred > 0 {
+        counts.push_str(&format!(" · inferred links {inferred}"));
+    }
+    line(&mut out, &counts);
     let refs: Vec<String> = REF_STATUSES
         .iter()
         .filter(|(key, _)| count(&report.refs, key) > 0)

@@ -88,7 +88,8 @@ pub type Result<T> = std::result::Result<T, IndexError>;
 
 /// What one pass saw and did. `files`, `classes`, `skipped`, `not_supported_yet`
 /// describe the tree as walked; `hashed`, `parsed` and `parsed_with_errors` describe
-/// the work of this pass; `symbols`, `edges` and `refs` describe the store after it.
+/// the work of this pass; `symbols`, `edges`, `inferred_edges` and `refs` describe the
+/// store after it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct IndexReport {
     /// File count by language name, `other` for files without one.
@@ -108,8 +109,11 @@ pub struct IndexReport {
     /// Files in a language that L1 recognises but does not parse.
     pub not_supported_yet: u32,
     pub symbols: u32,
-    /// Edge count by kind.
+    /// Count by kind of the edges read from the code (`prov = parsed`).
     pub edges: BTreeMap<String, u32>,
+    /// Count by kind of the edges the rules infer (`prov = inferred`): client calls to
+    /// routes, framework-mediated calls and what runs on the way in.
+    pub inferred_edges: BTreeMap<String, u32>,
     /// Ref count by status (`unresolved`, `external`, `builtin`, `local`).
     pub refs: BTreeMap<String, u32>,
     /// Route count by entry kind (`page`, `http`, `server_action`, `middleware`, `cli`,
@@ -419,7 +423,14 @@ impl Indexer {
 
         let conn = self.store.conn();
         report.symbols = conn.query_row("SELECT count(*) FROM symbol", [], |row| row.get(0))?;
-        report.edges = counts(conn, "SELECT kind, count(*) FROM edge GROUP BY kind")?;
+        report.edges = counts(
+            conn,
+            "SELECT kind, count(*) FROM edge WHERE prov = 'parsed' GROUP BY kind",
+        )?;
+        report.inferred_edges = counts(
+            conn,
+            "SELECT kind, count(*) FROM edge WHERE prov = 'inferred' GROUP BY kind",
+        )?;
         report.refs = counts(conn, "SELECT status, count(*) FROM ref GROUP BY status")?;
         report.routes = counts(
             conn,
