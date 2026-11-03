@@ -46,9 +46,9 @@ name = "Serde YAML"
 category = "other"
 crates = ["serde_yaml"]
 en.beginner = "a library that reads and writes YAML config files in a Rust project."
-en.builder = "serde's YAML format backend, reading and writing YAML text as Rust types."
+en.builder = "serde's YAML format backend, reading and writing YAML text as Rust types; no longer maintained upstream."
 tr.beginner = "bir Rust projesinde YAML yapılandırma dosyalarını okuyan ve yazan bir kütüphane."
-tr.builder = "serde için YAML biçimi; YAML metnini Rust türlerine çevirir ve tersini yapar."
+tr.builder = "serde için YAML biçimi; YAML metnini Rust türlerine çevirir ve tersini yapar; yapımcısı artık bakımını sürdürmüyor."
 
 [[tech]]
 id = "toml-rs"
@@ -125,9 +125,9 @@ id = "tower-rs"
 name = "Tower"
 category = "framework"
 crates = ["tower"]
-en.beginner = "a Rust library of reusable middleware pieces, such as timeouts and retries, for web services."
+en.beginner = "a Rust library of reusable building blocks, such as timeouts and retries, that wrap around a web service."
 en.builder = "a library of composable service and middleware traits for Rust, used by axum, tonic and hyper-based servers."
-tr.beginner = "zaman aşımı ve yeniden deneme gibi hazır ara parçaları sunan bir Rust kütüphanesi."
+tr.beginner = "bir web servisini saran, zaman aşımı ve yeniden deneme gibi hazır parçalar sunan bir Rust kütüphanesi."
 tr.builder = "axum, tonic ve hyper tabanlı sunucularda kullanılan, birleştirilebilir servis ve ara katman arayüzleri sunan kütüphane."
 
 [[tech]]
@@ -135,9 +135,9 @@ id = "tower-http"
 name = "Tower HTTP"
 category = "framework"
 crates = ["tower-http"]
-en.beginner = "a Rust library of ready-made web middleware, such as request logging, compression and CORS."
+en.beginner = "a Rust library of ready-made add-ons for web servers, such as request logging, compression and browser access rules (CORS)."
 en.builder = "HTTP-specific tower middleware for tracing, compression, CORS, static file serving and timeouts."
-tr.beginner = "istek kaydı, sıkıştırma ve CORS gibi hazır web ara katmanlarını sunan bir Rust kütüphanesi."
+tr.beginner = "istek kaydı, sıkıştırma ve tarayıcı erişim kuralları (CORS) gibi web sunucusu eklentilerini hazır sunan bir Rust kütüphanesi."
 tr.builder = "tower için HTTP'ye özel ara katmanlar: izleme, sıkıştırma, CORS, statik dosya sunumu ve zaman aşımı."
 
 [[tech]]
@@ -168,7 +168,7 @@ crates = ["sea-orm"]
 en.beginner = "a library that turns Rust code into database queries without writing much SQL."
 en.builder = "an async ORM and query builder for Rust built on sqlx, with entity models, relations and migrations."
 tr.beginner = "Rust kodunu, çok SQL yazmadan, veritabanı sorgularına çeviren bir kütüphane."
-tr.builder = "sqlx üzerine kurulu, asenkron bir ORM ve sorgu oluşturucu; varlık modelleri, ilişkiler ve geçişleri destekler."
+tr.builder = "sqlx üzerine kurulu, asenkron bir ORM ve sorgu oluşturucu; varlık modelleri, ilişkiler ve şema değişikliklerini (migration) destekler."
 
 [[tech]]
 id = "clap-rs"
@@ -355,9 +355,9 @@ id = "dashmap"
 name = "DashMap"
 category = "other"
 crates = ["dashmap"]
-en.beginner = "a Rust library for a shared map that many parts of a program can update at once."
+en.beginner = "a Rust library for a shared key-value table that many parts of a program can update at once."
 en.builder = "a concurrent hash map for Rust with sharded locks, letting many threads read and write without one global lock."
-tr.beginner = "programın birçok parçasının aynı anda güncelleyebildiği, paylaşılan bir harita sunan Rust kütüphanesi."
+tr.beginner = "programın birçok parçasının aynı anda güncelleyebildiği, paylaşılan bir anahtar-değer tablosu sunan Rust kütüphanesi."
 tr.builder = "parçalı kilitler kullanan eşzamanlı bir hash tablosu; birçok iş parçacığının tek bir genel kilit olmadan okuyup yazmasına izin verir."
 
 [[tech]]
@@ -437,7 +437,7 @@ category = "auth"
 crates = ["argon2"]
 en.beginner = "a Rust library that scrambles passwords safely before they are stored, so they cannot be read back."
 en.builder = "a pure Rust implementation of Argon2, a memory-hard password hashing function, with configurable cost settings."
-tr.beginner = "parolalar saklanmadan önce güvenli biçimde karıştıran ve geri okunmalarını engelleyen bir Rust kütüphanesi."
+tr.beginner = "parolaları saklanmadan önce güvenli biçimde karıştıran ve geri okunmalarını engelleyen bir Rust kütüphanesi."
 tr.builder = "bellek yoğun bir parola özetleme (hash) fonksiyonu olan Argon2'nin saf Rust uygulaması; maliyet ayarları yapılabilir."
 
 [[tech]]
@@ -553,7 +553,7 @@ tr.builder = "değerler üzerinde birleştirilebilir mantıksal koşullar (predi
 [[tech]]
 id = "tempfile-rs"
 name = "tempfile"
-category = "testing"
+category = "other"
 crates = ["tempfile"]
 en.beginner = "a Rust library that creates temporary files and folders that are removed automatically."
 en.builder = "a crate for creating temporary files and directories in Rust that are deleted when dropped, commonly used in tests."
