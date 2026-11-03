@@ -8,19 +8,23 @@
 //!    through such a chain, so a project kept under `src/` starts inside `src`.
 //! 3. **Budgets:** a box with too many children is split, stopping as soon as it
 //!    fits: loose files sharing a first or last name word form "<word> files" boxes,
-//!    the remaining loose files form one "files" box, and the smallest items go into
-//!    an "N more" box. Every new box is split again the same way.
+//!    the remaining loose files form one "files" box, and all but the biggest
+//!    `budget − 1` items go into one "N more" box. New word and files boxes are split
+//!    again the same way. A "more" box that still holds more than [`GROUP_BUDGET`]
+//!    items is cut into at most that many "first … last" boxes: contiguous ranges of
+//!    its items by name, of near-equal size, cut again until each fits. So a flat
+//!    folder of `n` files is about log₂₅ `n` levels deep.
 //!
-//! Keys are paths (`src/orders`), `~shared`, or a parent's key plus `*word`, `~files`
-//! or `~more`. Ids, child order and hashes derive from keys only, so the same input
-//! always gives the same tree.
+//! Keys are paths (`src/orders`), `~shared`, or a parent's key plus `*word`,
+//! `~files`, `~more` or `~first..last`. Ids, child order and hashes derive from the
+//! input only, so the same input always gives the same tree.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use hm_core::ids::file_id;
 use serde::{Deserialize, Serialize};
 
-use crate::input::Input;
+use crate::input::{InLink, Input};
 use crate::roles::{Role, role_of, stem, words};
 
 /// At most this many boxes on the overview, the Shared box included.
@@ -92,9 +96,12 @@ pub struct Node {
     /// BLAKE3 over the sorted keys of the direct children: changes only when the
     /// node gains or loses children, so it keys the position cache.
     pub shape_hash: [u8; 32],
-    /// BLAKE3 over the kind and key, a file's path and loc, the children's merkles
-    /// and the links between different direct children: changes whenever anything
-    /// shown inside the node changes.
+    /// BLAKE3 over the node's content: its kind and key; for a file its path, loc and
+    /// `generated` flag; the children's merkles in key order; and the links (with
+    /// their `refs`) whose lowest common node this is, i.e. that run between two of
+    /// its direct children. A link is hashed only at that node: the nodes it leaves
+    /// on the way up do not hash it, so a link change marks only that node and its
+    /// ancestors.
     pub merkle: [u8; 32],
 }
 
@@ -150,19 +157,12 @@ struct Folder {
 /// Groups the files of `input` into the tree described in the module docs.
 pub fn build(input: &Input, project_name: &str) -> Tree {
     let n = input.files.len();
-    let links: Vec<(u32, u32)> = input
-        .links
-        .iter()
-        .filter(|l| l.src != l.dst && (l.src as usize) < n && (l.dst as usize) < n)
-        .map(|l| (l.src, l.dst))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
+    let links = input.clean_links();
 
-    // 1. Hubs: distinct importing files per file.
+    // 1. Hubs: distinct importing files per file (`clean_links` has one entry per pair).
     let mut in_degree = vec![0usize; n];
-    for &(_, dst) in &links {
-        in_degree[dst as usize] += 1;
+    for l in &links {
+        in_degree[l.dst as usize] += 1;
     }
     let is_hub: Vec<bool> = in_degree.iter().map(|&d| d > HUB_IN_DEGREE).collect();
 
@@ -252,8 +252,12 @@ pub fn build(input: &Input, project_name: &str) -> Tree {
         .filter(|&i| i != root && b.drafts[i].kind != NodeKind::File)
         .collect();
     while let Some(g) = queue.pop() {
-        let prefix = b.drafts[g].key.clone();
-        queue.extend(b.partition(g, GROUP_BUDGET, &prefix));
+        if b.drafts[g].kind == NodeKind::More {
+            queue.extend(b.split_more(g));
+        } else {
+            let prefix = b.drafts[g].key.clone();
+            queue.extend(b.partition(g, GROUP_BUDGET, &prefix));
+        }
     }
 
     b.finish(root, &links)
@@ -475,7 +479,8 @@ impl Builder<'_> {
         }
         debug_assert_eq!(kept.len(), count);
 
-        // Step 3: the smallest items go into one "more" bucket.
+        // Step 3: all but the biggest `budget - 1` items go into one "more" box, which
+        // `split_more` cuts into name ranges if it is still too big.
         if count > budget {
             kept.sort_by(|&a, &b| {
                 let (a, b) = (&self.drafts[a], &self.drafts[b]);
@@ -494,9 +499,51 @@ impl Builder<'_> {
         created
     }
 
+    /// Cuts a "more" box holding more than [`GROUP_BUDGET`] items into at most that
+    /// many "more" boxes of contiguous name ranges, of near-equal size. Returns them;
+    /// the ones still too big are cut again.
+    fn split_more(&mut self, node: usize) -> Vec<usize> {
+        let mut items = std::mem::take(&mut self.drafts[node].children);
+        if items.len() <= GROUP_BUDGET {
+            self.drafts[node].children = items;
+            return Vec::new();
+        }
+        items.sort_by(|&a, &b| {
+            let (a, b) = (&self.drafts[a], &self.drafts[b]);
+            a.name.cmp(&b.name).then_with(|| a.key.cmp(&b.key))
+        });
+        let buckets = items.len().div_ceil(GROUP_BUDGET).min(GROUP_BUDGET);
+        let (size, extra) = (items.len() / buckets, items.len() % buckets);
+        let prefix = self.drafts[node].key.clone();
+        let mut keys = BTreeSet::new();
+        let mut created = Vec::with_capacity(buckets);
+        let mut start = 0;
+        for b in 0..buckets {
+            let part = &items[start..start + size + usize::from(b < extra)];
+            start += part.len();
+            let first = self.drafts[part[0]].name.clone();
+            let last = self.drafts[part[part.len() - 1]].name.clone();
+            let name = if first == last {
+                first.clone()
+            } else {
+                format!("{first} … {last}")
+            };
+            // Names may repeat (hub files from different folders); keys may not.
+            let mut key = join(&prefix, &format!("~{first}..{last}"));
+            let mut k = 2;
+            while !keys.insert(key.clone()) {
+                key = join(&prefix, &format!("~{first}..{last}#{k}"));
+                k += 1;
+            }
+            created.push(self.regroup(node, part, key, NodeKind::More, name));
+        }
+        self.drafts[node].children = created.clone();
+        created
+    }
+
     /// Orders children by key, renumbers the nodes in pre-order and computes ids and
     /// hashes.
-    fn finish(mut self, root: usize, links: &[(u32, u32)]) -> Tree {
+    fn finish(mut self, root: usize, links: &[InLink]) -> Tree {
         let drafts = &mut self.drafts;
         for i in 0..drafts.len() {
             let mut children = std::mem::take(&mut drafts[i].children);
@@ -550,9 +597,9 @@ impl Builder<'_> {
             depth[i] = depth[nodes[i].parent.unwrap_or(0)] + 1;
         }
         let up = |i: usize| nodes[i].parent.unwrap_or(i);
-        let mut inner: Vec<Vec<(u32, u32)>> = vec![Vec::new(); nodes.len()];
-        for &(s, d) in links {
-            let (mut a, mut b) = (file_node[s as usize], file_node[d as usize]);
+        let mut inner: Vec<Vec<InLink>> = vec![Vec::new(); nodes.len()];
+        for &link in links {
+            let (mut a, mut b) = (file_node[link.src as usize], file_node[link.dst as usize]);
             while depth[a] > depth[b] {
                 a = up(a);
             }
@@ -562,7 +609,7 @@ impl Builder<'_> {
             while up(a) != up(b) {
                 (a, b) = (up(a), up(b));
             }
-            inner[up(a)].push((s, d));
+            inner[up(a)].push(link);
         }
 
         let files = &self.input.files;
@@ -579,6 +626,7 @@ impl Builder<'_> {
                 merkle.update(f.path.as_bytes());
                 merkle.update(&[0]);
                 merkle.update(&f.loc.to_le_bytes());
+                merkle.update(&[u8::from(f.generated)]);
             }
             merkle.update(&(n.children.len() as u64).to_le_bytes());
             for &c in &n.children {
@@ -589,14 +637,15 @@ impl Builder<'_> {
             let pairs = &mut inner[i];
             pairs.sort_by(|x, y| {
                 let path = |k: u32| files[k as usize].path.as_str();
-                (path(x.0), path(x.1)).cmp(&(path(y.0), path(y.1)))
+                (path(x.src), path(x.dst)).cmp(&(path(y.src), path(y.dst)))
             });
             merkle.update(&(pairs.len() as u64).to_le_bytes());
-            for &(s, d) in pairs.iter() {
-                merkle.update(files[s as usize].path.as_bytes());
+            for l in pairs.iter() {
+                merkle.update(files[l.src as usize].path.as_bytes());
                 merkle.update(&[0]);
-                merkle.update(files[d as usize].path.as_bytes());
+                merkle.update(files[l.dst as usize].path.as_bytes());
                 merkle.update(&[0]);
+                merkle.update(&l.refs.to_le_bytes());
             }
             nodes[i].shape_hash = *shape.finalize().as_bytes();
             nodes[i].merkle = *merkle.finalize().as_bytes();

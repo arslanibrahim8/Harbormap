@@ -2,12 +2,16 @@
 //! caller (the server, from `hm_index::view`) builds it from the facts store; the
 //! layout knows nothing about SQLite.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 /// The files on the map and the counted links between them.
 ///
 /// `files` is sorted by path and has no duplicates; `links` has at most one entry per
-/// `(src, dst)` pair and never `src == dst`. Links that break these rules are ignored.
+/// `(src, dst)` pair and never `src == dst`. The layout reads links through
+/// [`Input::clean_links`], which drops links that break these rules and adds up
+/// duplicates.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Input {
     pub files: Vec<InFile>,
@@ -32,4 +36,22 @@ pub struct InLink {
     pub dst: u32,
     /// How many references the link stands for (at least 1).
     pub refs: u32,
+}
+
+impl Input {
+    /// The links the layout uses: both ends in range and different, one entry per
+    /// `(src, dst)` with the `refs` of duplicates added up, sorted by `(src, dst)`.
+    pub fn clean_links(&self) -> Vec<InLink> {
+        let n = self.files.len();
+        let mut refs: BTreeMap<(u32, u32), u32> = BTreeMap::new();
+        for l in &self.links {
+            if l.src != l.dst && (l.src as usize) < n && (l.dst as usize) < n {
+                let r = refs.entry((l.src, l.dst)).or_default();
+                *r = r.saturating_add(l.refs);
+            }
+        }
+        refs.into_iter()
+            .map(|((src, dst), refs)| InLink { src, dst, refs })
+            .collect()
+    }
 }

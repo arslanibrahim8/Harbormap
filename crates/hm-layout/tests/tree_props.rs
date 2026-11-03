@@ -132,6 +132,73 @@ fn synthetic_inputs_are_deterministic_and_well_formed() {
     assert!(big.files.iter().any(|f| f.generated));
 }
 
+/// How far below its top box the deepest node sits (a top box is level 0).
+fn levels_below_top(t: &Tree) -> usize {
+    (0..t.nodes.len())
+        .map(|mut i| {
+            let mut depth = 0usize;
+            while let Some(p) = t.nodes[i].parent {
+                (i, depth) = (p, depth + 1);
+            }
+            depth.saturating_sub(1)
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+/// `n` files directly in `dir` (or at the root) that share no name word.
+fn wordless(dir: &str, n: usize) -> Input {
+    let mut paths: Vec<String> = (0..n)
+        .map(|i| {
+            let name = format!("item{i:05}.ts");
+            if dir.is_empty() {
+                name
+            } else {
+                format!("{dir}/{name}")
+            }
+        })
+        .collect();
+    paths.sort();
+    Input {
+        files: paths
+            .into_iter()
+            .map(|path| InFile {
+                path,
+                loc: 20,
+                generated: false,
+            })
+            .collect(),
+        links: Vec::new(),
+    }
+}
+
+#[test]
+fn a_flat_folder_of_3000_files_is_at_most_5_levels_deep() {
+    for input in [
+        flat("src/everything"),
+        flat(""),
+        wordless("src/everything", 3000),
+        wordless("", 3000),
+    ] {
+        let t = tree::build(&input, "shop");
+        let levels = levels_below_top(&t);
+        assert!(levels <= 5, "{levels} levels below the top box");
+        let more = t.nodes.iter().filter(|n| n.kind == NodeKind::More);
+        for m in more {
+            assert!(!m.name.trim().is_empty());
+        }
+    }
+}
+
+#[test]
+fn ten_thousand_flat_files_stay_shallow_and_within_budget() {
+    let input = wordless("", 10_000);
+    check(&input).unwrap();
+    let t = tree::build(&input, "shop");
+    let levels = levels_below_top(&t);
+    assert!(levels <= 5, "{levels} levels below the top box");
+}
+
 /// 3 000 files directly in `dir` (or at the root when `dir` is empty), half with
 /// shared name words and half without.
 fn flat(dir: &str) -> Input {

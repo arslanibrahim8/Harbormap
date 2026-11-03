@@ -10,7 +10,7 @@ use crate::tree::{self, Tree};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Map {
     tree: Tree,
-    /// The input links, as given.
+    /// The input links as the tree reads them ([`Input::clean_links`]).
     links: Vec<InLink>,
 }
 
@@ -21,7 +21,7 @@ impl Map {
         let _ = previous;
         Map {
             tree: tree::build(input, project_name),
-            links: input.links.clone(),
+            links: input.clean_links(),
         }
     }
 
@@ -30,7 +30,8 @@ impl Map {
         &self.tree
     }
 
-    /// The input links the map was built from.
+    /// The links the map was built from: valid, one per `(src, dst)`, refs added up,
+    /// sorted by `(src, dst)`.
     pub fn links(&self) -> &[InLink] {
         &self.links
     }

@@ -188,7 +188,7 @@ fn roles_and_kinds_serialize_lowercase_and_the_map_holds_the_tree() {
     );
     let map = hm_layout::Map::build(&inp, "shop", None);
     assert_eq!(map.tree(), &tree::build(&inp, "shop"));
-    assert_eq!(map.links(), inp.links.as_slice());
+    assert_eq!(map.links(), inp.clean_links().as_slice());
     assert_eq!(map, hm_layout::Map::build(&inp, "shop", Some(&map)));
 }
 
@@ -227,7 +227,8 @@ fn group_names_say_what_they_hold() {
     assert_eq!(t.nodes[files].kind, NodeKind::Files);
     assert_eq!(t.nodes[files].key, "lib/~files");
     assert_eq!(t.nodes[files].files, 40);
-    // 40 files do not fit in 25: keep 24, bucket the other 16.
+    // 40 files do not fit in 25: the 24 biggest items (all one file, so by name) stay
+    // and the other 16 go into one "more" box, which fits and is not split further.
     let more = by_name(&t, "16 more");
     assert_eq!(t.nodes[more].kind, NodeKind::More);
     assert_eq!(t.nodes[more].key, "lib/~files/~more");
@@ -283,4 +284,137 @@ fn a_loc_change_changes_the_merkle_of_the_file_and_its_ancestors() {
     assert_eq!(changed, ["", "src/orders", "src/orders/b.ts"]);
     assert_eq!(a.nodes[a.file_node[2]].loc, 11);
     assert_eq!(a.nodes[a.root].loc, 31);
+}
+
+#[test]
+fn a_refs_only_change_alters_the_merkle_of_the_lowest_common_node() {
+    let paths = ["src/orders/a.ts", "src/orders/b.ts", "src/cart/c.ts"];
+    let before = input(
+        &paths,
+        &[
+            ("src/orders/a.ts", "src/orders/b.ts"),
+            ("src/orders/a.ts", "src/cart/c.ts"),
+        ],
+    );
+    let mut after = before.clone();
+    // src/orders/a.ts -> src/cart/c.ts: its lowest common node is the root.
+    let link = after.links.iter_mut().find(|l| l.dst == 0).unwrap();
+    link.refs += 4;
+    let (b, a) = (tree::build(&before, "shop"), tree::build(&after, "shop"));
+    for (x, y) in b.nodes.iter().zip(&a.nodes) {
+        assert_eq!(x.key, y.key);
+        assert_eq!(x.shape_hash, y.shape_hash, "{}", x.key);
+        assert_eq!(x.merkle == y.merkle, !x.key.is_empty(), "{}", x.key);
+    }
+    // Inside src/orders this time.
+    let mut inside = before.clone();
+    inside.links.iter_mut().find(|l| l.dst == 2).unwrap().refs = 9;
+    let i = tree::build(&inside, "shop");
+    let changed: Vec<&str> = b
+        .nodes
+        .iter()
+        .zip(&i.nodes)
+        .filter(|(x, y)| x.merkle != y.merkle)
+        .map(|(x, _)| x.key.as_str())
+        .collect();
+    assert_eq!(changed, ["", "src/orders"]);
+}
+
+#[test]
+fn a_generated_flag_change_alters_the_file_merkle() {
+    let before = input(&["src/db/a.ts", "src/db/b.ts", "src/app/c.ts"], &[]);
+    let mut after = before.clone();
+    after.files[1].generated = true; // src/db/a.ts
+    let (b, a) = (tree::build(&before, "shop"), tree::build(&after, "shop"));
+    let changed: Vec<&str> = b
+        .nodes
+        .iter()
+        .zip(&a.nodes)
+        .filter(|(x, y)| x.merkle != y.merkle)
+        .map(|(x, _)| x.key.as_str())
+        .collect();
+    assert_eq!(changed, ["", "src/db", "src/db/a.ts"]);
+}
+
+#[test]
+fn shared_is_never_bucketed_when_the_root_has_more_than_11_items() {
+    let mut paths = vec!["src/lib/db.ts".to_string()];
+    for f in 0..15 {
+        for i in 0..2 {
+            paths.push(format!("src/feature{f:02}/m{i}.ts"));
+        }
+    }
+    let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+    let links: Vec<(&str, &str)> = refs[1..22].iter().map(|p| (*p, "src/lib/db.ts")).collect();
+    let t = tree::build(&input(&refs, &links), "shop");
+    assert_eq!(t.top().len(), 12);
+    let kinds: Vec<NodeKind> = t.top().iter().map(|&n| t.nodes[n].kind).collect();
+    assert_eq!(kinds.iter().filter(|k| **k == NodeKind::Shared).count(), 1);
+    assert_eq!(kinds.iter().filter(|k| **k == NodeKind::More).count(), 1);
+    let more = t
+        .top()
+        .iter()
+        .copied()
+        .find(|&n| t.nodes[n].kind == NodeKind::More)
+        .unwrap();
+    assert_eq!(t.nodes[more].name, "5 more");
+    assert!(
+        !t.nodes[more]
+            .children
+            .iter()
+            .any(|&c| t.nodes[c].kind == NodeKind::Shared)
+    );
+}
+
+#[test]
+fn invalid_links_are_ignored_and_duplicates_add_up() {
+    let mut paths = vec!["src/lib/db.ts".to_string(), "src/app/page.tsx".to_string()];
+    paths.extend((0..3).map(|i| format!("src/orders/o{i}.ts")));
+    let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+    let mut inp = input(&refs, &[("src/orders/o0.ts", "src/lib/db.ts")]);
+    let db = inp
+        .files
+        .iter()
+        .position(|f| f.path == "src/lib/db.ts")
+        .unwrap() as u32;
+    let o0 = inp
+        .files
+        .iter()
+        .position(|f| f.path == "src/orders/o0.ts")
+        .unwrap() as u32;
+    // 25 copies of one pair: one importer, so no hub; refs add up.
+    for _ in 0..24 {
+        inp.links.push(InLink {
+            src: o0,
+            dst: db,
+            refs: 2,
+        });
+    }
+    inp.links.push(InLink {
+        src: db,
+        dst: db,
+        refs: 1,
+    }); // self
+    inp.links.push(InLink {
+        src: 99,
+        dst: db,
+        refs: 1,
+    }); // out of range
+    inp.links.push(InLink {
+        src: db,
+        dst: 1000,
+        refs: 1,
+    }); // out of range
+    let t = tree::build(&inp, "shop");
+    assert!(!t.nodes.iter().any(|n| n.kind == NodeKind::Shared));
+    assert_eq!(
+        inp.clean_links(),
+        [InLink {
+            src: o0,
+            dst: db,
+            refs: 49
+        }]
+    );
+    let map = hm_layout::Map::build(&inp, "shop", None);
+    assert_eq!(map.links(), inp.clean_links().as_slice());
 }
