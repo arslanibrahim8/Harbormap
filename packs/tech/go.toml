@@ -425,9 +425,9 @@ id = "grpc-gateway"
 name = "grpc-gateway"
 category = "framework"
 go = ["github.com/grpc-ecosystem/grpc-gateway"]
-en.beginner = "a tool that lets a gRPC service, which programs use to talk to each other, also answer normal web requests."
+en.beginner = "a tool that lets a gRPC service, which programs use to talk to each other, answer web requests."
 en.builder = "a protoc plugin that generates a reverse proxy turning REST/JSON calls into gRPC calls."
-tr.beginner = "programların birbiriyle konuşmak için kullandığı bir gRPC servisinin, normal web isteklerine de cevap vermesini sağlayan bir araç."
+tr.beginner = "programların konuşmak için kullandığı gRPC servisinin normal web isteklerine de cevap vermesini sağlayan bir araç."
 tr.builder = "REST/JSON isteklerini gRPC çağrılarına çeviren ters vekil (reverse proxy) kodu üreten bir protoc eklentisi."
 
 [[tech]]
