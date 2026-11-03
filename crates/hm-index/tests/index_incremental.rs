@@ -477,7 +477,7 @@ fn resolving_every_file_again_writes_only_what_changed() {
     // A new file resolves every file again, but none of their rows change.
     fs::write(dir.path().join("src/extra.ts"), "export const x = 1;\n").unwrap();
     let d = ix.apply(&set(["src/extra.ts"])).unwrap();
-    assert_eq!(d.reresolved.len(), 10);
+    assert_eq!(d.reresolved.len(), 11); // tool.py is parsed too
     assert_eq!(scalar(ix.store(), "SELECT count(*) FROM temp.writes"), "0");
     assert_cold(&ix, dir.path());
 

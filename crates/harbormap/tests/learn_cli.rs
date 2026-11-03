@@ -95,10 +95,10 @@ fn index_prints_counts_and_writes_the_store_outside_the_project() {
     let text = stdout_of(&mut s.harbormap(&["index"]));
 
     assert!(
-        text.contains("TypeScript 7 · TSX 2 · JavaScript 1"),
+        text.contains("TypeScript 7 · TSX 2 · JavaScript 1 · Python 1"),
         "{text}"
     );
-    assert!(text.contains("not yet supported: Python 1"), "{text}");
+    assert!(!text.contains("not yet supported"), "{text}");
     assert!(
         text.contains("Tests 1 · Generated 1 · Docs 1 · Infra 1"),
         "{text}"
@@ -125,7 +125,7 @@ fn index_json_is_the_report() {
     let s = setup();
     let text = stdout_of(&mut s.harbormap(&["index", "--json"]));
     let report: serde_json::Value = serde_json::from_str(&text).unwrap();
-    assert_eq!(report["parsed"], 10);
+    assert_eq!(report["parsed"], 11); // tool.py is parsed as Python
     assert_eq!(report["edges"]["calls"], 8);
     assert_eq!(report["ignore_files"], serde_json::json!([".gitignore"]));
     assert_eq!(report["notes"], serde_json::json!([]));

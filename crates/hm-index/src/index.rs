@@ -19,10 +19,8 @@ use serde::Serialize;
 use crate::facts::{FileFacts, ImportKind, ImportedName, ParseStatus, SymbolKind};
 use crate::hash::{content_hash, facts_hash, interface_hash};
 use crate::lang::Lang;
-use crate::ts::resolve::{
-    EdgeRow, ModuleResolver, ModuleTarget, Project, resolve_file, symbol_ids,
-};
-use crate::ts::tsconfig::load_tsconfigs;
+use crate::langs::{self, Resolvers, Workspace};
+use crate::ts::resolve::{EdgeRow, ModuleTarget, symbol_ids};
 use crate::walk::{
     FileClass, IGNORE_FILES, Skip, WalkRules, WalkedFile, is_unreadable, walk, walked_file,
 };
@@ -197,7 +195,7 @@ pub struct Indexer {
     store: Store,
     /// Facts of every parsed file, by relative path; the same as `file.facts_json`.
     facts: BTreeMap<String, FileFacts>,
-    resolver: ModuleResolver,
+    resolvers: Resolvers,
     /// The include rules of the last walk; `None` until this indexer has walked.
     rules: Option<WalkRules>,
     /// The folders the last walk admitted.
@@ -209,12 +207,11 @@ impl Indexer {
     pub fn open(root: &Path, store: Store) -> Result<Indexer> {
         let facts = load_facts(&store)?;
         let known = stored_paths(store.conn())?;
-        let tsconfigs = load_tsconfigs(root, &known);
         Ok(Indexer {
             root: root.to_path_buf(),
             store,
             facts,
-            resolver: ModuleResolver::new(known, tsconfigs),
+            resolvers: Resolvers::load(root, known),
             rules: None,
             dirs: Vec::new(),
         })
@@ -347,10 +344,8 @@ impl Indexer {
             || changes
                 .iter()
                 .any(|c| !matches!(c, Change::Unchanged | Change::Touched));
-        let tsconfigs = load_tsconfigs(&self.root, &known);
-        report.notes = tsconfigs.notes.clone();
-        report.notes.sort();
-        let resolver = ModuleResolver::new(known.clone(), tsconfigs);
+        let resolvers = Resolvers::load(&self.root, known.clone());
+        report.notes = resolvers.notes();
 
         let outcome = self.store.write(|tx| {
             for path in &vanished {
@@ -359,10 +354,7 @@ impl Indexer {
             for (f, change) in &live {
                 write_change(tx, f, change)?;
             }
-            let project = Project {
-                facts: &facts,
-                modules: &resolver,
-            };
+            let project = Workspace::new(&facts, &resolvers);
             if dirty {
                 for rel in facts.keys() {
                     replace_resolved(tx, &project, rel)?;
@@ -373,7 +365,7 @@ impl Indexer {
         match outcome {
             Ok(()) => {
                 self.facts = facts;
-                self.resolver = resolver;
+                self.resolvers = resolvers;
                 self.rules = Some(walked.rules);
                 self.dirs = walked.dirs;
             }
@@ -551,6 +543,10 @@ impl Indexer {
         let mut added: Vec<String> = Vec::new();
         // Files whose change other files can see, so their importers resolve again.
         let mut seeds: Vec<String> = Vec::new();
+        // Names that files may reach by name alone and whose symbols changed.
+        let mut renamed: BTreeSet<String> = BTreeSet::new();
+        // A stored file that gains its facts: Go importers hold no row for it.
+        let mut gained = false;
         for (f, change) in &writes {
             let hash = match change {
                 Change::Fresh { hash, .. } => hash.as_str(),
@@ -583,6 +579,8 @@ impl Indexer {
             {
                 seeds.push(rel.clone());
             }
+            renamed.extend(langs::inferred_changes(rel, old.as_ref(), new.as_ref()));
+            gained |= old_hash.is_some() && old.is_none() && new.is_some();
             if let Some(new) = new {
                 facts.insert(rel.clone(), new);
             }
@@ -591,12 +589,13 @@ impl Indexer {
         for rel in &removed {
             let old = facts.remove(rel);
             diff_symbols(rel, old.as_ref(), None, &mut delta);
+            renamed.extend(langs::inferred_changes(rel, old.as_ref(), None));
         }
 
         // 3. Whether the resolver is rebuilt, which resolves every file again: a new
         // or removed file can change where any specifier points, and so can a config
         // file. A rescan does so on any change, as `full` does.
-        let sources = self.resolver.config_sources();
+        let sources = self.resolvers.config_sources();
         let config = delta
             .files_changed
             .iter()
@@ -604,12 +603,12 @@ impl Indexer {
             .any(|rel| sources.contains(rel));
         let rebuild = match &rescan {
             Some(_) => !rewritten.is_empty() || !removed.is_empty(),
-            None => !added.is_empty() || !removed.is_empty() || config,
+            None => !added.is_empty() || !removed.is_empty() || config || gained,
         };
 
         // 4. One transaction: the files to resolve again, removals, file and symbol
         // rows, then the resolved rows of those files, written as differences.
-        let (root, resolver) = (&self.root, &self.resolver);
+        let (root, resolvers) = (&self.root, &self.resolvers);
         let outcome = self.store.write(|tx| {
             let rebuilt = if rebuild {
                 let known = match &rescan {
@@ -626,20 +625,32 @@ impl Indexer {
                         known
                     }
                 };
-                let tsconfigs = load_tsconfigs(root, &known);
-                Some(ModuleResolver::new(known, tsconfigs))
+                Some(Resolvers::load(root, known))
             } else {
                 None
             };
-            let project = Project {
-                facts: &facts,
-                modules: rebuilt.as_ref().unwrap_or(resolver),
-            };
+            let project = Workspace::new(&facts, rebuilt.as_ref().unwrap_or(resolvers));
             // Read before anything is written: the importers as the last pass stored them.
             let resolve: BTreeSet<String> = if rebuilt.is_some() {
                 facts.keys().cloned().collect()
             } else {
-                let mut resolve = dependents(tx, &project, &seeds)?;
+                // Files that read a seed with no row to it count as seeds too.
+                let readers = langs::implicit_readers(&project, &seeds);
+                let mut sources = seeds.clone();
+                sources.extend(readers.iter().cloned());
+                let mut resolve = dependents(tx, &project, &sources)?;
+                resolve.extend(readers);
+                for rel in &seeds {
+                    resolve.extend(langs::implicit_dependents(&project, rel));
+                }
+                if !renamed.is_empty() {
+                    resolve.extend(
+                        facts
+                            .iter()
+                            .filter(|(rel, f)| langs::reads_names(rel, f, &renamed))
+                            .map(|(rel, _)| rel.clone()),
+                    );
+                }
                 resolve.extend(
                     rewritten
                         .iter()
@@ -685,8 +696,8 @@ impl Indexer {
             }
         };
         self.facts = facts;
-        if let Some(resolver) = rebuilt {
-            self.resolver = resolver;
+        if let Some(resolvers) = rebuilt {
+            self.resolvers = resolvers;
         }
         if let Some(walk) = rescan {
             self.rules = Some(walk.rules);
@@ -731,15 +742,13 @@ fn skip_name(skip: Skip) -> &'static str {
 fn parses(f: &WalkedFile) -> bool {
     f.skip.is_none()
         && !matches!(f.class, FileClass::Doc | FileClass::Infra)
-        && f.lang.is_some_and(|l| l.parsed_in_l1())
+        && f.lang.is_some_and(|l| l.parsed())
 }
 
 /// The `parse_status` of a file that is read but not parsed.
 fn unparsed_status(f: &WalkedFile) -> &'static str {
     match f.lang {
-        Some(lang)
-            if !matches!(f.class, FileClass::Doc | FileClass::Infra) && !lang.parsed_in_l1() =>
-        {
+        Some(lang) if !matches!(f.class, FileClass::Doc | FileClass::Infra) && !lang.parsed() => {
             NOT_SUPPORTED
         }
         _ => "not_parsed",
@@ -834,7 +843,7 @@ fn read_one(job: &Job) -> io::Result<Change> {
             parsed: None,
         });
     };
-    let facts = crate::ts::extract(&String::from_utf8_lossy(&bytes), lang);
+    let facts = crate::langs::extract(&String::from_utf8_lossy(&bytes), lang);
     let status = match facts.status {
         ParseStatus::Parsed => "parsed",
         ParseStatus::ParsedWithErrors => "parsed_with_errors",
@@ -979,10 +988,10 @@ fn insert_symbols(
 
 /// Resolves the file at `rel` and replaces its `edge`, `ref` and `reverse_import`
 /// rows with the result. The file's `file` row must exist.
-fn replace_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Result<()> {
+fn replace_resolved(tx: &Transaction, project: &Workspace, rel: &str) -> rusqlite::Result<()> {
     let id = file_id(rel);
     clear_resolved(tx, &id)?;
-    let resolved = resolve_file(project, rel);
+    let resolved = langs::resolve_file(project, rel);
     let mut edge = tx.prepare_cached(
         "INSERT INTO edge(kind, src_id, dst_id, file_id, line, rule, prov, conf)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -1180,10 +1189,14 @@ struct Surface<'a> {
     symbols: Vec<(&'a str, &'a str, SymbolKind, bool, bool)>,
     exports: Vec<(&'a str, Option<&'a str>, Option<&'a str>, bool)>,
     forwarded: Vec<(&'a str, ImportKind, &'a [ImportedName], bool)>,
+    /// `(class, base)` of a Python file: subclasses elsewhere inherit through them.
+    heritage: Vec<(&'a str, &'a str)>,
 }
 
 impl<'a> Surface<'a> {
     fn of(rel: &str, facts: &'a FileFacts) -> Surface<'a> {
+        // Any name a Python file imports can be imported from it in turn.
+        let python = Lang::from_path(Path::new(rel)) == Some(Lang::Python);
         let locals: Vec<&str> = facts
             .exports
             .iter()
@@ -1221,8 +1234,9 @@ impl<'a> Surface<'a> {
                 .imports
                 .iter()
                 .filter(|i| {
-                    i.kind != ImportKind::ReExport
-                        && i.names.iter().any(|n| locals.contains(&n.local.as_str()))
+                    python
+                        || (i.kind != ImportKind::ReExport
+                            && i.names.iter().any(|n| locals.contains(&n.local.as_str())))
                 })
                 .map(|i| {
                     (
@@ -1232,6 +1246,12 @@ impl<'a> Surface<'a> {
                         i.type_only,
                     )
                 })
+                .collect(),
+            heritage: facts
+                .heritage
+                .iter()
+                .filter(|_| python)
+                .map(|h| (h.class.as_str(), h.extends.as_str()))
                 .collect(),
         }
     }
@@ -1276,7 +1296,7 @@ const FORWARD_HOPS: usize = 5;
 /// (a re-export, or an `export { a }` of an import), for up to [`FORWARD_HOPS`] hops.
 fn dependents(
     conn: &rusqlite::Connection,
-    project: &Project,
+    project: &Workspace,
     seeds: &[String],
 ) -> rusqlite::Result<BTreeSet<String>> {
     let mut stmt = conn.prepare_cached(
@@ -1311,8 +1331,15 @@ fn dependents(
 }
 
 /// Whether resolving a name exported by `rel` can lead on into `target`: `rel`
-/// re-exports from it, or exports a name that it imports from it.
-fn forwards(p: &Project, rel: &str, target: &str) -> bool {
+/// re-exports from it, or exports a name that it imports from it. A Python file does
+/// when one of its imports leads to `target`; a Go package hands no names on.
+fn forwards(w: &Workspace, rel: &str, target: &str) -> bool {
+    match Lang::from_path(Path::new(rel)) {
+        Some(Lang::Python) => return crate::py::resolve::forwards(&w.py(), rel, target),
+        Some(Lang::Go) => return false,
+        _ => {}
+    }
+    let p = w.ts();
     let Some(facts) = p.facts.get(rel) else {
         return false;
     };
@@ -1339,9 +1366,9 @@ fn count_edges(tx: &Transaction, id: &str) -> rusqlite::Result<u32> {
 /// Resolves the file at `rel` and writes only the difference from its stored
 /// `edge`, `ref` and `reverse_import` rows, so resolving a file again whose result
 /// did not change writes nothing. Returns the number of edges added and removed.
-fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Result<(u32, u32)> {
+fn sync_resolved(tx: &Transaction, project: &Workspace, rel: &str) -> rusqlite::Result<(u32, u32)> {
     let id = file_id(rel);
-    let resolved = resolve_file(project, rel);
+    let resolved = langs::resolve_file(project, rel);
 
     type EdgeKey = (String, String, String, u32, String, String, String);
     let old_edges: BTreeSet<EdgeKey> = tx

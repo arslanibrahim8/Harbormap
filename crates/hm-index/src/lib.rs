@@ -6,6 +6,7 @@ pub mod go;
 pub mod hash;
 pub mod index;
 pub mod lang;
+pub mod langs;
 pub mod location;
 pub mod py;
 pub mod query;
