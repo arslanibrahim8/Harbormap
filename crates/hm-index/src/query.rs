@@ -1,10 +1,12 @@
-//! Reading the facts back: readable names for files and symbols. The cards of
-//! Learn spec §7 are added here later.
+//! Reading the facts back: readable names for files and symbols, the cards of Learn
+//! spec §7, and the routes, manifests, dependencies and external imports of L2a.
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use hm_core::ids::file_id;
 use hm_store::Store;
 use rusqlite::{Connection, OptionalExtension, params};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::facts::SymbolFact;
 use crate::index::Result;
@@ -13,8 +15,7 @@ use crate::index::Result;
 pub fn display_name(rel: &str, sym: Option<&SymbolFact>) -> String {
     match sym {
         None => rel.to_string(),
-        Some(s) if s.owner.is_empty() => format!("{rel}#{}", s.name),
-        Some(s) => format!("{rel}#{}.{}", s.owner, s.name),
+        Some(s) => format!("{rel}#{}", qualified(&s.owner, &s.name)),
     }
 }
 
@@ -36,6 +37,8 @@ pub struct FileCard {
     pub uses: Vec<String>,
     /// References in this file that resolve to nothing.
     pub unresolved: u32,
+    /// The routes and entries the file declares, or that a symbol of it handles.
+    pub routes: Vec<RouteRow>,
 }
 
 /// One line of a file card.
@@ -65,6 +68,8 @@ pub struct SymbolCard {
     pub callees: Vec<String>,
     /// Calls inside the symbol that resolve to nothing, as written (`db.insert`).
     pub unresolved_calls: Vec<String>,
+    /// The labels of the routes the symbol handles (`API · POST /api/orders`).
+    pub roles: Vec<String>,
 }
 
 /// The card of the file at `rel`, or `None` when the index has no such file.
@@ -157,6 +162,7 @@ pub fn file_card(store: &Store, rel: &str) -> Result<Option<FileCard>> {
         used_by,
         uses,
         unresolved,
+        routes: routes_for_file(store, &id)?,
     }))
 }
 
@@ -210,9 +216,316 @@ pub fn symbol_card(store: &Store, rel: &str, symbol: &str) -> Result<Option<Symb
             callers: linked(conn, "dst_id", "src_id", &id)?,
             callees: linked(conn, "src_id", "dst_id", &id)?,
             unresolved_calls,
+            roles: roles(&routes_for_symbol(store, &id)?),
         }));
     }
     Ok(None)
+}
+
+// Routes, manifests and imports (L2a).
+
+/// One entry point: a page, an HTTP handler, a server action, a middleware, a command
+/// or a `main`/`start` entry of a `package.json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RouteRow {
+    pub id: String,
+    /// The folder of the governing `package.json`; `""` for the repository root.
+    pub root: String,
+    pub entry_kind: String,
+    pub method: String,
+    pub pattern: String,
+    pub handler_id: Option<String>,
+    /// The display name of a symbol handler, the file path for a file handler.
+    pub handler: Option<String>,
+    /// The file that declares the route.
+    pub file: String,
+    pub line: u32,
+    pub rule: String,
+    pub prov: String,
+    pub conf: String,
+    pub detail: Option<String>,
+    /// [`role_label`], with the middleware matcher read from `detail`.
+    pub label: String,
+}
+
+/// The columns every route query selects, and the joins that name the handler.
+const ROUTE_SELECT: &str = "SELECT r.id, r.root, r.entry_kind, r.method, r.pattern, r.handler_id,
+        f.path, r.line, r.rule, r.prov, r.conf, r.detail, hf.path, hs.owner, hs.name, ff.path
+   FROM route r
+   JOIN file f ON f.id = r.file_id
+   LEFT JOIN symbol hs ON hs.id = r.handler_id
+   LEFT JOIN file hf ON hf.id = hs.file_id
+   LEFT JOIN file ff ON ff.id = r.handler_id";
+
+const ROUTE_ORDER: &str = "ORDER BY r.root, r.entry_kind, r.pattern, r.method, r.id";
+
+/// Every route and entry, by (root, entry kind, pattern, method).
+pub fn routes(store: &Store) -> Result<Vec<RouteRow>> {
+    route_query(store, "", &[])
+}
+
+/// The routes a file declares and those handled by a symbol that lives in it, sorted
+/// as [`routes`] is, each once.
+pub fn routes_for_file(store: &Store, file_id: &str) -> Result<Vec<RouteRow>> {
+    route_query(
+        store,
+        "WHERE r.file_id = ?1 OR hs.file_id = ?1",
+        &[&file_id],
+    )
+}
+
+/// The routes whose handler is `symbol_id`.
+pub fn routes_for_symbol(store: &Store, symbol_id: &str) -> Result<Vec<RouteRow>> {
+    route_query(store, "WHERE r.handler_id = ?1", &[&symbol_id])
+}
+
+fn route_query(
+    store: &Store,
+    filter: &str,
+    args: &[&dyn rusqlite::ToSql],
+) -> Result<Vec<RouteRow>> {
+    let sql = format!("{ROUTE_SELECT} {filter} {ROUTE_ORDER}");
+    Ok(store
+        .conn()
+        .prepare(&sql)?
+        .query_map(args, |row| {
+            let entry_kind: String = row.get(2)?;
+            let method: String = row.get(3)?;
+            let pattern: String = row.get(4)?;
+            let detail: Option<String> = row.get(11)?;
+            let symbol_file: Option<String> = row.get(12)?;
+            let owner: Option<String> = row.get(13)?;
+            let symbol_name: Option<String> = row.get(14)?;
+            let file_handler: Option<String> = row.get(15)?;
+            let handler = match (symbol_file, symbol_name) {
+                (Some(path), Some(name)) => Some(format!(
+                    "{path}#{}",
+                    qualified(&owner.unwrap_or_default(), &name)
+                )),
+                _ => file_handler,
+            };
+            let label = if middleware_is_unevaluated(&entry_kind, detail.as_deref()) {
+                "Runs before many routes".to_string()
+            } else {
+                role_label(&entry_kind, &method, &pattern)
+            };
+            Ok(RouteRow {
+                id: row.get(0)?,
+                root: row.get(1)?,
+                entry_kind,
+                method,
+                pattern,
+                handler_id: row.get(5)?,
+                handler,
+                file: row.get(6)?,
+                line: row.get(7)?,
+                rule: row.get(8)?,
+                prov: row.get(9)?,
+                conf: row.get(10)?,
+                detail,
+                label,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// True for a middleware whose matcher the index could not evaluate (its `detail` says
+/// `"evaluated": false`): it applies to many routes, not to a path.
+fn middleware_is_unevaluated(entry_kind: &str, detail: Option<&str>) -> bool {
+    entry_kind == "middleware"
+        && detail
+            .and_then(|d| serde_json::from_str::<serde_json::Value>(d).ok())
+            .is_some_and(|d| d["evaluated"] == serde_json::Value::Bool(false))
+}
+
+/// What a route is called in plain words: `API · POST /api/auth/login`,
+/// `Page · /orders/{id}`, `Server action · placeOrder`, `Runs before /account/:path*`,
+/// `Command · shop`, `Start script · npm start`, `Entry · index.js`. A middleware
+/// without a path of its own (`/*`) runs before many routes.
+pub fn role_label(entry_kind: &str, method: &str, pattern: &str) -> String {
+    match (entry_kind, method) {
+        ("http", _) => format!("API · {method} {pattern}"),
+        ("page", _) => format!("Page · {pattern}"),
+        ("server_action", _) => format!("Server action · {pattern}"),
+        ("middleware", _) if matches!(pattern, "" | "*" | "/*") => {
+            "Runs before many routes".to_string()
+        }
+        ("middleware", _) => format!("Runs before {pattern}"),
+        ("cli", _) => format!("Command · {pattern}"),
+        ("main", "START") => format!("Start script · npm {pattern}"),
+        ("main", _) => format!("Entry · {pattern}"),
+        _ => format!("{entry_kind} · {method} {pattern}"),
+    }
+}
+
+/// The labels of `routes`, in order, each once.
+fn roles(routes: &[RouteRow]) -> Vec<String> {
+    let mut labels: Vec<String> = Vec::new();
+    for route in routes {
+        if !labels.contains(&route.label) {
+            labels.push(route.label.clone());
+        }
+    }
+    labels
+}
+
+/// A `package.json` the index read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ManifestRow {
+    pub path: String,
+    /// The folder of the manifest; `""` at the repository root.
+    pub root: String,
+    pub kind: String,
+    pub name: Option<String>,
+    pub lockfile: Option<String>,
+    /// (command, script path as written, line)
+    pub bin: Vec<(String, String, u32)>,
+    /// (path as written, line)
+    pub main: Option<(String, u32)>,
+    /// (name, command, line)
+    pub scripts: Vec<(String, String, u32)>,
+}
+
+/// The `detail` column of `manifest`; a field that is missing or of the wrong type is
+/// left empty.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct ManifestDetail {
+    bin: Vec<(String, String, u32)>,
+    main: Option<(String, u32)>,
+    scripts: Vec<(String, String, u32)>,
+}
+
+/// Every manifest, by path.
+pub fn manifests(store: &Store) -> Result<Vec<ManifestRow>> {
+    Ok(store
+        .conn()
+        .prepare(
+            "SELECT f.path, m.root, m.kind, m.name, m.lockfile, m.detail
+               FROM manifest m JOIN file f ON f.id = m.file_id ORDER BY f.path",
+        )?
+        .query_map([], |row| {
+            let detail: String = row.get(5)?;
+            let detail: ManifestDetail = serde_json::from_str(&detail).unwrap_or_default();
+            Ok(ManifestRow {
+                path: row.get(0)?,
+                root: row.get(1)?,
+                kind: row.get(2)?,
+                name: row.get(3)?,
+                lockfile: row.get(4)?,
+                bin: detail.bin,
+                main: detail.main,
+                scripts: detail.scripts,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// A dependency a manifest declares.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DependencyRow {
+    /// The path of the declaring `package.json`.
+    pub manifest: String,
+    pub root: String,
+    pub name: String,
+    pub section: String,
+    pub dev: bool,
+    pub declared: String,
+    /// The version the lockfile pins, when one was read.
+    pub resolved: Option<String>,
+    pub line: u32,
+}
+
+/// The dependencies of every manifest, or only those of the manifest in folder `root`
+/// (`""` for the repository root), by (manifest, section, name).
+pub fn dependencies(store: &Store, root: Option<&str>) -> Result<Vec<DependencyRow>> {
+    Ok(store
+        .conn()
+        .prepare(
+            "SELECT f.path, m.root, d.name, d.section, d.dev, d.declared, d.resolved, d.line
+               FROM dependency d
+               JOIN manifest m ON m.file_id = d.file_id
+               JOIN file f ON f.id = d.file_id
+              WHERE ?1 IS NULL OR m.root = ?1
+              ORDER BY f.path, d.section, d.name",
+        )?
+        .query_map([root], |row| {
+            Ok(DependencyRow {
+                manifest: row.get(0)?,
+                root: row.get(1)?,
+                name: row.get(2)?,
+                section: row.get(3)?,
+                dev: row.get(4)?,
+                declared: row.get(5)?,
+                resolved: row.get(6)?,
+                line: row.get(7)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// One import of a package that is not part of the project.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct ExternalImport {
+    pub file: String,
+    /// The folder of the nearest manifest above the file; `""` for the repository root,
+    /// and for a file that no manifest covers.
+    pub root: String,
+    pub package: String,
+    pub line: u32,
+}
+
+/// Every external import, by (file, package, line).
+pub fn external_imports(store: &Store) -> Result<Vec<ExternalImport>> {
+    let roots: BTreeSet<String> = manifests(store)?.into_iter().map(|m| m.root).collect();
+    let mut found = store
+        .conn()
+        .prepare(
+            "SELECT DISTINCT f.path, r.text, r.line FROM ref r JOIN file f ON f.id = r.file_id
+              WHERE r.kind = 'import' AND r.status = 'external'",
+        )?
+        .query_map([], |row| {
+            let file: String = row.get(0)?;
+            Ok(ExternalImport {
+                root: nearest_root(&roots, &file),
+                file,
+                package: row.get(1)?,
+                line: row.get(2)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    found.sort();
+    Ok(found)
+}
+
+/// The longest manifest folder that holds `rel`, or `""`.
+fn nearest_root(roots: &BTreeSet<String>, rel: &str) -> String {
+    roots
+        .iter()
+        .filter(|root| {
+            !root.is_empty()
+                && rel
+                    .strip_prefix(root.as_str())
+                    .is_some_and(|rest| rest.starts_with('/'))
+        })
+        .max_by_key(|root| root.len())
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// For each package imported from the manifest folder `root`, in how many distinct
+/// files.
+pub fn import_counts(store: &Store, root: &str) -> Result<BTreeMap<String, u32>> {
+    let mut files: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for import in external_imports(store)? {
+        if import.root == root {
+            files.entry(import.package).or_default().insert(import.file);
+        }
+    }
+    Ok(files
+        .into_iter()
+        .map(|(package, files)| (package, files.len() as u32))
+        .collect())
 }
 
 /// `Owner.name`, or `name` without an owner.

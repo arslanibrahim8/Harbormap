@@ -11,6 +11,7 @@ use anyhow::Context;
 
 use hm_index::index::{Delta, IndexReport, Indexer};
 use hm_index::location::{facts_db, worktree_root};
+use hm_index::query::{RouteRow, routes};
 use hm_index::watch::{Batch, Watcher};
 use hm_store::Store;
 
@@ -28,13 +29,20 @@ pub fn run(args: &IndexArgs, json: bool) -> anyhow::Result<ExitCode> {
     let root = worktree_root(&start)?;
     let mut indexer = open(&root)?;
     let report = indexer.full()?;
+    let found = routes(indexer.store())?;
     let text = if json && args.watch {
         // A stream: one object per line, the report first.
-        format!("{}\n", serde_json::to_string(&report)?)
+        format!(
+            "{}\n",
+            serde_json::to_string(&report_json(&report, &found)?)?
+        )
     } else if json {
-        format!("{}\n", serde_json::to_string_pretty(&report)?)
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&report_json(&report, &found)?)?
+        )
     } else {
-        render(&folder_name(&root), &report)
+        render(&folder_name(&root), &report, &found)
     };
     write_stdout(&text)?;
     if args.watch {
@@ -77,8 +85,42 @@ pub fn lang_label(name: &str) -> &str {
         .map_or(name, |(_, label, _)| label)
 }
 
-/// The short text report; the numbers come from `report`, the wording is fixed here.
-pub fn render(name: &str, report: &IndexReport) -> String {
+/// The report as JSON, with `routes` the list of every route and entry; the counts by
+/// entry kind that the report keeps under that name move to `route_counts`.
+fn report_json(report: &IndexReport, routes: &[RouteRow]) -> anyhow::Result<serde_json::Value> {
+    let mut value = serde_json::to_value(report)?;
+    if let Some(object) = value.as_object_mut() {
+        if let Some(counts) = object.remove("routes") {
+            object.insert("route_counts".to_string(), counts);
+        }
+        object.insert("routes".to_string(), serde_json::to_value(routes)?);
+    }
+    Ok(value)
+}
+
+/// How many routes `harbormap index` lists before it points to `--json`.
+const LISTED_ROUTES: usize = 15;
+
+/// The kinds of route a project's pages and APIs are, with their printed names
+/// (singular, plural) in the order of the summary line.
+const ROUTE_KINDS: &[(&str, &str, &str)] = &[
+    ("page", "page", "pages"),
+    ("http", "API", "API"),
+    ("server_action", "server action", "server actions"),
+    ("middleware", "middleware", "middleware"),
+];
+
+/// The ref statuses the line `refs: …` names, in its order, with their words.
+const REF_STATUSES: &[(&str, &str)] = &[
+    ("unresolved", "unresolved"),
+    ("external", "external"),
+    ("builtin", "built-in"),
+    ("local", "local values"),
+];
+
+/// The short text report; the numbers come from `report` and `routes`, the wording is
+/// fixed here.
+pub fn render(name: &str, report: &IndexReport, routes: &[RouteRow]) -> String {
     let total: u32 = report.files.values().sum();
     let count = |map: &std::collections::BTreeMap<String, u32>, key: &str| {
         map.get(key).copied().unwrap_or(0)
@@ -176,11 +218,88 @@ pub fn render(name: &str, report: &IndexReport) -> String {
             count(&report.refs, "external"),
         ),
     );
+    let refs: Vec<String> = REF_STATUSES
+        .iter()
+        .filter(|(key, _)| count(&report.refs, key) > 0)
+        .map(|(key, words)| format!("{} {words}", count(&report.refs, key)))
+        .collect();
+    if !refs.is_empty() {
+        line(&mut out, &format!("refs: {}", refs.join(" · ")));
+    }
+    render_routes(&mut out, report, routes);
     for note in &report.notes {
         line(&mut out, &format!("Note: {}", printable(note)));
     }
     line(&mut out, &format!("Took {} ms", report.took_ms));
     out
+}
+
+/// The lines about routes, entries, calls to the server and manifests, and the first
+/// routes listed.
+fn render_routes(out: &mut String, report: &IndexReport, routes: &[RouteRow]) {
+    let kinds: Vec<String> = ROUTE_KINDS
+        .iter()
+        .filter_map(|(key, one, many)| {
+            let n = report.routes.get(*key).copied().unwrap_or(0);
+            (n > 0).then(|| format!("{n} {}", plural(n, one, many)))
+        })
+        .collect();
+    if kinds.is_empty() {
+        line(out, "No routes found");
+    } else {
+        line(out, &format!("Routes: {}", kinds.join(" · ")));
+    }
+
+    let entries = |method: &str| routes.iter().filter(|r| r.method == method).count() as u32;
+    let entries: Vec<String> = [
+        (entries("START"), "start script", "start scripts"),
+        (entries("BIN"), "command", "commands"),
+        (entries("MAIN"), "main file", "main files"),
+    ]
+    .iter()
+    .filter(|(n, _, _)| *n > 0)
+    .map(|(n, one, many)| format!("{n} {}", plural(*n, one, many)))
+    .collect();
+    if !entries.is_empty() {
+        line(out, &format!("Entries: {}", entries.join(" · ")));
+    }
+
+    if report.client_calls > 0 {
+        line(
+            out,
+            &format!(
+                "Calls to the server: {} found, {} matched to a route",
+                report.client_calls, report.client_calls_matched
+            ),
+        );
+    }
+    if report.manifests > 0 {
+        line(
+            out,
+            &format!(
+                "Manifests: {} ({} {})",
+                report.manifests,
+                report.dependencies,
+                plural(report.dependencies, "dependency", "dependencies")
+            ),
+        );
+    }
+
+    for route in routes.iter().take(LISTED_ROUTES) {
+        let target = route.handler.as_deref().map_or(String::new(), |handler| {
+            format!(" → {}", printable(handler))
+        });
+        line(out, &format!("{}{target}", printable(&route.label)));
+    }
+    if routes.len() > LISTED_ROUTES {
+        line(
+            out,
+            &format!(
+                "+{} more (harbormap index --json lists all)",
+                routes.len() - LISTED_ROUTES
+            ),
+        );
+    }
 }
 
 /// Adds an indented line; an empty one is left out.
@@ -289,7 +408,8 @@ fn batch_line(batch: &Batch, took: Duration, delta: &Delta) -> String {
     )
 }
 
-/// `{"paths":[...],"files":1,"took_ms":7,"edges_added":0,"edges_removed":0}`
+/// `{"paths":[...],"files":1,"took_ms":7,"edges_added":0,"edges_removed":0,
+/// "routes_added":[],"routes_removed":[]}`
 fn batch_json(batch: &Batch, took: Duration, delta: &Delta) -> String {
     serde_json::json!({
         "paths": batch.paths,
@@ -297,6 +417,8 @@ fn batch_json(batch: &Batch, took: Duration, delta: &Delta) -> String {
         "took_ms": took.as_millis() as u64,
         "edges_added": delta.edges_added,
         "edges_removed": delta.edges_removed,
+        "routes_added": delta.routes_added,
+        "routes_removed": delta.routes_removed,
     })
     .to_string()
 }

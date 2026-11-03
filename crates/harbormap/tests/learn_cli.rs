@@ -7,8 +7,10 @@ use assert_cmd::Command;
 use predicates::str::contains;
 use tempfile::TempDir;
 
-fn ts_basic() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../hm-index/tests/fixtures/ts-basic")
+fn fixture(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../hm-index/tests/fixtures")
+        .join(name)
 }
 
 fn copy_tree(from: &Path, to: &Path) {
@@ -31,8 +33,13 @@ struct Setup {
 }
 
 fn setup() -> Setup {
+    setup_with("ts-basic")
+}
+
+/// Like [`setup`], with a copy of the fixture project `name`.
+fn setup_with(name: &str) -> Setup {
     let project = tempfile::tempdir().unwrap();
-    copy_tree(&ts_basic(), project.path());
+    copy_tree(&fixture(name), project.path());
     Setup {
         project,
         data: tempfile::tempdir().unwrap(),
@@ -249,7 +256,7 @@ fn card_from_a_plain_parent_folder_uses_the_targets_worktree() {
     let parent = tempfile::tempdir().unwrap();
     let proj = parent.path().join("proj");
     fs::create_dir_all(&proj).unwrap();
-    copy_tree(&ts_basic(), &proj);
+    copy_tree(&fixture("ts-basic"), &proj);
     git_init(&proj);
     let other = parent.path().join("other");
     fs::create_dir_all(&other).unwrap();
@@ -281,7 +288,7 @@ fn card_from_the_home_folder_finds_a_project_under_it() {
     let home = tempfile::tempdir().unwrap();
     let proj = home.path().join("Projects").join("shop");
     fs::create_dir_all(&proj).unwrap();
-    copy_tree(&ts_basic(), &proj);
+    copy_tree(&fixture("ts-basic"), &proj);
     git_init(&proj);
     let data = tempfile::tempdir().unwrap();
     for target in [
@@ -429,7 +436,9 @@ fn watch_follows_a_folder_that_an_ignore_edit_brings_in() {
     // `ignored/` is hidden by .gitignore; this edit brings it in.
     fs::write(s.project.path().join(".gitignore"), "# nothing\n").unwrap();
     let line = w.wait_for(wait, |l| names(l, ".gitignore"));
-    assert!(line.is_some(), "no batch for .gitignore");
+    let line = line.expect("no batch for .gitignore");
+    assert_eq!(line["routes_added"], serde_json::json!([]));
+    assert_eq!(line["routes_removed"], serde_json::json!([]));
     // Let the watcher settle, then save inside the folder that is now on the map.
     std::thread::sleep(std::time::Duration::from_millis(500));
     fs::write(
@@ -451,4 +460,103 @@ fn watch_follows_a_folder_that_an_ignore_edit_brings_in() {
         )
         .unwrap();
     assert_eq!(later, 1, "the new symbol is in the store");
+}
+
+#[test]
+fn index_prints_routes_summary() {
+    let s = setup_with("client-hops");
+    let text = stdout_of(&mut s.harbormap(&["index"]));
+    assert!(text.contains("\n  Routes: 4 API\n"), "{text}");
+    assert!(
+        text.contains("\n  API · GET /api/orders → app/api/orders/route.ts#GET\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("\n  Manifests: 1 (4 dependencies)\n"),
+        "{text}"
+    );
+    assert!(text.contains("\n  Calls to the server: "), "{text}");
+    assert!(text.contains(" matched to a route\n"), "{text}");
+    assert!(!text.contains("more (harbormap index --json"), "{text}");
+    assert!(
+        text.lines().last().unwrap().trim().starts_with("Took "),
+        "{text}"
+    );
+
+    // A project without routes says so and keeps its other lines.
+    let plain = stdout_of(&mut setup().harbormap(&["index"]));
+    assert!(plain.contains("\n  No routes found\n"), "{plain}");
+    assert!(!plain.contains("Entries:"), "{plain}");
+    assert!(plain.contains("\n  refs: "), "{plain}");
+}
+
+#[test]
+fn index_names_entries_and_cuts_a_long_list() {
+    let s = setup_with("client-hops");
+    fs::write(
+        s.project.path().join("package.json"),
+        r#"{"name":"shop","bin":{"shop":"./cli.js"},"scripts":{"start":"node server.js"},
+           "dependencies":{"next":"15.2.0"}}"#,
+    )
+    .unwrap();
+    for n in 0..13 {
+        let dir = s.project.path().join(format!("app/p{n:02}"));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("page.tsx"),
+            "export default function P() { return null }\n",
+        )
+        .unwrap();
+    }
+    let text = stdout_of(&mut s.harbormap(&["index"]));
+    assert!(text.contains("\n  Routes: 13 pages · 4 API\n"), "{text}");
+    assert!(
+        text.contains("\n  Entries: 1 start script · 1 command\n"),
+        "{text}"
+    );
+    // 4 + 13 routes and 2 entries; 15 are listed.
+    assert!(
+        text.contains("\n  +4 more (harbormap index --json lists all)\n"),
+        "{text}"
+    );
+    let listed = text
+        .lines()
+        .filter(|l| {
+            ["  API · ", "  Page · ", "  Command · ", "  Start script · "]
+                .iter()
+                .any(|kind| l.starts_with(kind))
+        })
+        .count();
+    assert_eq!(listed, 15, "{text}");
+}
+
+#[test]
+fn index_json_has_routes() {
+    let s = setup_with("client-hops");
+    let text = stdout_of(&mut s.harbormap(&["index", "--json"]));
+    let report: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let routes = report["routes"].as_array().expect("routes is an array");
+    assert_eq!(routes.len(), 4);
+    assert!(
+        routes.iter().all(|r| r["entry_kind"] == "http"),
+        "{routes:?}"
+    );
+    assert_eq!(report["route_counts"]["http"], 4);
+}
+
+#[test]
+fn card_prints_role() {
+    let s = setup_with("client-hops");
+    let symbol = stdout_of(&mut s.harbormap(&["card", "app/api/orders/route.ts#POST"]));
+    assert!(
+        symbol.contains("\n  Role: API · POST /api/orders\n"),
+        "{symbol}"
+    );
+    let file = stdout_of(&mut s.harbormap(&["card", "app/api/orders/route.ts"]));
+    assert!(
+        file.contains("\nRoutes (2)\n  API · GET /api/orders\n  API · POST /api/orders\n"),
+        "{file}"
+    );
+    let other = stdout_of(&mut s.harbormap(&["card", "lib/api.ts"]));
+    assert!(!other.contains("Routes ("), "{other}");
 }
