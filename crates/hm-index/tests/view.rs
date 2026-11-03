@@ -280,12 +280,20 @@ fn file_ranking_tiers_beat_path_length() {
 }
 
 #[test]
-fn symbol_ranking_tiers_beat_path_length_and_name_order() {
+fn symbol_ranking_tiers_beat_path_length_path_and_name_order() {
+    // Each tier boundary contradicts every other order: by name (byte order) the hits
+    // would be `cartSize`, `xcart`, `zoo.cart`; by path length `xcart`, `cartSize`,
+    // `zoo.cart`. The tiers say exact, prefix, substring.
     let (ix, _dir) = project(&[
-        ("src/deep/nested/a.ts", "export function cart() {}\n"),
-        ("src/e/order.ts", "export class Order { cart() {} }\n"),
-        ("src/b.ts", "export function cartSize() {}\n"),
-        ("src/c.ts", "export function myCart() {}\n"),
+        // Exact on the bare name of a method; the longest path, the largest name.
+        (
+            "src/zoo/models/order.ts",
+            "export class zoo { cart() {} }\n",
+        ),
+        // Prefix.
+        ("src/p/mid.ts", "export function cartSize() {}\n"),
+        // Substring; the shortest path.
+        ("src/s.ts", "export function xcart() {}\n"),
     ]);
     let got: Vec<(String, String)> = search(ix.store(), "cart", 10)
         .unwrap()
@@ -297,12 +305,9 @@ fn symbol_ranking_tiers_beat_path_length_and_name_order() {
     assert_eq!(
         got,
         [
-            // Exact (the bare name of a method counts), shorter path first.
-            want("src/e/order.ts", "Order.cart"),
-            want("src/deep/nested/a.ts", "cart"),
-            // Prefix, then substring.
-            want("src/b.ts", "cartSize"),
-            want("src/c.ts", "myCart"),
+            want("src/zoo/models/order.ts", "zoo.cart"),
+            want("src/p/mid.ts", "cartSize"),
+            want("src/s.ts", "xcart"),
         ]
     );
 }
