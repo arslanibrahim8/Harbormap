@@ -1,1 +1,721 @@
 # Go modules. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "gin"
+name = "Gin"
+category = "framework"
+go = ["github.com/gin-gonic/gin"]
+en.beginner = "a fast tool for building web servers and web apis."
+en.builder = "a fast HTTP web framework with routing, middleware and JSON handling."
+tr.beginner = "web sunucularını hızlıca kurmaya yarayan bir araç."
+tr.builder = "yönlendirme, ara katman ve JSON işlemleri içeren hızlı bir HTTP web çatısı."
+
+[[tech]]
+id = "echo-go"
+name = "Echo"
+category = "framework"
+go = ["github.com/labstack/echo"]
+en.beginner = "a small, fast tool for building web servers and web apis."
+en.builder = "a high-performance Go web framework with routing, middleware and data binding."
+tr.beginner = "web sunucuları ve web api'leri kurmak için küçük ve hızlı bir araç."
+tr.builder = "yönlendirme, ara katman ve veri bağlama özellikli, yüksek performanslı bir Go web çatısı."
+
+[[tech]]
+id = "fiber-go"
+name = "Fiber"
+category = "framework"
+go = ["github.com/gofiber/fiber"]
+en.beginner = "a quick tool for making web servers that feel easy to use."
+en.builder = "an Express-inspired Go web framework built on the fasthttp engine."
+tr.beginner = "web sunucuları yapmak için hızlı ve kullanımı kolay bir araç."
+tr.builder = "fasthttp motoru üzerine kurulu, Express'ten esinlenmiş bir Go web çatısı."
+
+[[tech]]
+id = "chi-go"
+name = "chi"
+category = "framework"
+go = ["github.com/go-chi/chi"]
+en.beginner = "a small router that sends each web address to the right code."
+en.builder = "a lightweight, idiomatic HTTP router and middleware toolkit for Go, compatible with net/http."
+tr.beginner = "her web adresini doğru koda yönlendiren küçük bir araç."
+tr.builder = "net/http ile uyumlu, hafif bir HTTP yönlendirici ve ara katman araç seti."
+
+[[tech]]
+id = "gorilla-mux"
+name = "Gorilla Mux"
+category = "framework"
+go = ["github.com/gorilla/mux"]
+en.beginner = "a tool that sends each web address to the code that handles it."
+en.builder = "a request router and URL matcher for Go's standard net/http package."
+tr.beginner = "her web adresini onu işleyen koda gönderen bir araç."
+tr.builder = "Go'nun standart net/http paketi için bir istek yönlendirici ve URL eşleştirici."
+
+[[tech]]
+id = "gorilla-websocket"
+name = "Gorilla WebSocket"
+category = "other"
+go = ["github.com/gorilla/websocket"]
+en.beginner = "a library that lets a web server and browser keep a live two-way connection."
+en.builder = "a Go implementation of the WebSocket protocol for real-time two-way messages."
+tr.beginner = "web sunucusu ile tarayıcının canlı, iki yönlü bağlantı kurmasını sağlayan bir kütüphane."
+tr.builder = "gerçek zamanlı, iki yönlü mesajlaşma için WebSocket protokolünün Go uygulaması."
+
+[[tech]]
+id = "gorilla-sessions"
+name = "Gorilla Sessions"
+category = "auth"
+go = ["github.com/gorilla/sessions"]
+en.beginner = "a tool that remembers each visitor between page visits, such as a login."
+en.builder = "a library for managing cookie-based and other session storage in Go web apps."
+tr.beginner = "ziyaretçinin oturumunu sayfalar arasında hatırlayan bir araç."
+tr.builder = "Go web uygulamalarında çerez tabanlı oturum verilerini yöneten bir kütüphane."
+
+[[tech]]
+id = "httprouter"
+name = "httprouter"
+category = "framework"
+go = ["github.com/julienschmidt/httprouter"]
+en.beginner = "a fast tool that sends each web address to the right code."
+en.builder = "a fast HTTP request router for Go that matches URL parameters."
+tr.beginner = "web adreslerini doğru koda ileten hızlı bir araç."
+tr.builder = "URL parametrelerini eşleştiren, hızlı bir Go HTTP istek yönlendiricisi."
+
+[[tech]]
+id = "fasthttp"
+name = "fasthttp"
+category = "framework"
+go = ["github.com/valyala/fasthttp"]
+en.beginner = "a very fast library for web servers and web clients."
+en.builder = "a high-performance HTTP server and client library for Go with low memory use."
+tr.beginner = "web sunucuları ve istemcileri için çok hızlı bir kütüphane."
+tr.builder = "düşük bellek kullanımlı, yüksek performanslı bir Go HTTP sunucu ve istemci kütüphanesi."
+
+[[tech]]
+id = "gorm"
+name = "GORM"
+category = "data"
+go = ["gorm.io/gorm", "gorm.io/driver"]
+en.beginner = "a library that turns Go code into database reads and writes."
+en.builder = "an ORM for Go that maps structs to tables, handles migrations and relations, and uses separate database drivers."
+tr.beginner = "Go kodunu veritabanı okuma ve yazma işlemlerine çeviren bir kütüphane."
+tr.builder = "Go yapılarını tablolara eşleyen, geçişleri ve ilişkileri yöneten bir ORM; veritabanları için ayrı sürücüler kullanır."
+
+[[tech]]
+id = "sqlx-go"
+name = "sqlx"
+category = "data"
+go = ["github.com/jmoiron/sqlx"]
+en.beginner = "a helper that makes running raw SQL queries in Go easier."
+en.builder = "an extension to database/sql that adds struct scanning and named query support."
+tr.beginner = "Go'da hazır SQL sorgularını çalıştırmayı kolaylaştıran bir yardımcı kütüphane."
+tr.builder = "database/sql paketine yapı tarama ve isimli sorgu desteği ekleyen bir eklenti."
+
+[[tech]]
+id = "ent-go"
+name = "Ent"
+category = "data"
+go = ["entgo.io/ent"]
+en.beginner = "a tool that builds a typed database layer for Go from a schema."
+en.builder = "an entity framework for Go that generates type-safe code for schemas, queries and migrations."
+tr.beginner = "bir şemadan Go için tür güvenli bir veritabanı katmanı üreten bir araç."
+tr.builder = "şemalardan tür güvenli kod, sorgu ve geçiş kodu üreten bir Go ORM ve kod üreticisi."
+
+[[tech]]
+id = "bun-go"
+name = "Bun ORM"
+category = "data"
+go = ["github.com/uptrace/bun"]
+en.beginner = "a library that runs database queries in Go with a simple, SQL-like style."
+en.builder = "a SQL-first ORM and query builder for Go with PostgreSQL, MySQL and SQLite support."
+tr.beginner = "Go'da SQL'e benzer bir yazımla veritabanı sorguları çalıştıran bir kütüphane."
+tr.builder = "PostgreSQL, MySQL ve SQLite destekli, SQL odaklı bir Go ORM ve sorgu oluşturucu."
+
+[[tech]]
+id = "golang-migrate"
+name = "golang-migrate"
+category = "data"
+go = ["github.com/golang-migrate/migrate"]
+en.beginner = "a tool that updates your database structure step by step, with versioned files."
+en.builder = "a CLI and Go library that runs versioned up and down migrations on many databases."
+tr.beginner = "veritabanı yapısını sürümlü dosyalarla adım adım güncelleyen bir araç."
+tr.builder = "birçok veritabanında ileri ve geri sürümlü geçişleri çalıştıran bir CLI ve Go kütüphanesi."
+
+[[tech]]
+id = "goose-go"
+name = "goose"
+category = "data"
+go = ["github.com/pressly/goose"]
+en.beginner = "a tool that updates your database structure with numbered migration files."
+en.builder = "a database migration tool for Go that runs SQL or Go migration scripts and tracks versions."
+tr.beginner = "veritabanı yapısını numaralı geçiş dosyalarıyla güncelleyen bir araç."
+tr.builder = "SQL veya Go geçiş betiklerini çalıştırıp sürümleri izleyen bir veritabanı geçiş aracı."
+
+[[tech]]
+id = "cobra-go"
+name = "Cobra"
+category = "other"
+go = ["github.com/spf13/cobra"]
+en.beginner = "a helper for building command-line tools with commands and flags."
+en.builder = "a library for building Go CLI apps with subcommands, flags and generated help text."
+tr.beginner = "komut ve bayraklarla komut satırı araçları yapmayı kolaylaştıran bir yardımcı."
+tr.builder = "alt komutlar, bayraklar ve otomatik yardım metni içeren Go CLI uygulamaları kütüphanesi."
+
+[[tech]]
+id = "viper-go"
+name = "Viper"
+category = "other"
+go = ["github.com/spf13/viper"]
+en.beginner = "a helper that reads app settings from files, environment variables and flags."
+en.builder = "a configuration library for Go that loads settings from files, environment variables and flags."
+tr.beginner = "uygulama ayarlarını dosyalardan, ortam değişkenlerinden ve bayraklardan okuyan bir yardımcı."
+tr.builder = "Go için ayarları dosyalardan, ortam değişkenlerinden ve bayraklardan yükleyen bir yapılandırma kütüphanesi."
+
+[[tech]]
+id = "pflag"
+name = "pflag"
+category = "other"
+go = ["github.com/spf13/pflag"]
+en.beginner = "a helper that reads command-line options such as --port in Go programs."
+en.builder = "a POSIX-style command-line flag parser for Go, often used together with Cobra."
+tr.beginner = "Go programlarında --port gibi komut satırı seçeneklerini okuyan bir yardımcı."
+tr.builder = "Go için POSIX tarzı komut satırı bayraklarını ayrıştıran, genellikle Cobra ile birlikte kullanılan bir kütüphane."
+
+[[tech]]
+id = "urfave-cli"
+name = "urfave/cli"
+category = "other"
+go = ["github.com/urfave/cli"]
+en.beginner = "a helper for building command-line tools with commands and options in Go."
+en.builder = "a simple framework for building Go command-line apps with subcommands and flags."
+tr.beginner = "Go'da komutlar ve seçeneklerle komut satırı araçları yapmayı sağlayan bir yardımcı."
+tr.builder = "Go için alt komutlar ve bayraklarla komut satırı uygulamaları kurmaya yarayan basit bir çatı."
+
+[[tech]]
+id = "testify"
+name = "Testify"
+category = "testing"
+go = ["github.com/stretchr/testify"]
+en.beginner = "a helper that makes checking test results in Go simpler and clearer."
+en.builder = "a Go testing toolkit with assertions, mocks and test suites."
+tr.beginner = "Go'da test sonuçlarını daha kolay ve açık kontrol etmeyi sağlayan bir yardımcı."
+tr.builder = "doğrulama, sahte nesne ve test takımı içeren bir Go test araç seti."
+
+[[tech]]
+id = "ginkgo"
+name = "Ginkgo"
+category = "testing"
+go = ["github.com/onsi/ginkgo"]
+en.beginner = "a test framework that describes Go tests in plain, readable blocks."
+en.builder = "a BDD-style Go testing framework that organizes specs in nested blocks."
+tr.beginner = "Go testlerini düz ve okunaklı bloklar halinde yazmayı sağlayan bir test çatısı."
+tr.builder = "Go testlerini iç içe bloklarda düzenleyen, davranış odaklı (BDD) bir test çatısı."
+
+[[tech]]
+id = "gomega"
+name = "Gomega"
+category = "testing"
+go = ["github.com/onsi/gomega"]
+en.beginner = "a helper that checks test results with easy-to-read matchers in Go."
+en.builder = "a matcher library for Go tests, used with Ginkgo to write expressive assertions."
+tr.beginner = "Go testlerinde sonuçları okunması kolay eşleştiricilerle kontrol eden bir yardımcı."
+tr.builder = "Go testleri için eşleştirici kütüphanesi; Ginkgo ile birlikte kullanılır."
+
+[[tech]]
+id = "gomock"
+name = "GoMock"
+category = "testing"
+go = ["go.uber.org/mock", "github.com/golang/mock"]
+en.beginner = "a tool that creates fake stand-in objects for testing Go code."
+en.builder = "a mocking framework for Go that generates mock implementations of interfaces."
+tr.beginner = "test için Go kodunun yerine geçen sahte nesneler üreten bir araç."
+tr.builder = "Go arayüzleri için sahte uygulamalar üreten bir mock (sahte nesne) çatısı."
+
+[[tech]]
+id = "go-sqlmock"
+name = "go-sqlmock"
+category = "testing"
+go = ["github.com/DATA-DOG/go-sqlmock"]
+en.beginner = "a tool that fakes a database so tests can run without a real one."
+en.builder = "a mock driver for database/sql that checks the queries a Go test expects."
+tr.beginner = "gerçek veritabanı olmadan test yapmayı sağlayan sahte bir veritabanı aracı."
+tr.builder = "database/sql için, testte beklenen sorguları kontrol eden sahte bir sürücü."
+
+[[tech]]
+id = "go-cmp"
+name = "go-cmp"
+category = "testing"
+go = ["github.com/google/go-cmp"]
+en.beginner = "a helper that compares Go values in tests and shows clear differences."
+en.builder = "Google's library for comparing Go values in tests, with readable diffs."
+tr.beginner = "testlerde Go değerlerini karşılaştıran ve farkları açıkça gösteren bir yardımcı."
+tr.builder = "Google'ın, testlerde Go değerlerini okunabilir farklarla karşılaştıran kütüphanesi."
+
+[[tech]]
+id = "zap-go"
+name = "Zap"
+category = "other"
+go = ["go.uber.org/zap"]
+en.beginner = "a fast logger that writes messages about what your app is doing."
+en.builder = "a fast, structured logging library for Go, built by Uber."
+tr.beginner = "uygulamanın ne yaptığını kayıt altına alan hızlı bir günlük kütüphanesi."
+tr.builder = "Uber tarafından geliştirilen, yapılandırılmış ve hızlı bir Go günlük kütüphanesi."
+
+[[tech]]
+id = "logrus"
+name = "Logrus"
+category = "other"
+go = ["github.com/sirupsen/logrus"]
+en.beginner = "a logger that writes app messages in a structured, readable form."
+en.builder = "a structured logging library for Go with pluggable log levels and formatters."
+tr.beginner = "uygulama mesajlarını düzenli ve okunabilir biçimde yazan bir günlük kütüphanesi."
+tr.builder = "Go için yapılandırılmış günlük kütüphanesi; seviyeleri ve biçimlendiricileri değiştirilebilir."
+
+[[tech]]
+id = "zerolog"
+name = "zerolog"
+category = "other"
+go = ["github.com/rs/zerolog"]
+en.beginner = "a fast logger that writes app messages as JSON with little overhead."
+en.builder = "a fast JSON logger for Go that aims for very low memory overhead."
+tr.beginner = "uygulama mesajlarını az yükle JSON olarak yazan hızlı bir günlük aracı."
+tr.builder = "Go için, çok düşük bellek yükü hedefleyen hızlı bir JSON günlük kütüphanesi."
+
+[[tech]]
+id = "uber-fx"
+name = "Uber Fx"
+category = "framework"
+go = ["go.uber.org/fx"]
+en.beginner = "a tool that wires the parts of a Go app together automatically."
+en.builder = "a dependency injection framework for Go that builds and starts application components."
+tr.beginner = "bir Go uygulamasının parçalarını otomatik olarak birbirine bağlayan bir araç."
+tr.builder = "Go uygulama bileşenlerini oluşturup başlatan bir bağımlılık enjeksiyonu çatısı."
+
+[[tech]]
+id = "wire-go"
+name = "Wire"
+category = "build"
+go = ["github.com/google/wire"]
+en.beginner = "a tool that writes the code connecting an app's parts at build time."
+en.builder = "a compile-time dependency injection code generator for Go."
+tr.beginner = "uygulama parçalarını bağlayan kodu derleme sırasında üreten bir araç."
+tr.builder = "Go için derleme zamanında bağımlılık enjeksiyonu kodu üreten bir araç."
+
+[[tech]]
+id = "golang-jwt"
+name = "golang-jwt"
+category = "auth"
+go = ["github.com/golang-jwt/jwt"]
+en.beginner = "a library that creates and checks login tokens for users."
+en.builder = "a Go library for creating, signing and verifying JSON Web Tokens (JWT)."
+tr.beginner = "kullanıcılar için giriş belirteçleri (token) oluşturan ve doğrulayan bir kütüphane."
+tr.builder = "JSON Web Token (JWT) oluşturmak, imzalamak ve doğrulamak için bir Go kütüphanesi."
+
+[[tech]]
+id = "validator-go"
+name = "validator"
+category = "validation"
+go = ["github.com/go-playground/validator"]
+en.beginner = "a library that checks that input data follows rules, such as a valid email."
+en.builder = "a struct-tag based Go validation library for checking fields, values and nested data."
+tr.beginner = "girilen verilerin e-posta gibi kurallara uyup uymadığını kontrol eden bir kütüphane."
+tr.builder = "Go yapılarındaki alanları etiketlere (struct tag) göre doğrulayan bir kütüphane."
+
+[[tech]]
+id = "uuid-go"
+name = "google/uuid"
+category = "other"
+go = ["github.com/google/uuid"]
+en.beginner = "a helper that creates unique ID codes for records and requests."
+en.builder = "a Go library for generating and parsing RFC 4122 UUIDs."
+tr.beginner = "kayıtlar ve istekler için benzersiz kimlik kodları üreten bir yardımcı."
+tr.builder = "Go için RFC 4122 standardında UUID üreten ve ayrıştıran bir kütüphane."
+
+[[tech]]
+id = "godotenv"
+name = "godotenv"
+category = "build"
+go = ["github.com/joho/godotenv"]
+en.beginner = "a helper that loads secret settings from a .env file into the app."
+en.builder = "a Go library that loads environment variables from a .env file."
+tr.beginner = "gizli ayarları bir .env dosyasından uygulamaya yükleyen bir yardımcı."
+tr.builder = "ortam değişkenlerini bir .env dosyasından yükleyen bir Go kütüphanesi."
+
+[[tech]]
+id = "envconfig"
+name = "envconfig"
+category = "build"
+go = ["github.com/kelseyhightower/envconfig"]
+en.beginner = "a helper that fills app settings from environment variables."
+en.builder = "a Go library that maps environment variables into struct fields."
+tr.beginner = "uygulama ayarlarını ortam değişkenlerinden dolduran bir yardımcı."
+tr.builder = "ortam değişkenlerini Go yapılarındaki alanlara eşleyen bir kütüphane."
+
+[[tech]]
+id = "go-x-crypto"
+name = "x/crypto"
+category = "auth"
+go = ["golang.org/x/crypto"]
+en.beginner = "a set of security tools for passwords, hashing and encryption in Go."
+en.builder = "Go's extended cryptography package, with bcrypt, scrypt, argon2 and SSH support."
+tr.beginner = "Go'da şifre, özetleme ve şifreleme için bir güvenlik araç seti."
+tr.builder = "Go'nun genişletilmiş kriptografi paketi; bcrypt, scrypt, argon2 ve SSH desteği içerir."
+
+[[tech]]
+id = "go-x-oauth2"
+name = "x/oauth2"
+category = "auth"
+go = ["golang.org/x/oauth2"]
+en.beginner = "a helper that lets users log in with other services, such as Google."
+en.builder = "Go's OAuth 2.0 client library for fetching and refreshing access tokens."
+tr.beginner = "kullanıcıların Google gibi başka hizmetlerle giriş yapmasını sağlayan bir yardımcı."
+tr.builder = "Go için OAuth 2.0 istemci kütüphanesi; erişim belirteçlerini alır ve yeniler."
+
+[[tech]]
+id = "go-x-sync"
+name = "x/sync"
+category = "other"
+go = ["golang.org/x/sync"]
+en.beginner = "a helper that runs several tasks at once and waits for them safely."
+en.builder = "Go's extended concurrency tools, including the errgroup and semaphore packages."
+tr.beginner = "birden çok işi aynı anda çalıştırıp güvenle bekleyen bir yardımcı."
+tr.builder = "Go'nun eşzamanlılık araçları; errgroup ve semaphore gibi paketleri içerir."
+
+[[tech]]
+id = "go-x-net"
+name = "x/net"
+category = "other"
+go = ["golang.org/x/net"]
+en.beginner = "a set of extra network tools, such as HTTP and HTML helpers."
+en.builder = "Go's supplementary networking packages, including HTTP/2 and HTML parsing."
+tr.beginner = "ek ağ araçları içeren bir kütüphane; HTTP ve HTML işlemlerine yardımcı olur."
+tr.builder = "Go'nun ek ağ paketleri; HTTP/2 ve HTML ayrıştırma gibi işlevleri içerir."
+
+[[tech]]
+id = "go-x-text"
+name = "x/text"
+category = "other"
+go = ["golang.org/x/text"]
+en.beginner = "a helper for handling text in many languages and character sets."
+en.builder = "Go's text packages, covering Unicode, character encodings, language tags and collation."
+tr.beginner = "birçok dilde ve karakter kümesinde metin işlemeye yardımcı bir kütüphane."
+tr.builder = "Go'nun metin paketleri; Unicode, karakter kodlamaları, dil etiketleri ve sıralama sağlar."
+
+[[tech]]
+id = "go-x-time"
+name = "x/time"
+category = "other"
+go = ["golang.org/x/time"]
+en.beginner = "a helper that limits how often code can run, such as API calls per second."
+en.builder = "Go's extended time package, including the rate package for rate limiting."
+tr.beginner = "bir kodun saniyede kaç kez çalışacağını sınırlayan bir yardımcı, örneğin API istekleri için."
+tr.builder = "Go'nun ek zaman paketi; hız sınırlama (rate limiting) için rate alt paketini içerir."
+
+[[tech]]
+id = "nats"
+name = "NATS"
+category = "data"
+go = ["github.com/nats-io/nats.go"]
+en.beginner = "a messaging system that passes messages between parts of an app."
+en.builder = "a Go client for NATS, a lightweight publish-subscribe messaging server."
+tr.beginner = "uygulamanın parçaları arasında mesaj gönderen bir mesajlaşma sistemi."
+tr.builder = "NATS için Go istemcisi; hafif bir yayınla-abone-ol mesajlaşma sunucusudur."
+
+[[tech]]
+id = "grpc-gateway"
+name = "grpc-gateway"
+category = "framework"
+go = ["github.com/grpc-ecosystem/grpc-gateway"]
+en.beginner = "a tool that lets a fast internal service also answer normal web (REST) requests."
+en.builder = "a protoc plugin that generates a reverse proxy turning REST/JSON calls into gRPC calls."
+tr.beginner = "hızlı bir iç servisin normal web (REST) isteklerine de cevap vermesini sağlayan bir araç."
+tr.builder = "REST/JSON isteklerini gRPC çağrılarına çeviren ters vekil (reverse proxy) kodu üreten bir protoc eklentisi."
+
+[[tech]]
+id = "swag-go"
+name = "swag"
+category = "other"
+go = ["github.com/swaggo/swag"]
+en.beginner = "a tool that builds API documentation from comments in your Go code."
+en.builder = "a generator that creates Swagger/OpenAPI docs from Go annotations and comments."
+tr.beginner = "Go kodundaki yorumlardan API belgelendirmesi üreten bir araç."
+tr.builder = "Go kodundaki açıklama satırlarından Swagger/OpenAPI belgeleri üreten bir araç."
+
+[[tech]]
+id = "bubbletea"
+name = "Bubble Tea"
+category = "ui"
+go = ["github.com/charmbracelet/bubbletea"]
+en.beginner = "a library for building interactive text-based screens in the terminal."
+en.builder = "a Go framework for terminal user interfaces, based on the Elm architecture."
+tr.beginner = "terminalde etkileşimli, yazı tabanlı ekranlar yapmayı sağlayan bir kütüphane."
+tr.builder = "Elm mimarisine dayanan, Go için terminal kullanıcı arayüzü (TUI) çatısı."
+
+[[tech]]
+id = "lipgloss"
+name = "Lip Gloss"
+category = "ui"
+go = ["github.com/charmbracelet/lipgloss"]
+en.beginner = "a helper that adds colors, borders and layout to terminal text."
+en.builder = "a Go styling library for terminal output with colors, borders and layouts."
+tr.beginner = "terminal yazılarına renk, kenarlık ve düzen ekleyen bir yardımcı."
+tr.builder = "terminal çıktıları için renk, kenarlık ve yerleşim sağlayan bir Go stil kütüphanesi."
+
+[[tech]]
+id = "color-go"
+name = "fatih/color"
+category = "other"
+go = ["github.com/fatih/color"]
+en.beginner = "a helper that prints colored text in the terminal."
+en.builder = "a Go library for colored terminal output with simple functions and attributes."
+tr.beginner = "terminalde renkli yazılar yazdıran bir yardımcı."
+tr.builder = "Go için, renkli terminal çıktısı üreten basit fonksiyonlar içeren bir kütüphane."
+
+[[tech]]
+id = "pkg-errors"
+name = "pkg/errors"
+category = "other"
+go = ["github.com/pkg/errors"]
+en.beginner = "a helper that adds context and a stack trace to Go error messages."
+en.builder = "a Go package for wrapping errors with extra context and stack traces."
+tr.beginner = "Go hata mesajlarına ek bilgi ve çağrı izi ekleyen bir yardımcı."
+tr.builder = "hataları ek mesajlar ve çağrı izleriyle saran bir Go paketi."
+
+[[tech]]
+id = "lo-go"
+name = "lo"
+category = "other"
+go = ["github.com/samber/lo"]
+en.beginner = "a helper with ready-made functions for working with lists and maps in Go."
+en.builder = "a Lodash-style utility library for Go, built on generics, for slices, maps and more."
+tr.beginner = "Go'da listeler ve haritalar (map) ile çalışmak için hazır fonksiyonlar sunan bir yardımcı."
+tr.builder = "Go jenerikleri üzerine kurulu, Lodash tarzı bir yardımcı fonksiyon kütüphanesi."
+
+[[tech]]
+id = "mapstructure"
+name = "mapstructure"
+category = "other"
+go = ["github.com/mitchellh/mapstructure"]
+en.beginner = "a helper that copies data from loose maps into Go struct fields."
+en.builder = "a Go library that decodes generic map values into typed structs."
+tr.beginner = "gevşek veri haritalarındaki değerleri Go yapılarının alanlarına kopyalayan bir yardımcı."
+tr.builder = "genel map değerlerini tür tanımlı Go yapılarına çözümleyen bir Go kütüphanesi."
+
+[[tech]]
+id = "yaml-go"
+name = "YAML for Go"
+category = "other"
+go = ["gopkg.in/yaml.v3"]
+en.beginner = "a helper that reads and writes YAML config files in Go."
+en.builder = "a Go library for encoding and decoding YAML documents, the v3 API."
+tr.beginner = "Go'da YAML ayar dosyalarını okuyan ve yazan bir yardımcı."
+tr.builder = "Go için YAML belgelerini kodlayıp çözen, 3. sürüm bir kütüphane."
+
+[[tech]]
+id = "toml-go"
+name = "BurntSushi/toml"
+category = "other"
+go = ["github.com/BurntSushi/toml"]
+en.beginner = "a helper that reads and writes TOML settings files in Go."
+en.builder = "a Go library for decoding TOML configuration files into structs."
+tr.beginner = "Go'da TOML ayar dosyalarını okuyan ve yazan bir yardımcı."
+tr.builder = "TOML yapılandırma dosyalarını Go yapılarına çeviren bir kütüphane."
+
+[[tech]]
+id = "go-toml"
+name = "go-toml"
+category = "other"
+go = ["github.com/pelletier/go-toml"]
+en.beginner = "a helper for reading and editing TOML settings files in Go."
+en.builder = "a Go TOML library with a tree-based API for reading, editing and writing TOML documents."
+tr.beginner = "Go'da TOML ayar dosyalarını okuyup düzenleyen bir yardımcı."
+tr.builder = "TOML belgelerini okumak, düzenlemek ve yazmak için ağaç tabanlı bir Go kütüphanesi."
+
+[[tech]]
+id = "gjson"
+name = "gjson"
+category = "other"
+go = ["github.com/tidwall/gjson"]
+en.beginner = "a fast helper that reads single values from JSON text without fully parsing it."
+en.builder = "a Go library that queries JSON with path expressions, returning values quickly."
+tr.beginner = "JSON metninden tek bir değeri, tümünü ayrıştırmadan hızlıca okuyan bir yardımcı."
+tr.builder = "JSON'u yol ifadeleriyle sorgulayan, hızlı bir Go kütüphanesi."
+
+[[tech]]
+id = "go-json"
+name = "go-json"
+category = "other"
+go = ["github.com/goccy/go-json"]
+en.beginner = "a faster drop-in replacement for Go's built-in JSON reading and writing."
+en.builder = "a high-speed Go JSON encoder and decoder compatible with encoding/json."
+tr.beginner = "Go'nun hazır JSON okuma ve yazma işlemlerinin yerine geçebilen, daha hızlı bir kütüphane."
+tr.builder = "encoding/json ile uyumlu, yüksek hızlı bir Go JSON kodlayıcı ve çözücü."
+
+[[tech]]
+id = "go-resty"
+name = "Resty"
+category = "other"
+go = ["github.com/go-resty/resty"]
+en.beginner = "a helper that makes web requests to other services with less code."
+en.builder = "a Go HTTP client library with retries, timeouts and simple request chaining."
+tr.beginner = "diğer servislere web istekleri göndermeyi daha az kodla yapmayı sağlayan bir yardımcı."
+tr.builder = "Go için yeniden deneme, zaman aşımı ve kolay istek zincirleme sunan bir HTTP istemcisi."
+
+[[tech]]
+id = "kubernetes-go"
+name = "Kubernetes Go client"
+category = "deploy"
+go = ["k8s.io/client-go", "k8s.io/apimachinery"]
+en.beginner = "a library that lets a Go program read and change Kubernetes clusters."
+en.builder = "the official Go client for the Kubernetes API, with its core API types and shared machinery."
+tr.beginner = "Go programının Kubernetes kümelerini okumasını ve değiştirmesini sağlayan bir kütüphane."
+tr.builder = "Kubernetes API'si için resmi Go istemcisi; temel API tipleri ve ortak araçları içerir."
+
+[[tech]]
+id = "controller-runtime"
+name = "controller-runtime"
+category = "deploy"
+go = ["sigs.k8s.io/controller-runtime"]
+en.beginner = "a toolkit for writing programs that keep Kubernetes resources in the desired state."
+en.builder = "a Go framework for building Kubernetes controllers and operators with reconcile loops."
+tr.beginner = "Kubernetes kaynaklarını istenen durumda tutan programlar yazmak için bir araç seti."
+tr.builder = "Kubernetes kontrolcüleri ve operatörleri yazmak için, uzlaştırma döngülü bir Go çatısı."
+
+[[tech]]
+id = "robfig-cron"
+name = "robfig/cron"
+category = "other"
+go = ["github.com/robfig/cron"]
+en.beginner = "a helper that runs Go functions on a schedule, such as every night."
+en.builder = "a cron-style job scheduler for Go, with cron expressions and time zones."
+tr.beginner = "Go fonksiyonlarını her gece gibi belirli zamanlarda çalıştıran bir yardımcı."
+tr.builder = "cron ifadeleri ve saat dilimleriyle çalışan, Go için bir görev zamanlayıcı."
+
+[[tech]]
+id = "gocron"
+name = "gocron"
+category = "other"
+go = ["github.com/go-co-op/gocron"]
+en.beginner = "a helper that runs Go tasks at set times or at fixed intervals."
+en.builder = "a Go job scheduler supporting fixed intervals and daily or cron-style times."
+tr.beginner = "Go görevlerini belirli saatlerde veya düzenli aralıklarla çalıştıran bir yardımcı."
+tr.builder = "Go için sabit aralıklı ve cron tarzı zamanlamalar sunan bir görev zamanlayıcı."
+
+[[tech]]
+id = "asynq"
+name = "Asynq"
+category = "data"
+go = ["github.com/hibiken/asynq"]
+en.beginner = "a job queue that runs slow tasks, such as sending emails, in the background."
+en.builder = "a Go task queue library that stores jobs in Redis and runs them with workers."
+tr.beginner = "e-posta gönderme gibi yavaş işleri arka planda sıraya alıp çalıştıran bir araç."
+tr.builder = "işleri Redis'te saklayıp işçi süreçlerle çalıştıran bir Go görev kuyruğu kütüphanesi."
+
+[[tech]]
+id = "coder-websocket"
+name = "coder/websocket"
+category = "other"
+go = ["github.com/coder/websocket"]
+en.beginner = "a library for live two-way connections between a web server and a browser."
+en.builder = "a minimal, idiomatic Go WebSocket library, the maintained successor to nhooyr.io/websocket."
+tr.beginner = "web sunucusu ile tarayıcı arasında canlı, iki yönlü bağlantılar için bir kütüphane."
+tr.builder = "Go için sade bir WebSocket kütüphanesi; nhooyr.io/websocket'in devamıdır."
+
+[[tech]]
+id = "templ"
+name = "templ"
+category = "ui"
+go = ["github.com/a-h/templ"]
+en.beginner = "a tool that writes web page parts in Go using a simple template language."
+en.builder = "a Go HTML templating language that compiles typed components into fast Go code."
+tr.beginner = "Go ile sayfa parçalarını basit bir şablon diliyle yazmayı sağlayan bir araç."
+tr.builder = "tür tanımlı bileşenleri hızlı Go koduna derleyen bir HTML şablon dili."
+
+[[tech]]
+id = "gqlgen"
+name = "gqlgen"
+category = "framework"
+go = ["github.com/99designs/gqlgen"]
+en.beginner = "a tool that builds a GraphQL web API for Go from a schema file."
+en.builder = "a schema-first GraphQL server library for Go that generates resolver code."
+tr.beginner = "bir şema dosyasından Go için GraphQL web API'si oluşturan bir araç."
+tr.builder = "şema öncelikli bir GraphQL sunucu kütüphanesi; çözücü (resolver) kodunu üretir."
+
+[[tech]]
+id = "goth"
+name = "Goth"
+category = "auth"
+go = ["github.com/markbates/goth"]
+en.beginner = "a helper that lets users log in with services like Google or GitHub."
+en.builder = "a Go library for social login with many OAuth providers, such as Google and GitHub."
+tr.beginner = "kullanıcıların Google veya GitHub gibi hizmetlerle giriş yapmasını sağlayan bir yardımcı."
+tr.builder = "birçok sağlayıcı için OAuth girişi sunan bir Go kütüphanesi."
+
+[[tech]]
+id = "casbin-go"
+name = "Casbin"
+category = "auth"
+go = ["github.com/casbin/casbin"]
+en.beginner = "a tool that decides who may do what in an app, using simple rules."
+en.builder = "an access control library for Go supporting RBAC, ABAC and policy files."
+tr.beginner = "uygulamada kimin neyi yapabileceğini basit kurallarla belirleyen bir araç."
+tr.builder = "Go için RBAC, ABAC ve politika dosyalarını destekleyen bir erişim kontrol kütüphanesi."
+
+[[tech]]
+id = "minio-go"
+name = "minio-go"
+category = "other"
+go = ["github.com/minio/minio-go"]
+en.beginner = "a helper that stores and fetches files in MinIO or Amazon S3-style storage."
+en.builder = "a Go client for MinIO and other S3-compatible object storage services."
+tr.beginner = "MinIO veya Amazon S3 benzeri depolama alanında dosya kaydeden ve getiren bir yardımcı."
+tr.builder = "MinIO ve S3 uyumlu diğer nesne depolama hizmetleri için bir Go istemcisi."
+
+[[tech]]
+id = "decimal-go"
+name = "decimal"
+category = "other"
+go = ["github.com/shopspring/decimal"]
+en.beginner = "a helper for exact money and decimal math without rounding surprises."
+en.builder = "an arbitrary-precision fixed-point decimal library for Go, useful for money values."
+tr.beginner = "para gibi değerlerde yuvarlama hatası olmadan kesin ondalık hesap yapan bir yardımcı."
+tr.builder = "para değerleri için kullanılan, keyfi hassasiyetli sabit noktalı bir Go ondalık kütüphanesi."
+
+[[tech]]
+id = "backoff-go"
+name = "backoff"
+category = "other"
+go = ["github.com/cenkalti/backoff"]
+en.beginner = "a helper that retries a failed task, waiting a little longer each time."
+en.builder = "a Go library implementing exponential backoff retry logic for failing operations."
+tr.beginner = "başarısız olan bir işi, her denemede biraz daha uzun bekleyerek yeniden deneyen bir yardımcı."
+tr.builder = "başarısız işlemler için üstel geri çekilme (exponential backoff) ile yeniden deneme yapan bir Go kütüphanesi."
+
+[[tech]]
+id = "go-cache"
+name = "go-cache"
+category = "data"
+go = ["github.com/patrickmn/go-cache"]
+en.beginner = "a simple in-memory cache that keeps values for a set time."
+en.builder = "a thread-safe in-memory key-value cache for Go with expiration and cleanup."
+tr.beginner = "değerleri belirli bir süre bellekte tutan basit bir önbellek."
+tr.builder = "Go için, süre sonu ve temizleme desteği olan, bellek içi bir anahtar-değer önbelleği."
+
+[[tech]]
+id = "badger-go"
+name = "Badger"
+category = "data"
+go = ["github.com/dgraph-io/badger"]
+en.beginner = "a fast database that stores data in files on your computer, written in Go."
+en.builder = "an embedded key-value database for Go, designed for SSD speed, without a separate server."
+tr.beginner = "verileri bilgisayardaki dosyalarda tutan, Go ile yazılmış hızlı bir veritabanı."
+tr.builder = "ayrı sunucu gerektirmeyen, gömülü bir Go anahtar-değer veritabanı."
+
+[[tech]]
+id = "bbolt"
+name = "bbolt"
+category = "data"
+go = ["go.etcd.io/bbolt"]
+en.beginner = "a small database that stores data in a single file, written in Go."
+en.builder = "an embedded, transactional key-value store for Go, a maintained fork of Bolt."
+tr.beginner = "verileri tek bir dosyada tutan küçük, Go ile yazılmış bir veritabanı."
+tr.builder = "Bolt'un etcd tarafından sürdürülen bir çatalı; gömülü, işlemli bir Go anahtar-değer deposu."
