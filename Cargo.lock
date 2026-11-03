@@ -1474,6 +1474,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hm-tech"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "http"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
