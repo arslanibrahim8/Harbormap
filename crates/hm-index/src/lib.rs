@@ -8,6 +8,7 @@ pub mod lang;
 pub mod location;
 pub mod manifest;
 pub mod query;
+pub mod routes;
 #[doc(hidden)]
 pub mod synth;
 pub mod ts;
