@@ -74,7 +74,7 @@ Also pinned: workspace packages of the project itself are not technologies (Task
 ### Task 1: `hm-tech` crate — model, names, catalog loading and lookups (sonnet)
 
 **Files:**
-- Create: `crates/hm-tech/Cargo.toml`, `src/lib.rs`, `src/model.rs`, `src/names.rs`, `src/catalog.rs`, `tests/catalog.rs`
+- Create: `crates/hm-tech/Cargo.toml`, `src/lib.rs`, `src/model.rs`, `src/names.rs`, `src/catalog.rs`, `tests/catalog.rs`, `tests/pack.rs`
 - Create (header comment only, filled by Task 6): `packs/tech/languages.toml`, `shared.toml`, `npm-web.toml`, `npm-data.toml`, `npm-tooling.toml`, `npm-other.toml`, `pypi.toml`, `go.toml`, `maven.toml`, `nuget.toml`, `crates.toml`, `files.toml`
 
 **Interfaces:**
@@ -158,7 +158,8 @@ Tests and their assertions:
 - `languages_resolve`: `language("tsx")` → `typescript`; `language("kotlin")` → `None`.
 - `builtins_and_specifiers`: `is_builtin(Npm, "fs")`, `is_builtin(Npm, "node:test")`, `is_builtin(Go, "net/http")` true; `is_builtin(Go, "github.com/x/y")` false; `is_package_specifier(Npm, "@/lib")`, `"~/x"`, `"#db"`, `"astro:content"`, `"./a"` all false.
 - `broken_entries_are_skipped_with_a_reason`: one pack with a bad id (`"Bad Id"`), a 19-word EN Beginner line, a TR line equal to EN, a duplicate key `react` in a second tech, `*` in the middle of a key, a `[[config]]` pointing at `nope`, a tech with no keys, and an unknown field `npmm`: each yields one warning naming the id or file and reason; the valid entries still load.
-- `embedded_pack_loads`: `Catalog::embedded()` does not panic (warnings are checked in Task 7).
+- `embedded_pack_loads`: `Catalog::embedded()` does not panic (warnings are checked in Task 7). An empty pack file is not a warning.
+- In `crates/hm-tech/tests/pack.rs`: `each_pack_file_is_valid_on_its_own`: for each `PACK_FILES` entry, `Catalog::load(&[entry])` has no warnings except ones containing `unknown tech id` or `has nothing that matches it` (Task 6 writers run it; Task 7 adds the rest of this file).
 
 - [ ] **Step 2: Run** `~/.cargo/bin/cargo test -p hm-tech --test catalog` → FAIL (crate missing).
 - [ ] **Step 3: Implement** the crate per the Interfaces and rules above. `Cargo.toml` copies `hm-index/Cargo.toml`'s `workspace = true` fields; description `"Harbormap Learn technologies: catalog pack, lookups and the technologies list"`. Do not add `hm-tech` to the root `Cargo.toml` (members are `crates/*`; no crate depends on it yet). Create the 12 pack files with only their header line.
@@ -290,7 +291,7 @@ impl RootList { pub fn shown(&self, level: Level) -> Shown<'_>; }
 
 Layout: title line; per group a category label line at column 0; each item line indented 2; each evidence line indented 4; Beginner prints only Language, Imported, NotDeclared, NotImported lines; Builder prints all; `+N more` on its own line after the last group when `more > 0`; roots separated by one blank line; output ends with `\n`. `<line>` is `tech.text(locale, level)`; unknown items use "no description yet".
 
-- [ ] **Step 1: Write failing tests** in `tests/render.rs` (inline catalog from Task 3's style; build a list with Next.js imported in 2 files, an unknown `left-pad` declared not imported, 13 filler techs):
+- [ ] **Step 1: Write failing tests** in `tests/render.rs` (inline catalog from Task 3's style; build a list with Next.js imported in 2 files, an unknown `left-pad` declared not imported, 12 filler techs `t01`…`t12`, so Beginner shows Next.js and 11 fillers and hides one filler and `left-pad`):
   - `beginner_turkish_golden`: the full expected string for `Level::Beginner, Locale::Tr`, including `Çatı (framework)`, `  Next.js: <tr beginner line>`, `    2 dosyada içe aktarılıyor`, and `+2 tane daha`.
   - `builder_english_golden`: full string with `declared: package.json:12 · next ^15.0.0 (resolved 15.0.3)` and `declared: package.json:30 · left-pad ^1.3.0 · dev`.
   - `singular_file_counts`: `imported in 1 file`, `used in 1 file`.
@@ -323,7 +324,7 @@ Each batch owns exactly one pack file and touches nothing else. It runs in its o
 - Category guide: **language** languages and runtimes · **framework** app and server frameworks that shape the project · **ui** components, styling, icons, charts, animation, client state, forms · **data** databases and drivers, ORMs, query builders, migrations, caches, queues, data fetching · **auth** login, sessions, tokens, password hashing, crypto, security headers, sanitising · **validation** schema and input validation · **testing** runners, assertions, mocks, browser automation, fake data · **build** compilers, bundlers, linters, formatters, task runners, type definitions, env loaders · **deploy** containers, cloud SDKs, hosting CLIs, infra as code, monitoring and error tracking · **other** everything else (HTTP clients, dates, logging, CLI helpers, email, payments, AI SDKs, files).
 - Lines read after `"<Name>: "`, start lowercase unless the first word is a proper name, end with `.`. **Beginner** says what it does for the project in everyday words (no "ORM", "SSR", "middleware", "runtime", "hook" unexplained), e.g. `a library that turns code into database queries.` **Builder** says what it is technically and its main job. Turkish: plain, natural Turkish a beginner understands (`kütüphane`, `veritabanı`, `sunucu`, `tarayıcı`, `sayfa`, `test` are fine; avoid untranslated jargon), e.g. `kodu veritabanı sorgularına çeviren bir kütüphane.`
 - Only packages you are sure of, as they are published (exact registry spelling). If unsure what it does, leave it out. Do not define ids owned by another batch (table below); if a package of yours belongs to one, list it in your report under "cross-ecosystem keys" instead. Ids: npm batches use the bare name (`zod`); batches 6f–6j use the bare name only when it is clearly unique to their ecosystem (`django`, `gin`, `lombok`), and `<name>-<py|go|java|dotnet|rs>` for generic names that other ecosystems also use (`bcrypt-py`, `uuid-rs`, `validator-rs`). The whole-pack test catches any clash left; the controller renames.
-- Run `cargo test -p hm-tech --test pack each_pack_file_is_valid_on_its_own` (Task 7 adds it; until then `cargo test -p hm-tech` plus a scratch test calling `Catalog::load(&[(<file>, include_str!(…))])` and printing warnings other than `unknown tech id` / `has nothing that matches`). Zero warnings for your file. Commit `feat(pack): add <file> technologies`.
+- Run `~/.cargo/bin/cargo test -p hm-tech --test pack each_pack_file_is_valid_on_its_own` (added by Task 1). Zero warnings for your file. Commit `feat(pack): add <file> technologies`.
 
 **Verifier rules (sonnet, per batch, same worktree):** run `python3 -I scripts/tech/registry_check.py packs/tech/<file>`; for every entry check (a) each key exists with that spelling (MISSING → remove, unless it is a valid Go segment prefix), (b) the four lines match the upstream description/README (open the README with WebFetch for anything not obvious), (c) category per the guide, (d) Turkish is correct and plain, (e) no key belongs to another batch. Fix in place, remove anything unsure, commit `fix(pack): verify <file> against the registries`, and report: entries kept, removed (with reason), rewritten.
 
@@ -351,10 +352,9 @@ Each batch owns exactly one pack file and touches nothing else. It runs in its o
 
 ### Task 7: Whole-pack checks on the real catalog (sonnet; after Task 6)
 
-**Files:** Create `crates/hm-tech/tests/pack.rs`; Modify pack files only to fix what these tests reveal.
+**Files:** Modify `crates/hm-tech/tests/pack.rs` (Task 1 created it with the first test); Modify pack files only to fix what these tests reveal.
 
 - [ ] **Step 1: Write tests:**
-  - `each_pack_file_is_valid_on_its_own`: for each `PACK_FILES` entry, `Catalog::load(&[entry])` has no warnings except `unknown tech id` and `has nothing that matches it`.
   - `embedded_pack_has_no_warnings`: `Catalog::embedded().warnings()` is empty (print them on failure).
   - `pack_size_floors`: `key_count` ≥ npm 270, pypi 100, go 65, maven 50, nuget 35, crates 55 (the "quality beats count" floor; a lower number needs a ruling).
   - `real_lookups`: npm `@radix-ui/react-dialog` → `radix-ui`; npm `react-dom` → `react`; npm `@types/node` → `type-definitions`; npm `next` → `nextjs`; pypi `Django` → a tech named `Django`; go `github.com/jackc/pgx/v5` → `postgresql`; go `gorm.io/driver/postgres` → the GORM tech; maven `org.springframework.boot:spring-boot-starter-web` → `spring-boot`; maven `org.springframework.boot:spring-boot-starter-security` → `spring-security`; nuget `microsoft.entityframeworkcore.sqlserver` → `sqlserver`; crates `serde_json` → a tech named `serde_json`; config `apps/web/next.config.ts` → `nextjs`; image `postgres:16-alpine` → `postgresql`; language `tsx` → `typescript`; npm `left-pad` → `None`.
