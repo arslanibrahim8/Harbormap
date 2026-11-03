@@ -674,3 +674,30 @@
 | L3 / S4 technologies | `query::manifests`, `query::dependencies(root)`, `query::external_imports`, `query::import_counts(root)` |
 | S2 panel | `query::routes_for_file(file_id)` → `RouteRow.label` for badges |
 | L2b languages | `route` table and `route_id`; `client_call` rows already stored for TS clients; the same rule-id style (`py.fastapi.route`, …) |
+
+---
+
+## Results (Task 14, 2026-11-04)
+
+**Eval** (`HARBORMAP_EVAL_DIR=<scratch>/eval cargo test -p hm-index --test eval_l2a -- --ignored`, both green; `eval_l1` still green). Repositories at the commits pinned in `tests/eval/repos.toml`; one cold pass each.
+
+| | next-learn `dashboard/final-example` | fastapi-template `frontend` |
+|---|---|---|
+| Routes by kind | 16: `page` 7, `http` 2 (`GET /query`, `GET /seed`), `server_action` 5, `middleware` 1, `main` 1 (`START start`) | 0 (TanStack Router file routes are not a rule) |
+| Client calls / matched | 0 / 0 | 23 / 0 (all `ts.client.request_helper` in `src/client/sdk.gen.ts`; the backend is Python, L2b) |
+| Manifests / dependencies | 1 / 19, lockfile `pnpm-lock.yaml` (`next` `latest` → `16.0.10`) | 1 / 46, no lockfile in the subfolder (`axios` `1.20.0`, unresolved) |
+| Patterns | 34: `orm_read` 19, `env_read` 5, `caching` 3, `validation` 3, `password_hash` 2, `token_session` 2; gaps 0 | 11 `env_read`; gaps 0 |
+| Inferred edges | 9 `ts.next.middleware` (every page and route → `proxy.ts`), 3 `ts.next.action.state`, 4 `ts.next.action.form` | none: every named `mutationFn` is a function declared inside its component or hook (no edge by design) |
+| Refs by status | external 172, builtin 48, local 53, unresolved 34 | external 830, local 819, builtin 117, unresolved 92 |
+
+Found by the eval and fixed: the middleware matcher was stored as its source spelling (`.*\\.png`); it is now the string's value (`.*\.png`), as Next.js reads it (`ts/web/next.rs`, test `matcher_strings_are_their_values_not_their_source_spelling`). The fifth server action is the inline `'use server'` sign-out form in `app/ui/dashboard/sidenav.tsx` (owned by `SideNav`), a server action by the Next.js rules. The generated SDK's `(options.client ?? client).post({ url: … })` is already read as a request helper: a receiver that is not a plain name falls through to the `url:` rule.
+
+**Latency** (`cargo run --release -p hm-index --example latency -- --files 1000 --saves 200 --seed 7 --max-p95-body-ms 300 --max-p95-sig-ms 500 --max-cold-ms 2000 --branch-switch 300`, Apple M4, three runs, all exit 0):
+
+| Run | cold | body p50 | body p95 | sig p50 | sig p95 | branch switch |
+|---|---|---|---|---|---|---|
+| 1 | 240.5 ms | 119.8 ms | 125.1 ms | 121.3 ms | 129.0 ms | 474.5 ms |
+| 2 | 236.4 ms | 119.0 ms | 124.1 ms | 120.5 ms | 127.0 ms | 541.4 ms |
+| 3 | 230.6 ms | 119.4 ms | 121.5 ms | 120.6 ms | 126.7 ms | 542.3 ms |
+
+Both targets hold per 1k files: cold ≤ 2 s (worst 240.5 ms), body-only p95 ≤ 300 ms (worst 125.1 ms); signature p95 ≤ 500 ms (worst 129.0 ms).
