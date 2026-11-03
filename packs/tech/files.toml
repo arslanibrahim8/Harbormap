@@ -220,6 +220,7 @@ tr.builder = "Elasticsearch'ten türetilmiş, açık kaynaklı bir arama ve anal
 id = "keycloak"
 name = "Keycloak"
 category = "auth"
+maven = ["org.keycloak:*"]
 en.beginner = "a login server that handles sign-in, user accounts and single sign-on for your apps."
 en.builder = "an open-source identity and access management server supporting OAuth 2.0, OpenID Connect and SAML."
 tr.beginner = "uygulamalarınız için oturum açma, kullanıcı hesapları ve tek oturum açma işlerini yürüten bir sunucu."

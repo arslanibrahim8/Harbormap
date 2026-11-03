@@ -33,7 +33,7 @@ tr.builder = "Entity Framework Core üzerinden kullanıcıları, rolleri ve şif
 [[tech]]
 id = "blazor"
 name = "Blazor"
-category = "ui"
+category = "framework"
 nuget = ["Microsoft.AspNetCore.Components.*"]
 en.beginner = "a way to build interactive web pages using C# instead of JavaScript."
 en.builder = "Microsoft's component framework for interactive web UIs, running on the server or in the browser via WebAssembly."
