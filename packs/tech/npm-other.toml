@@ -58,7 +58,7 @@ npm = ["moment"]
 en.beginner = "a long-used library for dates and times, now in maintenance mode."
 en.builder = "a legacy date library for parsing, formatting and manipulating dates; its maintainers suggest newer options such as Luxon, Day.js or date-fns."
 tr.beginner = "eskiden çok kullanılan, artık yalnızca bakımı yapılan bir tarih ve saat kütüphanesi."
-tr.builder = "tarihleri ayrıştırmak, biçimlendirmek ve değiştirmek için eski bir kütüphane; geliştiricileri Luxon, Day.js ya da date-fns gibi yeni seçenekleri öneriyor."
+tr.builder = "tarihleri ayrıştırmak, biçimlendirmek ve değiştirmek için eski bir kütüphane; yazarları Luxon, Day.js ya da date-fns gibi yeni seçenekleri öneriyor."
 
 [[tech]]
 id = "luxon"
@@ -167,7 +167,7 @@ category = "other"
 npm = ["pino"]
 en.beginner = "a fast logger that writes application logs as structured JSON lines."
 en.builder = "a very fast Node.js logger that writes newline-delimited JSON, with low overhead and separate output targets."
-tr.beginner = "uygulama günlüklerini yapılandırılmış JSON satırları olarak yazan hızlı bir günlükleyici."
+tr.beginner = "uygulama günlüklerini yapılandırılmış JSON satırları olarak yazan hızlı bir günlük kaydedici."
 tr.builder = "satır satır JSON yazan, çok hızlı bir Node.js günlük kütüphanesi; düşük yük getirir ve ayrı çıktı hedefleri sunar."
 
 [[tech]]
@@ -256,9 +256,9 @@ name = "Vercel AI SDK"
 category = "other"
 npm = ["ai", "@ai-sdk/*"]
 en.beginner = "a library that connects your app to AI models and streams their answers."
-en.builder = "the Vercel AI SDK, a TypeScript toolkit for calling language models, streaming responses and building chat and tool-using features."
+en.builder = "a TypeScript toolkit from Vercel for calling language models, streaming responses and building chat and tool-using features."
 tr.beginner = "uygulamanızı yapay zekâ modellerine bağlayan ve cevaplarını akış halinde gösteren bir kütüphane."
-tr.builder = "dil modellerini çağırmak, yanıtları akış halinde iletmek ve sohbet özellikleri kurmak için bir TypeScript araç takımı; Vercel tarafından geliştirilir."
+tr.builder = "dil modellerini çağırmak, yanıtları akış halinde iletmek ve sohbet özellikleri kurmak için Vercel tarafından geliştirilen bir TypeScript araç takımı."
 
 [[tech]]
 id = "rxjs"
@@ -366,9 +366,9 @@ name = "SheetJS"
 category = "other"
 npm = ["xlsx"]
 en.beginner = "a library that reads and writes Excel spreadsheet files."
-en.builder = "the SheetJS library for parsing and writing XLSX and other spreadsheet formats, such as CSV and ODS."
+en.builder = "a library for parsing and writing XLSX and other spreadsheet formats, such as CSV and ODS; the npm release is old, newer versions come from sheetjs.com."
 tr.beginner = "Excel tablo dosyalarını okuyan ve yazan bir kütüphane."
-tr.builder = "XLSX ile CSV ve ODS gibi tablo biçimlerini okuyup yazan SheetJS kütüphanesi."
+tr.builder = "XLSX ile CSV ve ODS gibi tablo biçimlerini okuyup yazan bir kütüphane; npm sürümü eski, yeni sürümler sheetjs.com adresinden geliyor."
 
 [[tech]]
 id = "papaparse"
@@ -456,9 +456,9 @@ name = "Contentlayer"
 category = "other"
 npm = ["contentlayer"]
 en.beginner = "a tool that turns Markdown and other content files into typed data for a site."
-en.builder = "a content layer that validates Markdown or MDX files against a schema and generates typed data for web projects."
+en.builder = "a content layer that validates Markdown or MDX files against a schema and generates typed data for web projects; it has had no release since 2023."
 tr.beginner = "Markdown ve benzeri içerik dosyalarını bir site için türü belli verilere çeviren bir araç."
-tr.builder = "Markdown ya da MDX dosyalarını bir şemaya göre doğrulayıp web projeleri için türü belli veri üreten bir içerik katmanı."
+tr.builder = "Markdown ya da MDX dosyalarını bir şemaya göre doğrulayıp web projeleri için türü belli veri üreten bir içerik katmanı; 2023'ten beri yeni sürümü çıkmadı."
 
 [[tech]]
 id = "sanity"
@@ -558,7 +558,7 @@ npm = ["qrcode"]
 en.beginner = "a library that creates QR code images from text or links."
 en.builder = "a JavaScript QR code generator that draws to canvas, SVG or data URLs, in browsers and Node.js."
 tr.beginner = "metin ya da bağlantılardan QR kod görseli üreten bir kütüphane."
-tr.builder = "tarayıcı ve Node.js'te QR kodu canvas, SVG ya da veri adresi olarak üreten bir paket."
+tr.builder = "tarayıcı ve Node.js'te QR kodu canvas, SVG ya da data URL olarak üreten bir paket."
 
 [[tech]]
 id = "mime"
@@ -588,7 +588,7 @@ npm = ["fs-extra"]
 en.beginner = "a library that adds easy copy, move and delete options to Node's file tools."
 en.builder = "a drop-in extension of Node's built-in fs module that adds promise support and recursive copy, move and remove."
 tr.beginner = "Node'un dosya araçlarına kolay kopyalama, taşıma ve silme işlemleri ekleyen bir kütüphane."
-tr.builder = "Node'un yerleşik fs modülünü genişleten; Promise desteği ve özyinelemeli kopyalama, taşıma ve silme işlemleri sunan bir paket."
+tr.builder = "Node'un yerleşik fs modülünü genişleten; Promise desteği ve alt klasörleri de kapsayan kopyalama, taşıma ve silme işlemleri sunan bir paket."
 
 [[tech]]
 id = "chokidar"
@@ -656,9 +656,9 @@ name = "qs"
 category = "other"
 npm = ["qs"]
 en.beginner = "a library that reads and writes the key=value part of a web address."
-en.builder = "a query string parser that supports nested objects and arrays; Express uses it to read request queries."
+en.builder = "a query string parser that supports nested objects and arrays; Express relies on it for extended parsing."
 tr.beginner = "web adresinin anahtar=değer kısmını okuyan ve yazan bir kütüphane."
-tr.builder = "iç içe nesne ve dizileri destekleyen bir sorgu dizesi ayrıştırıcı; Express istek sorgularını çözmek için kullanır."
+tr.builder = "iç içe nesne ve dizileri destekleyen bir sorgu dizesi ayrıştırıcı; Express genişletilmiş ayrıştırma için bunu kullanır."
 
 [[tech]]
 id = "query-string"
