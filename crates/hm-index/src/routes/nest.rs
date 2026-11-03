@@ -7,12 +7,16 @@
 //!   `exclude` option is a documented limit);
 //! - <https://docs.nestjs.com/guards> (`@UseGuards(G)` on a method or its controller);
 //! - <https://docs.nestjs.com/providers> (constructor-based injection).
+//!
+//! A path written as a template with `${…}` cannot be known: the controller or method is
+//! skipped with a note. The guard edges start from the routes `derive` kept, found again by
+//! their file and line, so a route dropped as a duplicate lends no guard to the kept one.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use hm_core::ids::file_id;
 
-use super::express::path_pattern;
+use super::express::{is_literal, path_pattern};
 use super::{Derived, Ids, InferredEdge, Inputs, Route, route};
 use crate::facts::{ArgFact, FileFacts, Owner, SymbolKind};
 use crate::ts::resolve::{Project, binding_package, resolve_callee};
@@ -29,18 +33,11 @@ const VERBS: [(&str, &str); 8] = [
     ("All", "ANY"),
 ];
 
-/// A route with the controller method that handles it.
-struct Handled {
-    route: Route,
-    class: String,
-    method: String,
-}
-
 /// The routes of `@Controller` classes.
 pub(crate) fn routes(inputs: &Inputs, out: &mut Derived) {
     let mut ids = Ids::new(inputs.project);
-    let (handled, notes) = controller_routes(inputs, &mut ids);
-    out.routes.extend(handled.into_iter().map(|h| h.route));
+    let (found, notes) = controller_routes(inputs, &mut ids);
+    out.routes.extend(found);
     out.notes.extend(notes);
 }
 
@@ -49,8 +46,22 @@ pub(crate) fn routes(inputs: &Inputs, out: &mut Derived) {
 pub(crate) fn before_edges(inputs: &Inputs, out: &mut Derived) {
     let project = inputs.project;
     let mut ids = Ids::new(project);
-    let (handled, _) = controller_routes(inputs, &mut ids);
-    let kept: BTreeSet<&str> = out.routes.iter().map(|r| r.id.as_str()).collect();
+    // `(route id, file, class, method)` of every kept controller route: its method
+    // decorator is the one on the route's line with the route's verb.
+    let mut handled: Vec<(&str, &str, &str, &str)> = Vec::new();
+    for r in out.routes.iter().filter(|r| r.rule == "ts.nest.route") {
+        let Some(facts) = project.facts.get(&r.file) else {
+            continue;
+        };
+        let decorator = facts.web.decorators.iter().find(|d| {
+            d.line == r.line
+                && !d.target.0.is_empty()
+                && verb_of(project, &r.file, &d.name) == Some(r.method.as_str())
+        });
+        if let Some(d) = decorator {
+            handled.push((&r.id, &r.file, &d.target.0, &d.target.1));
+        }
+    }
     let mut edges = BTreeSet::new();
     for (rel, facts) in project.facts {
         for d in &facts.web.decorators {
@@ -69,15 +80,12 @@ pub(crate) fn before_edges(inputs: &Inputs, out: &mut Derived) {
                 let Some(guard) = named_class(project, &mut ids, rel, name) else {
                     continue;
                 };
-                for h in handled.iter().filter(|h| {
-                    h.route.file == *rel
-                        && h.class == *class
-                        && method.is_none_or(|m| *m == h.method)
-                        && kept.contains(h.route.id.as_str())
+                for (id, _, _, _) in handled.iter().filter(|(_, file, c, m)| {
+                    file == rel && c == class && method.is_none_or(|method| method == m)
                 }) {
                     edges.insert(InferredEdge {
                         kind: "calls".to_string(),
-                        src_id: h.route.id.clone(),
+                        src_id: id.to_string(),
                         dst_id: guard.clone(),
                         file: rel.clone(),
                         line: d.line,
@@ -100,6 +108,15 @@ fn nest_name(project: &Project, rel: &str, decorator: &str) -> Option<String> {
     }
 }
 
+/// The verb of a method decorator from `@nestjs/common` (`ANY` for `All`).
+fn verb_of(project: &Project, rel: &str, decorator: &str) -> Option<&'static str> {
+    let name = nest_name(project, rel, decorator)?;
+    VERBS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, verb)| *verb)
+}
+
 /// The id of the class that `name` (`Guard` or `ns.Guard`) names from `rel`.
 fn named_class(project: &Project, ids: &mut Ids, rel: &str, name: &str) -> Option<String> {
     let (receiver, callee) = match name.rsplit_once('.') {
@@ -112,21 +129,23 @@ fn named_class(project: &Project, ids: &mut Ids, rel: &str, name: &str) -> Optio
 }
 
 /// The path a `@Controller` or method decorator gives: none, a string, or the `path` of
-/// an options object; `None` when it cannot be read (an array, a variable).
+/// an options object; `None` when it cannot be read (an array, a variable, a template with
+/// `${…}`).
 fn decorator_path(args: &[ArgFact]) -> Option<String> {
     match args.first() {
         None => Some(String::new()),
-        Some(ArgFact::Str(path)) => Some(path.clone()),
-        Some(ArgFact::Object { path }) => Some(path.clone().unwrap_or_default()),
+        Some(ArgFact::Str(path)) => is_literal(path).then(|| path.clone()),
+        Some(ArgFact::Object { path: Some(path) }) => is_literal(path).then(|| path.clone()),
+        Some(ArgFact::Object { path: None }) => Some(String::new()),
         Some(_) => None,
     }
 }
 
 /// Every controller route of the tree, and the notes.
-fn controller_routes(inputs: &Inputs, ids: &mut Ids) -> (Vec<Handled>, Vec<String>) {
+fn controller_routes(inputs: &Inputs, ids: &mut Ids) -> (Vec<Route>, Vec<String>) {
     let project = inputs.project;
     let (prefixes, mut notes) = global_prefixes(inputs);
-    let mut handled = Vec::new();
+    let mut found = Vec::new();
     for (rel, facts) in project.facts {
         let root = inputs
             .manifests
@@ -151,10 +170,7 @@ fn controller_routes(inputs: &Inputs, ids: &mut Ids) -> (Vec<Handled>, Vec<Strin
                 continue;
             };
             for d in facts.web.decorators.iter().filter(|d| d.target.0 == *class) {
-                let Some(verb) = nest_name(project, rel, &d.name)
-                    .and_then(|n| VERBS.iter().find(|(name, _)| *name == n))
-                    .map(|(_, verb)| *verb)
-                else {
+                let Some(verb) = verb_of(project, rel, &d.name) else {
                     continue;
                 };
                 let method = &d.target.1;
@@ -167,20 +183,15 @@ fn controller_routes(inputs: &Inputs, ids: &mut Ids) -> (Vec<Handled>, Vec<Strin
                     continue;
                 };
                 let pattern = path_pattern(&[prefix, &class_path, &method_path]);
-                let route = Route {
+                found.push(Route {
                     handler_id: method_symbol(facts, class, method)
                         .and_then(|i| ids.symbol(rel, i)),
                     ..route(root, "http", verb, &pattern, rel, d.line, "ts.nest.route")
-                };
-                handled.push(Handled {
-                    route,
-                    class: class.clone(),
-                    method: method.clone(),
                 });
             }
         }
     }
-    (handled, notes)
+    (found, notes)
 }
 
 /// The index of the one method `name` of `class` in `facts`.

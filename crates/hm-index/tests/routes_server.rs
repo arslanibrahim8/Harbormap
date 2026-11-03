@@ -316,36 +316,318 @@ function show() {}
     );
 }
 
+/// The routers `a` and `b` mount each other, and `b` mounts `c`; `first` and `second`
+/// are the two bindings in the order the file declares them.
+fn cycle_tree(first: &str, second: &str) -> tempfile::TempDir {
+    let text = format!(
+        "import {{ Router }} from 'express';
+const {first} = Router();
+const {second} = Router();
+const c = Router();
+a.use('/b', b);
+b.use('/a', a);
+b.use('/c', c);
+a.get('/ra', h);
+b.get('/rb', h);
+c.get('/rc', h);
+function h() {{}}
+"
+    );
+    tree(&[("package.json", EXPRESS_PACKAGE), ("src/r.ts", &text)])
+}
+
 #[test]
 fn a_mount_cycle_keeps_the_paths_with_a_note() {
-    // Two routers mounted on each other are reachable from no app: the paths are kept
-    // without a prefix, and the walk ends.
+    // Two routers mounted on each other are reachable from no app: each keeps its own paths
+    // (the cycle adds no prefix), what they mount outside the cycle is joined below them,
+    // and the result does not depend on which router the file declares first.
+    let want: BTreeSet<_> = [
+        shape("GET", "/ra"),
+        shape("GET", "/rb"),
+        shape("GET", "/c/rc"),
+    ]
+    .into_iter()
+    .collect();
+    for (first, second, a_line, b_line) in [("a", "b", 2, 3), ("b", "a", 3, 2)] {
+        let dir = cycle_tree(first, second);
+        let d = derive_tree(dir.path());
+        assert_eq!(shapes(&d), want, "{first} first");
+        assert!(
+            d.routes
+                .iter()
+                .all(|r| r.detail.as_deref() == Some(r#"{"mounted":false}"#)),
+            "{:#?}",
+            d.routes
+        );
+        let (first_line, list) = if a_line < b_line {
+            (
+                a_line,
+                format!("`a` (src/r.ts:{a_line}), `b` (src/r.ts:{b_line})"),
+            )
+        } else {
+            (
+                b_line,
+                format!("`b` (src/r.ts:{b_line}), `a` (src/r.ts:{a_line})"),
+            )
+        };
+        assert_eq!(
+            d.notes,
+            vec![format!(
+                "src/r.ts:{first_line}: a mount cycle through {list}; their paths are kept \
+                 without the prefixes of the cycle"
+            )]
+        );
+    }
+}
+
+#[test]
+fn a_router_more_than_five_mounts_deep_keeps_its_paths() {
     let dir = tree(&[
         ("package.json", EXPRESS_PACKAGE),
         (
-            "src/r.ts",
-            "import { Router } from 'express';
-const a = Router();
-const b = Router();
-a.use('/b', b);
-b.use('/a', a);
-b.get('/x', h);
+            "src/app.ts",
+            "import express, { Router } from 'express';
+const app = express();
+const r1 = Router();
+const r2 = Router();
+const r3 = Router();
+const r4 = Router();
+const r5 = Router();
+const r6 = Router();
+app.use('/1', r1);
+r1.use('/2', r2);
+r2.use('/3', r3);
+r3.use('/4', r4);
+r4.use('/5', r5);
+r5.use('/6', r6);
+r5.get('/five', h);
+r6.get('/six', h);
 function h() {}
 ",
         ),
     ]);
     let d = derive_tree(dir.path());
-    assert_eq!(shapes(&d), [shape("GET", "/x")].into_iter().collect());
+    let want: BTreeSet<_> = [shape("GET", "/1/2/3/4/5/five"), shape("GET", "/six")]
+        .into_iter()
+        .collect();
+    assert_eq!(shapes(&d), want);
+    assert_eq!(find(&d, "GET", "/1/2/3/4/5/five").detail, None);
     assert_eq!(
-        find(&d, "GET", "/x").detail.as_deref(),
+        find(&d, "GET", "/six").detail.as_deref(),
         Some(r#"{"mounted":false}"#)
     );
     assert_eq!(
         d.notes,
         vec![
-            "src/r.ts:3: router `b` is mounted only through a cycle or more than 5 mounts \
-             deep; its paths are kept without a prefix"
+            "src/app.ts:8: router `r6` is mounted more than 5 mounts deep; its paths are \
+             kept without a prefix"
                 .to_string()
+        ]
+    );
+}
+
+#[test]
+fn a_dropped_express_route_lends_no_edges_to_the_kept_one() {
+    // The second `GET /health` is dropped as a duplicate; its `guard` callback must not
+    // become an edge from the first one.
+    let dir = tree(&[
+        ("package.json", EXPRESS_PACKAGE),
+        (
+            "src/app.ts",
+            "import express from 'express';
+const app = express();
+app.get('/health', health);
+app.get('/health', guard, health2);
+function health() {}
+function health2() {}
+function guard() {}
+",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    assert_eq!(find(&d, "GET", "/health").line, 3);
+    assert!(
+        route_edges(&d, "ts.express.use").is_empty(),
+        "{:#?}",
+        d.edges
+    );
+    assert_eq!(
+        d.notes,
+        vec!["src/app.ts:4: GET /health is also declared at src/app.ts:3".to_string()]
+    );
+}
+
+#[test]
+fn template_paths_are_not_read() {
+    // `${…}` makes a path that cannot be known statically: a mount with one is not joined,
+    // a `use` with one gives no edge, a route with one is not a route.
+    let dir = tree(&[
+        ("package.json", EXPRESS_PACKAGE),
+        (
+            "src/app.ts",
+            "import express from 'express';
+import { items } from './items';
+import { audit } from './audit';
+const BASE = '/v1';
+const app = express();
+app.use(`${BASE}/api`, items);
+app.use(`${BASE}`, audit);
+app.get(`/t/${BASE}`, h);
+app.get('/ok', h);
+function h() {}
+",
+        ),
+        (
+            "src/items.ts",
+            "import { Router } from 'express';
+export const items = Router();
+items.get('/items', show);
+function show() {}
+",
+        ),
+        ("src/audit.ts", "export function audit() {}\n"),
+    ]);
+    let d = derive_tree(dir.path());
+    let want: BTreeSet<_> = [shape("GET", "/items"), shape("GET", "/ok")]
+        .into_iter()
+        .collect();
+    assert_eq!(shapes(&d), want);
+    assert_eq!(
+        find(&d, "GET", "/items").detail.as_deref(),
+        Some(r#"{"mounted":false}"#)
+    );
+    assert!(
+        route_edges(&d, "ts.express.use").is_empty(),
+        "{:#?}",
+        d.edges
+    );
+    assert_eq!(
+        d.notes,
+        vec![
+            "src/app.ts:6: the mount path of `items` is not a literal; it is not joined"
+                .to_string()
+        ]
+    );
+}
+
+#[test]
+fn an_export_list_router_and_a_later_use() {
+    // `export { router }`; a `use` declared after the mount does not run before the mounted
+    // routes (https://expressjs.com/en/5x/api/router/: middleware runs in declaration order).
+    let dir = tree(&[
+        ("package.json", EXPRESS_PACKAGE),
+        (
+            "src/app.ts",
+            "import express from 'express';
+import { router } from './r';
+import { early, late } from './mw';
+const app = express();
+app.use(early);
+app.use('/r', router);
+app.use(late);
+app.get('/after', h);
+function h() {}
+",
+        ),
+        (
+            "src/r.ts",
+            "import { Router } from 'express';
+const router = Router();
+router.get('/x', h);
+function h() {}
+export { router };
+",
+        ),
+        (
+            "src/mw.ts",
+            "export function early() {}\nexport function late() {}\n",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    let want: BTreeSet<_> = [shape("GET", "/r/x"), shape("GET", "/after")]
+        .into_iter()
+        .collect();
+    assert_eq!(shapes(&d), want);
+    let early = symbol_in(dir.path(), "src/mw.ts", "", "early");
+    let late = symbol_in(dir.path(), "src/mw.ts", "", "late");
+    let want: BTreeSet<(String, String)> = [
+        ("GET /r/x", &early),
+        ("GET /after", &early),
+        ("GET /after", &late),
+    ]
+    .into_iter()
+    .map(|(r, dst)| (r.to_string(), dst.clone()))
+    .collect();
+    assert_eq!(route_edges(&d, "ts.express.use"), want);
+}
+
+const NEST_PACKAGE: &str =
+    "{\"dependencies\": {\"@nestjs/common\": \"11.0.0\", \"@nestjs/core\": \"11.0.0\"}}\n";
+
+#[test]
+fn a_dropped_nest_route_lends_no_guard_to_the_kept_one() {
+    let controller = |class: &str, guard: &str| {
+        format!(
+            "import {{ Controller, Get, UseGuards }} from '@nestjs/common';
+class GuardB {{}}
+@Controller('orders')
+export class {class} {{
+  {guard}
+  @Get()
+  list() {{}}
+}}
+"
+        )
+    };
+    let dir = tree(&[
+        ("package.json", NEST_PACKAGE),
+        ("src/a.controller.ts", &controller("AController", "")),
+        (
+            "src/b.controller.ts",
+            &controller("BController", "@UseGuards(GuardB)"),
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    assert_eq!(find(&d, "GET", "/orders").file, "src/a.controller.ts");
+    assert!(
+        route_edges(&d, "ts.nest.guard").is_empty(),
+        "{:#?}",
+        d.edges
+    );
+}
+
+#[test]
+fn nest_template_paths_are_not_read() {
+    let dir = tree(&[
+        ("package.json", NEST_PACKAGE),
+        (
+            "src/c.controller.ts",
+            "import { Controller, Get } from '@nestjs/common';
+const P = 'v1';
+@Controller(`${P}/orders`)
+export class Orders {
+  @Get()
+  list() {}
+}
+@Controller('ok')
+export class Ok {
+  @Get(`${P}`)
+  a() {}
+  @Get()
+  b() {}
+}
+",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    assert_eq!(shapes(&d), [shape("GET", "/ok")].into_iter().collect());
+    assert_eq!(
+        d.notes,
+        vec![
+            "src/c.controller.ts:10: the path of `Ok.a` is not a string; it is skipped".to_string(),
+            "src/c.controller.ts:3: the path of controller `Orders` is not a string; its \
+             routes are skipped"
+                .to_string(),
         ]
     );
 }

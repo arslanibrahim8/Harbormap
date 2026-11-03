@@ -11,9 +11,18 @@
 //! - <https://expressjs.com/en/5x/api.html#router> (`use([path,] fn…)`: the path defaults
 //!   to `/` and matches its sub-paths; middleware runs in the order it is declared).
 //!
-//! `app.route('/x').get(…)` chains, regular-expression and array paths, routers exported
-//! with `module.exports` or through a re-export, and receivers bound in another file are
-//! documented limits.
+//! A path written as a template with `${…}` cannot be known: such a mount is not joined
+//! (with a note), such a `use` gives no edge and such a route call is not a route.
+//!
+//! Documented limits:
+//! - `app.route('/x').get(…)` chains, regular-expression and array paths;
+//! - routers exported with `module.exports` or through a re-export, mounted through a
+//!   namespace import (`app.use('/x', ns.router)`), and receivers bound in another file;
+//! - no scope tracking: a parameter that shadows a module-level receiver
+//!   (`function mount(app) { app.get(…) }`) is taken for that receiver;
+//! - Express 5 optional literal parts are approximated by dropping their braces
+//!   (`/user{s}` → `/users`), and a wildcard inside a segment (Nest's `ab*cd`) becomes a
+//!   catch-all there (`ab{...}cd`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -95,6 +104,8 @@ struct Graph {
     declared: Vec<Declared>,
     mounts: Vec<Mount>,
     uses: Vec<Use>,
+    /// Mounts whose path could not be read.
+    notes: Vec<String>,
 }
 
 /// An emitted route with the instance it came from.
@@ -117,12 +128,18 @@ pub(crate) fn before_edges(inputs: &Inputs, out: &mut Derived) {
     let mut ids = Ids::new(inputs.project);
     let graph = graph(inputs.project, &mut ids);
     let (emitted, _) = emit(inputs, &graph);
-    let kept: BTreeSet<&str> = out.routes.iter().map(|r| r.id.as_str()).collect();
-    let mut edges = BTreeSet::new();
-    for e in emitted
+    // A route dropped as a duplicate shares its id with the kept one; only the kept
+    // declaration (same file and line) lends its edges.
+    let kept: BTreeSet<(&str, &str, u32)> = out
+        .routes
         .iter()
-        .filter(|e| kept.contains(e.route.id.as_str()))
-    {
+        .map(|r| (r.id.as_str(), r.file.as_str(), r.line))
+        .collect();
+    let mut edges = BTreeSet::new();
+    for e in emitted.iter().filter(|e| {
+        let r = &e.route;
+        kept.contains(&(r.id.as_str(), r.file.as_str(), r.line))
+    }) {
         let declared = &graph.declared[e.instance.declared];
         for f in &declared.before {
             edges.insert(edge(&e.route.id, f, &declared.file, declared.line));
@@ -292,6 +309,7 @@ fn graph(project: &Project, ids: &mut Ids) -> Graph {
         declared: Vec::new(),
         mounts: Vec::new(),
         uses: Vec::new(),
+        notes: Vec::new(),
     };
     for (rel, facts) in project.facts {
         for c in &facts.web.route_calls {
@@ -303,12 +321,24 @@ fn graph(project: &Project, ids: &mut Ids) -> Graph {
                     Some(ArgFact::Str(path)) => (Some(path.clone()), 1),
                     _ => (None, 0),
                 };
+                let readable = path.as_deref().is_none_or(is_literal);
                 for (i, arg) in c.args.iter().enumerate().skip(first) {
                     let ArgFact::Name(name) = arg else {
                         continue;
                     };
                     let key = (c.line, i);
-                    if let Some(child) = router_node(project, &index, facts, rel, &c.owner, name) {
+                    let router = router_node(project, &index, facts, rel, &c.owner, name);
+                    if !readable {
+                        if router.is_some() {
+                            graph.notes.push(format!(
+                                "{rel}:{}: the mount path of `{name}` is not a literal; it is \
+                                 not joined",
+                                c.line
+                            ));
+                        }
+                        continue;
+                    }
+                    if let Some(child) = router {
                         graph.mounts.push(Mount {
                             parent: node,
                             prefix: path.clone().unwrap_or_default(),
@@ -334,7 +364,7 @@ fn graph(project: &Project, ids: &mut Ids) -> Graph {
             let (Some(ArgFact::Str(path)), Some(last)) = (c.args.first(), c.args.last()) else {
                 continue;
             };
-            if c.args.len() < 2 {
+            if c.args.len() < 2 || !is_literal(path) {
                 continue;
             }
             let before = c.args[1..c.args.len() - 1]
@@ -358,47 +388,64 @@ fn graph(project: &Project, ids: &mut Ids) -> Graph {
     graph
 }
 
+/// Whether a `Str` path is a literal: a template with `${…}` (spelt `{}`) is not.
+pub(super) fn is_literal(path: &str) -> bool {
+    !path.contains("{}")
+}
+
 /// Every declared route through every chain of mounts from an app, and the notes.
 fn emit(inputs: &Inputs, graph: &Graph) -> (Vec<Emitted>, Vec<String>) {
     let mounted: BTreeSet<usize> = graph.mounts.iter().map(|m| m.child).collect();
     let mut instances = Vec::new();
     let mut reached = BTreeSet::new();
     for root in (0..graph.nodes.len()).filter(|n| !mounted.contains(n)) {
+        let app = graph.bound[root].1;
+        let mut visiting = vec![root];
         descend(
             graph,
             root,
+            app,
             &mut Vec::new(),
-            &mut vec![root],
+            &mut visiting,
             &mut instances,
             &mut reached,
         );
     }
-    // A router reached only through a cycle or through more than five mounts keeps its
-    // own paths, as if it were not mounted.
-    let mut notes = Vec::new();
-    for node in 0..graph.nodes.len() {
-        if reached.contains(&node) || !graph.declared.iter().any(|d| d.node == node) {
-            continue;
+    // What no app reaches is mounted only through a cycle or more than five mounts deep.
+    // Each group of the unreached part that nothing else unreached mounts (a cycle, or one
+    // router) is walked from every one of its routers, never through the group again, so
+    // the result does not depend on the order of the files.
+    let mut notes = graph.notes.clone();
+    loop {
+        let unreached: BTreeSet<usize> = (0..graph.nodes.len())
+            .filter(|n| !reached.contains(n))
+            .collect();
+        if unreached.is_empty() {
+            break;
         }
-        let (file, _, name) = &graph.nodes[node];
-        notes.push(format!(
-            "{file}:{}: router `{name}` is mounted only through a cycle or more than \
-             {MAX_MOUNTS} mounts deep; its paths are kept without a prefix",
-            graph.bound[node].0
-        ));
-        descend(
-            graph,
-            node,
-            &mut Vec::new(),
-            &mut vec![node],
-            &mut instances,
-            &mut reached,
-        );
+        for group in source_groups(graph, &unreached) {
+            let before = instances.len();
+            for &start in &group {
+                let mut visiting = group.clone();
+                descend(
+                    graph,
+                    start,
+                    false,
+                    &mut Vec::new(),
+                    &mut visiting,
+                    &mut instances,
+                    &mut reached,
+                );
+            }
+            if instances.len() > before {
+                notes.push(fallback_note(graph, &group));
+            }
+        }
     }
 
     let emitted = instances
         .into_iter()
-        .map(|(root, instance)| {
+        .map(|(mounted, instance)| {
             let d = &graph.declared[instance.declared];
             let paths: Vec<&str> = instance.hops.iter().map(|h| h.path.as_str()).collect();
             let pattern = path_pattern(&paths);
@@ -406,7 +453,7 @@ fn emit(inputs: &Inputs, graph: &Graph) -> (Vec<Emitted>, Vec<String>) {
                 .manifests
                 .root_of(&d.file)
                 .map_or("", |m| m.root.as_str());
-            let detail = (!graph.bound[root].1).then(|| r#"{"mounted":false}"#.to_string());
+            let detail = (!mounted).then(|| r#"{"mounted":false}"#.to_string());
             let route = Route {
                 handler_id: d.handler_id.clone(),
                 conf: "probably".to_string(),
@@ -428,17 +475,18 @@ fn emit(inputs: &Inputs, graph: &Graph) -> (Vec<Emitted>, Vec<String>) {
 }
 
 /// Emits the routes of `node` and of the routers mounted on it, `chain` being the mounts
-/// from the root down to `node`.
+/// from the root down to `node`, never entering a router of `visiting`. `mounted` says
+/// whether the root is an app.
 fn descend(
     graph: &Graph,
     node: usize,
+    mounted: bool,
     chain: &mut Vec<Hop>,
     visiting: &mut Vec<usize>,
-    out: &mut Vec<(usize, Instance)>,
+    out: &mut Vec<(bool, Instance)>,
     reached: &mut BTreeSet<usize>,
 ) {
     reached.insert(node);
-    let root = visiting[0];
     for (i, d) in graph
         .declared
         .iter()
@@ -451,7 +499,7 @@ fn descend(
             key: (d.line, 0),
             path: d.path.clone(),
         });
-        out.push((root, Instance { declared: i, hops }));
+        out.push((mounted, Instance { declared: i, hops }));
     }
     if chain.len() >= MAX_MOUNTS {
         return;
@@ -468,9 +516,79 @@ fn descend(
             path: m.prefix.clone(),
         });
         visiting.push(m.child);
-        descend(graph, m.child, chain, visiting, out, reached);
+        descend(graph, m.child, mounted, chain, visiting, out, reached);
         visiting.pop();
         chain.pop();
+    }
+}
+
+/// The groups of `unreached` that no other unreached router mounts: each is a cycle (its
+/// routers mount one another) or one router. In node order.
+fn source_groups(graph: &Graph, unreached: &BTreeSet<usize>) -> Vec<Vec<usize>> {
+    let inner: Vec<&Mount> = graph
+        .mounts
+        .iter()
+        .filter(|m| unreached.contains(&m.parent) && unreached.contains(&m.child))
+        .collect();
+    // What each unreached router reaches through unreached routers, itself included.
+    let reach: BTreeMap<usize, BTreeSet<usize>> = unreached
+        .iter()
+        .map(|&from| {
+            let mut seen = BTreeSet::from([from]);
+            let mut todo = vec![from];
+            while let Some(n) = todo.pop() {
+                for m in inner.iter().filter(|m| m.parent == n) {
+                    if seen.insert(m.child) {
+                        todo.push(m.child);
+                    }
+                }
+            }
+            (from, seen)
+        })
+        .collect();
+    let mut groups: BTreeSet<Vec<usize>> = BTreeSet::new();
+    for &n in unreached {
+        let group: Vec<usize> = reach[&n]
+            .iter()
+            .copied()
+            .filter(|m| reach[m].contains(&n))
+            .collect();
+        let entered = inner
+            .iter()
+            .any(|m| group.contains(&m.child) && !group.contains(&m.parent));
+        if !entered {
+            groups.insert(group);
+        }
+    }
+    groups.into_iter().collect()
+}
+
+/// The note for a group walked without an app: a cycle names every router in it.
+fn fallback_note(graph: &Graph, group: &[usize]) -> String {
+    let at = |n: usize| format!("{}:{}", graph.nodes[n].0, graph.bound[n].0);
+    let cycle = group.len() > 1
+        || graph
+            .mounts
+            .iter()
+            .any(|m| m.parent == group[0] && m.child == group[0]);
+    if cycle {
+        let list: Vec<String> = group
+            .iter()
+            .map(|&n| format!("`{}` ({})", graph.nodes[n].2, at(n)))
+            .collect();
+        format!(
+            "{}: a mount cycle through {}; their paths are kept without the prefixes of the \
+             cycle",
+            at(group[0]),
+            list.join(", ")
+        )
+    } else {
+        format!(
+            "{}: router `{}` is mounted more than {MAX_MOUNTS} mounts deep; its paths are \
+             kept without a prefix",
+            at(group[0]),
+            graph.nodes[group[0]].2
+        )
     }
 }
 
