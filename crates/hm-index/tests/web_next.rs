@@ -259,3 +259,51 @@ fn matcher_forms_are_read_in_source_order() {
     assert!(m("export const other = { matcher: '/a' }").is_none());
     assert!(m("export const config = { matcher: PATHS }").is_none());
 }
+
+#[test]
+fn a_directive_function_is_named_by_a_binding_not_by_a_property_key() {
+    let f = tsx("export function Shop() {\n\
+         \x20 const save = async () => { 'use server' }\n\
+         \x20 const actions = { run: async () => { 'use server' } }\n\
+         \x20 return null\n\
+         }\n");
+    let got: Vec<_> = f
+        .web
+        .directives
+        .iter()
+        .map(|d| (d.function.clone().unwrap(), d.line))
+        .collect();
+    assert_eq!(got, [("save".to_string(), 2), (String::new(), 3)]);
+}
+
+#[test]
+fn array_pattern_holes_keep_their_slot() {
+    let f = tsx("export function A() {\n\
+         \x20 const [s, , pending] = useActionState(f, null)\n\
+         \x20 const [, act] = useActionState(g, null)\n\
+         \x20 const [, , third] = useFormState(h, null)\n\
+         }\n");
+    let got: Vec<_> = f
+        .web
+        .aliases
+        .iter()
+        .map(|a| (a.local.as_str(), a.target.as_str()))
+        .collect();
+    assert_eq!(got, [("act", "g")]);
+}
+
+#[test]
+fn a_hashbang_line_is_not_code_before_a_directive() {
+    let f = hm_index::ts::extract(
+        "#!/usr/bin/env node\n'use server'\nexport const a = 1",
+        Lang::JavaScript,
+    );
+    assert_eq!(f.web.directives.len(), 1, "{:?}", f.web.directives);
+    assert_eq!(f.web.directives[0].line, 2);
+}
+
+#[test]
+fn an_optional_chain_action_is_other() {
+    let f = tsx("export function A({ actions }) { return <form action={actions?.save} /> }");
+    assert_eq!(f.web.forms[0].action, Some(ArgFact::Other));
+}

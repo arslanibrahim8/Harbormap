@@ -126,7 +126,7 @@ fn prologue(
 ) {
     let mut cursor = parent.walk();
     for stmt in parent.named_children(&mut cursor) {
-        if stmt.kind() == "comment" {
+        if matches!(stmt.kind(), "comment" | "hash_bang_line") {
             continue;
         }
         let literal = (stmt.kind() == "expression_statement")
@@ -164,22 +164,16 @@ fn function_directives(f: Node, src: &[u8], spans: &[Span], out: &mut Vec<(usize
 }
 
 /// The name of function node `f`: its own, or the one JavaScript gives it from the
-/// variable or property it is assigned to; `""` for an anonymous function.
+/// variable it is assigned to; `""` for an anonymous function. A property key is not a
+/// binding in scope, so `{ run: async () => {} }` stays anonymous.
 fn function_name(f: Node, src: &[u8]) -> String {
     if let Some(name) = f.child_by_field_name("name") {
         return text(name, src).to_string();
     }
-    let Some(parent) = f.parent() else {
-        return String::new();
-    };
-    let (holder, key) = match parent.kind() {
-        "variable_declarator" => (parent, "name"),
-        "pair" => (parent, "key"),
-        _ => return String::new(),
-    };
-    holder
-        .child_by_field_name(key)
-        .filter(|n| matches!(n.kind(), "identifier" | "property_identifier"))
+    f.parent()
+        .filter(|p| p.kind() == "variable_declarator")
+        .and_then(|p| p.child_by_field_name("name"))
+        .filter(|n| n.kind() == "identifier")
         .map_or_else(String::new, |n| text(n, src).to_string())
 }
 
@@ -220,7 +214,7 @@ fn alias(decl: Node, src: &[u8], spans: &[Span]) -> Option<AliasFact> {
             if !ACTION_HOOKS.contains(&hook) {
                 return None;
             }
-            let local = lhs.named_child(1).filter(|n| n.kind() == "identifier")?;
+            let local = pattern_slot(lhs, 1).filter(|n| n.kind() == "identifier")?;
             let first = call
                 .child_by_field_name("arguments")?
                 .named_child(0)
@@ -236,6 +230,21 @@ fn alias(decl: Node, src: &[u8], spans: &[Span]) -> Option<AliasFact> {
         via: via.to_string(),
         line: line_of(decl),
     })
+}
+
+/// The element of array pattern `pattern` at `slot`, counting holes: tree-sitter leaves
+/// them out of the named children, so the commas are counted instead.
+fn pattern_slot(pattern: Node, slot: usize) -> Option<Node> {
+    let mut at = 0;
+    let mut cursor = pattern.walk();
+    for child in pattern.children(&mut cursor) {
+        if child.kind() == "," {
+            at += 1;
+        } else if child.is_named() && child.kind() != "comment" && at == slot {
+            return Some(child);
+        }
+    }
+    None
 }
 
 /// A `<form>` element, or a `<button>` / `<input>` that has a `formAction`.
@@ -318,8 +327,14 @@ fn is_name_path(node: Node) -> bool {
     match node.kind() {
         "identifier" => true,
         "member_expression" => {
-            node.child_by_field_name("property")
-                .is_some_and(|p| p.kind() == "property_identifier")
+            let mut cursor = node.walk();
+            let optional = node
+                .children(&mut cursor)
+                .any(|c| c.kind() == "optional_chain");
+            !optional
+                && node
+                    .child_by_field_name("property")
+                    .is_some_and(|p| p.kind() == "property_identifier")
                 && node.child_by_field_name("object").is_some_and(is_name_path)
         }
         _ => false,
