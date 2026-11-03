@@ -10,5 +10,6 @@ pub mod query;
 #[doc(hidden)]
 pub mod synth;
 pub mod ts;
+pub mod view;
 pub mod walk;
 pub mod watch;
