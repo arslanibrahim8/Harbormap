@@ -57,6 +57,14 @@ def fetch_json(url):
     return json.loads(fetch(url))
 
 
+def with_canonical(key, canonical, desc):
+    """Prefix the description when the registry's canonical name differs from the key."""
+    canonical = clean(canonical)
+    if canonical and canonical != key:
+        return f"canonical name: {canonical} · {desc}" if desc else f"canonical name: {canonical}"
+    return desc
+
+
 def check_npm(name):
     data = fetch_json("https://registry.npmjs.org/" + name.replace("/", "%2F") + "/latest")
     return "OK", clean(data.get("description"))
@@ -64,7 +72,8 @@ def check_npm(name):
 
 def check_pypi(name):
     data = fetch_json("https://pypi.org/pypi/" + urllib.parse.quote(name, safe="") + "/json")
-    return "OK", clean((data.get("info") or {}).get("summary"))
+    info = data.get("info") or {}
+    return "OK", with_canonical(name, info.get("name"), clean(info.get("summary")))
 
 
 def go_escape(module):
@@ -112,12 +121,14 @@ def check_nuget(package_id):
     data = fetch_json(url).get("data") or []
     if not data:
         raise Missing()
-    return "OK", clean(data[0].get("description"))[:200]
+    desc = clean(data[0].get("description"))[:200]
+    return "OK", with_canonical(package_id, data[0].get("id"), desc)
 
 
 def check_crates(name):
     data = fetch_json("https://crates.io/api/v1/crates/" + urllib.parse.quote(name, safe=""))
-    return "OK", clean((data.get("crate") or {}).get("description"))
+    crate = data.get("crate") or {}
+    return "OK", with_canonical(name, crate.get("name"), clean(crate.get("description")))
 
 
 def check_image(name):
@@ -190,7 +201,7 @@ def main(paths):
     if not paths:
         print("usage: registry_check.py <pack.toml> [<pack.toml>...]", file=sys.stderr)
         return
-    counts = {"OK": 0, "MISSING": 0, "PATTERN": 0}
+    counts = {"OK": 0, "MISSING": 0, "PATTERN": 0, "ERROR": 0}
     crates_used = False
     for path in paths:
         try:
@@ -207,13 +218,15 @@ def main(paths):
                         time.sleep(1)  # be polite to crates.io
                     crates_used = True
                 status, desc = check_key(ecosystem, key)
-            if status in counts:
+            if status.startswith("ERROR"):
+                counts["ERROR"] += 1
+            elif status in counts:
                 counts[status] += 1
             fields = (tid, ecosystem, key, status, desc)
             print("\t".join(clean(f) for f in fields), flush=True)
     print(
         f"summary: {counts['OK']} ok, {counts['MISSING']} missing, "
-        f"{counts['PATTERN']} patterns",
+        f"{counts['PATTERN']} patterns, {counts['ERROR']} errors",
         flush=True,
     )
 
