@@ -6,7 +6,7 @@ name = "Docker Compose"
 category = "deploy"
 en.beginner = "a tool that starts several containers for your project from one file."
 en.builder = "a Docker CLI plugin that defines and runs multi-container apps from a YAML file."
-tr.beginner = "projeni tek bir dosyadan birden çok konteynerle başlatan bir araç."
+tr.beginner = "projenizi tek bir dosyadan birden çok konteynerle başlatan bir araç."
 tr.builder = "birden çok konteynerli uygulamayı YAML dosyasıyla tanımlayıp çalıştıran bir Docker CLI eklentisi."
 
 [[tech]]
@@ -78,7 +78,7 @@ name = "Valkey"
 category = "data"
 en.beginner = "a fast in-memory store, compatible with Redis, for caches and quick data."
 en.builder = "an open-source key-value data server forked from Redis, under the Linux Foundation, with Redis-compatible commands."
-tr.beginner = "hızlı bir bellek içi veri deposu; önbellek ve hızlı veri için Redis ile uyumludur."
+tr.beginner = "Redis ile uyumlu, önbellek ve hızlı veri erişimi için kullanılan bellek içi bir veri deposu."
 tr.builder = "Redis'ten türetilmiş, açık kaynaklı bir anahtar-değer sunucusu; Linux Foundation bünyesinde geliştirilir."
 
 [[tech]]
@@ -127,15 +127,6 @@ tr.beginner = "birçok sunucuda ve Docker imajında kullanılan yaygın bir Linu
 tr.builder = "Canonical şirketinin Debian tabanlı Linux dağıtımı; apt paket yöneticisini ve uzun süre destekli sürümleri içerir."
 
 [[tech]]
-id = "minio"
-name = "MinIO"
-category = "data"
-en.beginner = "a self-hosted file storage server that works like Amazon S3."
-en.builder = "an S3-compatible object storage server you run yourself, used for uploads and backups."
-tr.beginner = "Amazon S3 gibi çalışan, kendi sunucunuzda kurulan bir dosya depolama sunucusu."
-tr.builder = "S3 uyumlu, kendi altyapınızda çalıştırdığınız bir nesne depolama sunucusu; yükleme dosyaları için kullanılır."
-
-[[tech]]
 id = "mailpit"
 name = "Mailpit"
 category = "testing"
@@ -151,7 +142,7 @@ category = "deploy"
 en.beginner = "a tool that runs local copies of cloud services such as AWS on your own computer."
 en.builder = "an emulator for AWS APIs in a Docker container, so apps can test cloud calls offline."
 tr.beginner = "AWS gibi bulut hizmetlerinin yerel kopyalarını kendi bilgisayarınızda çalıştıran bir araç."
-tr.builder = "AWS API'lerini Docker konteynerinde taklit eden bir öykünücü; uygulamalar bulut çağrılarını çevrimdışı test edebilir."
+tr.builder = "AWS API'lerini Docker konteynerinde taklit eden bir araç; uygulamalar bulut çağrılarını internet olmadan test edebilir."
 
 [[tech]]
 id = "adminer"
@@ -204,7 +195,7 @@ name = "Apache Cassandra"
 category = "data"
 en.beginner = "a database that spreads data across many servers and stays online if some fail."
 en.builder = "a distributed wide-column NoSQL database with tunable consistency and no single point of failure."
-tr.beginner = "verileri birçok sunucuya dağıtan ve bazıları çalışmaz olsa da çevrimiçi kalan bir veritabanı."
+tr.beginner = "verileri birçok sunucuya dağıtan, bazı sunucular çökse bile çalışmaya devam eden bir veritabanı."
 tr.builder = "geniş sütunlu, dağıtık bir NoSQL veritabanı; tutarlılık düzeyi ayarlanabilir ve tek hata noktası yoktur."
 
 [[tech]]
@@ -517,10 +508,6 @@ names = ["debian"]
 [[image]]
 tech = "ubuntu"
 names = ["ubuntu"]
-
-[[image]]
-tech = "minio"
-names = ["minio/minio"]
 
 [[image]]
 tech = "mailpit"
