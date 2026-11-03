@@ -377,3 +377,52 @@ const k = process.env.KEY;
     assert!(f.symbols.iter().any(|y| y.name == "GET /ok"));
     assert!(f.web.env.iter().any(|e| e.name == "KEY"));
 }
+
+// A symbol is made only for a receiver that the same file binds to express(), Router() or
+// express.Router(); other files keep their calls with the L1 owner.
+#[test]
+fn a_receiver_that_is_not_express_makes_no_callback_symbol() {
+    let f = ts("import $ from 'jquery';
+$.get('/u', function () {
+  load();
+});
+");
+    assert!(f.symbols.is_empty(), "{:?}", f.symbols);
+    let call = f.calls.iter().find(|c| c.callee == "load").unwrap();
+    assert_eq!(call.owner, None);
+    // The route-call fact stays; Task 9 drops it because `$` is not bound to express.
+    assert_eq!(f.web.route_calls.len(), 1);
+    assert_eq!(
+        f.web.route_calls[0].args,
+        vec![s("/u"), ArgFact::Inline(None)]
+    );
+
+    // A Nest app is bound too, but it has no inline route handlers.
+    let nest = ts("const app = await NestFactory.create(M);
+app.get('/u', () => {});
+");
+    assert!(nest.symbols.is_empty());
+}
+
+#[test]
+fn two_identical_callbacks_get_two_distinct_ids() {
+    let f = ts("const app = express();
+app.get('/x', () => a());
+app.get('/x', () => a());
+");
+    let ids = hm_index::ts::resolve::symbol_ids("src/app.ts", &f);
+    assert_eq!(ids.len(), 2);
+    assert_ne!(ids[0], ids[1]);
+}
+
+#[test]
+fn a_template_literal_path_makes_no_callback_symbol() {
+    let f = ts("const app = express();
+app.get(`/x/${id}`, () => {});
+");
+    assert!(f.symbols.is_empty(), "{:?}", f.symbols);
+    assert_eq!(
+        f.web.route_calls[0].args,
+        vec![s("/x/{}"), ArgFact::Inline(None)]
+    );
+}

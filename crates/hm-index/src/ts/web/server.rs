@@ -10,6 +10,7 @@ use std::sync::OnceLock;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Node, Query, QueryCursor};
 
+use super::super::extract::count_branches;
 use super::{Callback, Span, compile, owner_at};
 use crate::facts::{
     ArgFact, BindingFact, CtorFieldFact, DecoratorFact, EnvFact, GapFact, Owner, RouteCallFact,
@@ -20,25 +21,20 @@ use crate::lang::Lang;
 
 const SERVER_SCM: &str = include_str!("queries/server.scm");
 
-/// Methods of a route call. The HTTP verbs and `all` define routes, `use` mounts
-/// middleware and routers, `setGlobalPrefix` is NestJS's.
-const ROUTE_METHODS: [&str; 10] = [
-    "get",
-    "post",
-    "put",
-    "patch",
-    "delete",
-    "head",
-    "options",
-    "all",
-    "use",
-    "setGlobalPrefix",
-];
-
-/// The route methods whose last inline function becomes a symbol.
+/// The route methods whose last inline function becomes a symbol: the HTTP verbs and
+/// `all`.
 const HANDLER_METHODS: [&str; 8] = [
     "get", "post", "put", "patch", "delete", "head", "options", "all",
 ];
+
+/// Whether `method` makes a route call: the handler methods, `use` (middleware and
+/// routers) and `setGlobalPrefix` (NestJS's).
+fn is_route_method(method: &str) -> bool {
+    HANDLER_METHODS.contains(&method) || matches!(method, "use" | "setGlobalPrefix")
+}
+
+/// Initialisers that make an Express app or router.
+const EXPRESS_INITS: [&str; 3] = ["express", "Router", "express.Router"];
 
 /// Initialisers that make a binding interesting: Express apps and routers, Nest apps.
 const BINDING_INITS: [&str; 4] = ["express", "Router", "express.Router", "NestFactory.create"];
@@ -145,7 +141,7 @@ fn route_shape<'t>(call: Node<'t>, src: &'t [u8]) -> Option<RouteShape<'t>> {
         return None;
     }
     let (receiver, method) = (text(object, src), text(property, src));
-    if !ROUTE_METHODS.contains(&method) {
+    if !is_route_method(method) {
         return None;
     }
     let args = named_children(call.child_by_field_name("arguments")?);
@@ -162,15 +158,64 @@ fn route_shape<'t>(call: Node<'t>, src: &'t [u8]) -> Option<RouteShape<'t>> {
     })
 }
 
+/// The text of the callee of a call or `new` that initialises a binding, with the
+/// `await` of `const x = await f()` looked through.
+fn binding_init(declarator: Node, src: &[u8]) -> Option<String> {
+    let value = declarator.child_by_field_name("value")?;
+    let call = if value.kind() == "await_expression" {
+        value.named_child(0)?
+    } else {
+        value
+    };
+    let field = match call.kind() {
+        "call_expression" => "function",
+        "new_expression" => "constructor",
+        _ => return None,
+    };
+    Some(compact(call.child_by_field_name(field)?, src))
+}
+
+/// The names bound at the top level of the file to an Express app or router
+/// (`const app = express()`, `const router = Router()`).
+fn express_receivers(root: Node, src: &[u8]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cursor = root.walk();
+    for statement in root.named_children(&mut cursor) {
+        let declaration = match statement.kind() {
+            "export_statement" => statement.child_by_field_name("declaration"),
+            _ => Some(statement),
+        };
+        let Some(declaration) = declaration
+            .filter(|d| matches!(d.kind(), "lexical_declaration" | "variable_declaration"))
+        else {
+            continue;
+        };
+        let mut inner = declaration.walk();
+        for declarator in declaration.named_children(&mut inner) {
+            let name = declarator.child_by_field_name("name");
+            let init = binding_init(declarator, src);
+            if let (Some(name), Some(init)) = (name, init)
+                && name.kind() == "identifier"
+                && EXPRESS_INITS.contains(&init.as_str())
+            {
+                out.push(text(name, src).to_string());
+            }
+        }
+    }
+    out
+}
+
 /// The inline handler of a route call that becomes a synthetic symbol: the last argument
 /// of an HTTP-verb or `all` call that is a statement of its own at the top level of the
-/// file. Returns the function and the symbol name (`GET /health`).
+/// file, on a receiver bound to an Express app or router in the same file (`express`),
+/// with a literal path. Returns the function and the symbol name (`GET /health`).
 fn callback_of<'t>(
     call: Node<'t>,
     shape: &RouteShape<'t>,
     src: &[u8],
+    express: &[String],
 ) -> Option<(Node<'t>, String)> {
-    if !HANDLER_METHODS.contains(&shape.method) {
+    if !HANDLER_METHODS.contains(&shape.method) || !express.iter().any(|r| r == shape.receiver) {
         return None;
     }
     let statement = call.parent()?;
@@ -182,12 +227,18 @@ fn callback_of<'t>(
     if !FUNCTION_KINDS.contains(&function.kind()) {
         return None;
     }
-    let path = string_text(*shape.args.first()?, src)?;
+    // A template literal is not a route path that can name a symbol.
+    let path = *shape.args.first()?;
+    if path.kind() != "string" {
+        return None;
+    }
+    let path = string_text(path, src)?;
     Some((function, format!("{} {path}", shape.method.to_uppercase())))
 }
 
 /// The inline route handlers of the file, as symbols.
 pub(crate) fn route_callbacks(root: Node, src: &[u8], _lang: Lang) -> Vec<Callback> {
+    let express = express_receivers(root, src);
     let mut cursor = root.walk();
     let mut out = Vec::new();
     for statement in root.named_children(&mut cursor) {
@@ -203,7 +254,7 @@ pub(crate) fn route_callbacks(root: Node, src: &[u8], _lang: Lang) -> Vec<Callba
         let Some(shape) = route_shape(call, src) else {
             continue;
         };
-        let Some((function, name)) = callback_of(call, &shape, src) else {
+        let Some((function, name)) = callback_of(call, &shape, src, &express) else {
             continue;
         };
         let (l0, l1) = (line_of(function), function.end_position().row as u32 + 1);
@@ -227,24 +278,6 @@ pub(crate) fn route_callbacks(root: Node, src: &[u8], _lang: Lang) -> Vec<Callba
         });
     }
     out
-}
-
-/// Decision points in `node`, counted as `extract.rs` counts them for other functions.
-fn count_branches(node: Node) -> u32 {
-    let mut count = match node.kind() {
-        "if_statement" | "for_statement" | "for_in_statement" | "while_statement"
-        | "do_statement" | "switch_case" | "catch_clause" | "ternary_expression" => 1,
-        "binary_expression" => u32::from(matches!(
-            node.child_by_field_name("operator").map(|o| o.kind()),
-            Some("&&" | "||")
-        )),
-        _ => 0,
-    };
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        count += count_branches(child);
-    }
-    count
 }
 
 /// One argument of a call. `handler` is the inline function that became a symbol, with
@@ -453,6 +486,7 @@ pub(crate) fn extract(root: Node, src: &[u8], lang: Lang, spans: &[Span], out: &
     };
     let names = q.capture_names();
     let owner = |node: Node| -> Owner { owner_at(spans, node.start_byte()) };
+    let express = express_receivers(root, src);
 
     let mut route_calls = Vec::new();
     let mut bindings = Vec::new();
@@ -478,7 +512,7 @@ pub(crate) fn extract(root: Node, src: &[u8], lang: Lang, spans: &[Span], out: &
                     let Some(shape) = route_shape(node, src) else {
                         continue;
                     };
-                    let handler = callback_of(node, &shape, src);
+                    let handler = callback_of(node, &shape, src, &express);
                     route_calls.push((
                         start,
                         RouteCallFact {
@@ -495,25 +529,10 @@ pub(crate) fn extract(root: Node, src: &[u8], lang: Lang, spans: &[Span], out: &
                     ));
                 }
                 "binding" => {
-                    let (Some(name), Some(value)) = (
-                        node.child_by_field_name("name"),
-                        node.child_by_field_name("value"),
-                    ) else {
+                    let Some(name) = node.child_by_field_name("name") else {
                         continue;
                     };
-                    let call = if value.kind() == "await_expression" {
-                        value.named_child(0)
-                    } else {
-                        Some(value)
-                    };
-                    let init = call.and_then(|c| {
-                        c.child_by_field_name(if c.kind() == "new_expression" {
-                            "constructor"
-                        } else {
-                            "function"
-                        })
-                    });
-                    let Some(init) = init.map(|i| compact(i, src)) else {
+                    let Some(init) = binding_init(node, src) else {
                         continue;
                     };
                     if BINDING_INITS.contains(&init.as_str()) {

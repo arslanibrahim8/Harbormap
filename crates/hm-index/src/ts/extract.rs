@@ -874,7 +874,7 @@ fn collect_comments(node: Node, limit: usize, out: &mut Vec<(usize, usize)>) {
 }
 
 /// `if`, loops, `case`, `catch`, `?:`, `&&` and `||` inside `node`.
-fn count_branches(node: Node) -> u32 {
+pub(crate) fn count_branches(node: Node) -> u32 {
     let mut count = match node.kind() {
         "if_statement" | "for_statement" | "for_in_statement" | "while_statement"
         | "do_statement" | "switch_case" | "catch_clause" | "ternary_expression" => 1,
