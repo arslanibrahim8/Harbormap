@@ -7,7 +7,7 @@ category = "data"
 npm = ["prisma", "@prisma/client"]
 en.beginner = "a tool that lets your code read and write the database and catches mistakes before the app runs."
 en.builder = "a TypeScript ORM with a schema file, a generated typed client and migrations run by the Prisma CLI."
-tr.beginner = "kodun veritabanını basit komutlarla okuyup yazmasını sağlayan ve yazım hatalarını uygulama çalışmadan yakalayan bir araç."
+tr.beginner = "kodun veritabanını basit komutlarla okuyup yazmasını sağlayan ve hataları uygulama çalışmadan önce yakalayan bir araç."
 tr.builder = "şema dosyasından tür bilgisi üreten bir TypeScript ORM'i; göçleri prisma komut satırı aracıyla yönetir."
 
 [[tech]]

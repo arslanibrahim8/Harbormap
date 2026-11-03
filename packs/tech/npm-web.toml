@@ -446,9 +446,9 @@ name = "Motion"
 category = "ui"
 npm = ["framer-motion", "motion"]
 en.beginner = "a library that adds smooth animations to React pages, such as fades and slides."
-en.builder = "a React animation library for transitions, gestures and layout animations."
+en.builder = "an animation library for React, Vue and plain JavaScript, with transitions, gestures and layout animations."
 tr.beginner = "React sayfalarına solma ve kayma gibi yumuşak animasyonlar ekleyen bir kütüphane."
-tr.builder = "geçişler, hareketler ve yerleşim animasyonları için bir React animasyon kütüphanesi."
+tr.builder = "React, Vue ve düz JavaScript için geçişler, hareketler ve yerleşim animasyonları sunan bir animasyon kütüphanesi."
 
 [[tech]]
 id = "lucide"

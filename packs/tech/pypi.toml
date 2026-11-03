@@ -9,8 +9,8 @@ category = "framework"
 pypi = ["django"]
 en.beginner = "a framework that helps build a complete website or web app quickly."
 en.builder = "a Python web framework with a database layer, admin panel, authentication and templates, built to work out of the box."
-tr.beginner = "hızlıca tam bir web sitesi veya web uygulaması kurmaya yardım eden bir çerçeve."
-tr.builder = "Python ile yazılmış; veritabanı katmanı, yönetici paneli, kimlik doğrulama ve şablonları hazır sunan bir web çerçevesi."
+tr.beginner = "hızlıca tam bir web sitesi veya web uygulaması kurmaya yardım eden bir çatı."
+tr.builder = "Python ile yazılmış; veritabanı katmanı, yönetici paneli, kimlik doğrulama ve şablonları hazır sunan bir web çatısı."
 
 [[tech]]
 id = "django-rest-framework"
@@ -39,8 +39,8 @@ category = "framework"
 pypi = ["flask"]
 en.beginner = "a small, flexible framework for building websites and web services with Python."
 en.builder = "a lightweight Python web framework (WSGI) with routing, templates and extensions, leaving most other choices to you."
-tr.beginner = "Python ile web siteleri ve web servisleri kurmak için küçük, esnek bir çerçeve."
-tr.builder = "yönlendirme, şablon ve eklenti desteği olan hafif bir Python web çerçevesi; diğer seçimleri size bırakır."
+tr.beginner = "Python ile web siteleri ve web servisleri kurmak için küçük, esnek bir çatı."
+tr.builder = "yönlendirme, şablon ve eklenti desteği olan hafif bir Python web çatısı; diğer seçimleri size bırakır."
 
 [[tech]]
 id = "fastapi"
@@ -50,7 +50,7 @@ pypi = ["fastapi"]
 en.beginner = "a fast library for building web services that check the data they receive."
 en.builder = "a modern Python framework for async web APIs, using type hints for validation and generating OpenAPI docs automatically."
 tr.beginner = "gelen verileri kendisi kontrol eden, web servisleri kurmak için hızlı bir kütüphane."
-tr.builder = "tür ipuçlarıyla veri doğrulayan, eşzamansız web servisleri için modern bir Python çerçevesi; OpenAPI belgelerini otomatik üretir."
+tr.builder = "tür ipuçlarıyla veri doğrulayan, eşzamansız web servisleri için modern bir Python çatısı; OpenAPI belgelerini otomatik üretir."
 
 [[tech]]
 id = "starlette"
@@ -60,7 +60,7 @@ pypi = ["starlette"]
 en.beginner = "a small toolkit for handling web requests, and the base that FastAPI is built on."
 en.builder = "a lightweight ASGI framework with routing, middleware, WebSockets and background tasks, used under FastAPI."
 tr.beginner = "web isteklerini karşılayan küçük bir araç seti; FastAPI bunun üzerine kuruludur."
-tr.builder = "yönlendirme, ara katman, WebSocket ve arka plan görevleri sunan hafif bir ASGI çerçevesi; FastAPI bunun üzerine kuruludur."
+tr.builder = "yönlendirme, ara katman, WebSocket ve arka plan görevleri sunan hafif bir ASGI çatısı; FastAPI bunun üzerine kuruludur."
 
 [[tech]]
 id = "uvicorn"
@@ -99,8 +99,8 @@ category = "framework"
 pypi = ["tornado"]
 en.beginner = "a Python web framework that keeps many connections open at once, such as for chat."
 en.builder = "an asynchronous Python web framework and networking library with non-blocking I/O and WebSocket support."
-tr.beginner = "aynı anda çok sayıda bağlantıyı açık tutabilen, sohbet gibi uygulamalar için bir web çerçevesi."
-tr.builder = "engellemeyen ağ işlemleri ve WebSocket desteği olan, eşzamansız bir Python web çerçevesi ve ağ kütüphanesi."
+tr.beginner = "aynı anda çok sayıda bağlantıyı açık tutabilen, sohbet gibi uygulamalar için bir web çatısı."
+tr.builder = "engellemeyen ağ işlemleri ve WebSocket desteği olan, eşzamansız bir Python web çatısı ve ağ kütüphanesi."
 
 [[tech]]
 id = "sanic"
@@ -109,8 +109,8 @@ category = "framework"
 pypi = ["sanic"]
 en.beginner = "a fast Python web framework that handles many requests at the same time."
 en.builder = "an asynchronous Python web framework and server with routing, middleware and grouped route blueprints."
-tr.beginner = "aynı anda çok sayıda isteği karşılayan hızlı bir Python web çerçevesi."
-tr.builder = "yönlendirme, ara katman ve modüler rota grupları sunan eşzamansız bir Python web çerçevesi ve sunucusu."
+tr.beginner = "aynı anda çok sayıda isteği karşılayan hızlı bir Python web çatısı."
+tr.builder = "yönlendirme, ara katman ve modüler rota grupları sunan eşzamansız bir Python web çatısı ve sunucusu."
 
 [[tech]]
 id = "litestar"
@@ -119,8 +119,8 @@ category = "framework"
 pypi = ["litestar"]
 en.beginner = "a Python framework for building web services that check their data automatically."
 en.builder = "an ASGI framework with typed routes, dependency injection, data validation and OpenAPI documentation."
-tr.beginner = "veriyi otomatik kontrol eden web servisleri kurmak için bir Python çerçevesi."
-tr.builder = "tür ipuçlarına dayalı rotalar, bağımlılık enjeksiyonu, veri doğrulama ve OpenAPI belgeleri sunan bir ASGI çerçevesi."
+tr.beginner = "veriyi otomatik kontrol eden web servisleri kurmak için bir Python çatısı."
+tr.builder = "tür ipuçlarına dayalı rotalar, bağımlılık enjeksiyonu, veri doğrulama ve OpenAPI belgeleri sunan bir ASGI çatısı."
 
 [[tech]]
 id = "werkzeug"
@@ -242,7 +242,7 @@ pypi = ["graphene"]
 en.beginner = "a library for building a flexible data service in Python, where clients pick the fields they want."
 en.builder = "a GraphQL framework for Python that defines schemas with classes and works with Django, Flask and SQLAlchemy."
 tr.beginner = "Python ile esnek bir veri servisi kurmanızı sağlayan, istemcilerin istedikleri alanları seçtiği bir kütüphane."
-tr.builder = "sınıflarla şema tanımlayan, Django, Flask ve SQLAlchemy ile çalışabilen bir Python GraphQL çerçevesi."
+tr.builder = "sınıflarla şema tanımlayan, Django, Flask ve SQLAlchemy ile çalışabilen bir Python GraphQL çatısı."
 
 [[tech]]
 id = "flask-sqlalchemy"
@@ -313,8 +313,8 @@ category = "other"
 pypi = ["scrapy"]
 en.beginner = "a framework that visits many web pages automatically and collects data from them."
 en.builder = "an asynchronous web crawling and scraping framework with spiders, item pipelines and built-in exports."
-tr.beginner = "çok sayıda web sayfasını otomatik gezip onlardan veri toplayan bir çerçeve."
-tr.builder = "örümcek (spider) sınıfları, veri hatları ve dışa aktarma özelliği olan eşzamansız bir veri toplama çerçevesi."
+tr.beginner = "çok sayıda web sayfasını otomatik gezip onlardan veri toplayan bir çatı."
+tr.builder = "örümcek (spider) sınıfları, veri hatları ve dışa aktarma özelliği olan eşzamansız bir veri toplama çatısı."
 
 
 [[tech]]
@@ -559,7 +559,7 @@ pypi = ["pre-commit"]
 en.beginner = "a tool that runs quality checks automatically each time you commit code to git."
 en.builder = "a framework that manages git hooks, running configured linters and formatters on staged files before each commit."
 tr.beginner = "Git'e her kayıt göndermeden önce kalite kontrollerini otomatik çalıştıran bir araç."
-tr.builder = "Git kancalarını yöneten; her kayıt öncesi yalnızca değişen dosyalarda denetleyici ve biçimlendiricileri çalıştıran bir çerçeve."
+tr.builder = "Git kancalarını yöneten; her kayıt öncesi yalnızca değişen dosyalarda denetleyici ve biçimlendiricileri çalıştıran bir çatı."
 
 [[tech]]
 id = "setuptools"
@@ -673,7 +673,7 @@ pypi = ["passlib"]
 en.beginner = "a library that hashes and checks user passwords with several proven methods."
 en.builder = "a Python password hashing framework supporting many schemes such as bcrypt and Argon2, with migration helpers."
 tr.beginner = "kullanıcı parolalarını birkaç kanıtlanmış yöntemle özetleyen ve kontrol eden bir kütüphane."
-tr.builder = "bcrypt ve Argon2 gibi birçok parola özetleme yöntemini destekleyen bir Python çerçevesi."
+tr.builder = "bcrypt ve Argon2 gibi birçok parola özetleme yöntemini destekleyen bir Python çatısı."
 
 [[tech]]
 id = "pyjwt"
@@ -723,7 +723,7 @@ pypi = ["python-multipart"]
 en.beginner = "a library that reads files and form fields sent from a web page's upload forms."
 en.builder = "a streaming parser for multipart form data, used by frameworks such as Starlette and FastAPI for uploads."
 tr.beginner = "web sayfalarındaki yükleme formlarından gelen dosyaları ve form alanlarını okuyan bir kütüphane."
-tr.builder = "yüklemeler için çok parçalı form verisini akış hâlinde ayrıştıran; Starlette ve FastAPI gibi çerçevelerde kullanılan bir kütüphane."
+tr.builder = "yüklemeler için çok parçalı form verisini akış hâlinde ayrıştıran; Starlette ve FastAPI gibi çatılarda kullanılan bir kütüphane."
 
 [[tech]]
 id = "flask-login"
@@ -775,7 +775,7 @@ pypi = ["streamlit"]
 en.beginner = "a library that turns a Python script into a simple interactive web page for data."
 en.builder = "a Python framework for building data apps, where widgets rerun the script from top to bottom on each change."
 tr.beginner = "bir Python betiğini veriler için basit ve etkileşimli bir web sayfasına çeviren bir kütüphane."
-tr.builder = "veri uygulamaları yapmak için Python çerçevesi; her değişiklikte betiği baştan sona yeniden çalıştırır."
+tr.builder = "veri uygulamaları yapmak için Python çatısı; her değişiklikte betiği baştan sona yeniden çalıştırır."
 
 [[tech]]
 id = "gradio-py"
@@ -795,7 +795,7 @@ pypi = ["dash"]
 en.beginner = "a library for building interactive data dashboards and charts in pure Python."
 en.builder = "a Python framework for analytical web apps, built on Plotly and React, with callbacks that link components."
 tr.beginner = "saf Python ile etkileşimli veri panoları ve grafikler kurmayı sağlayan bir kütüphane."
-tr.builder = "Plotly ve React üzerine kurulu, bileşenleri geri çağrılarla bağlayan bir Python veri uygulaması çerçevesi."
+tr.builder = "Plotly ve React üzerine kurulu, bileşenleri geri çağrılarla bağlayan bir Python veri uygulaması çatısı."
 
 [[tech]]
 id = "matplotlib"
@@ -897,7 +897,7 @@ pypi = ["torch"]
 en.beginner = "a library for building and training AI models, using number arrays that can run on a graphics card."
 en.builder = "an open-source deep learning framework with tensors, automatic differentiation and GPU support, widely used in research."
 tr.beginner = "yapay zeka modelleri kurup eğitmeye yarayan, grafik kartında da çalışabilen sayı dizileri içeren bir kütüphane."
-tr.builder = "açık kaynaklı derin öğrenme çerçevesi; tensörler, otomatik türev ve GPU desteği sunar ve araştırmalarda yaygındır."
+tr.builder = "açık kaynaklı derin öğrenme çatısı; tensörler, otomatik türev ve GPU desteği sunar ve araştırmalarda yaygındır."
 
 [[tech]]
 id = "tensorflow-py"
@@ -937,7 +937,7 @@ pypi = ["llama-index"]
 en.beginner = "a library that connects a language AI model to your own documents, so it can answer from them."
 en.builder = "a data framework for building LLM applications that index private documents and query them with retrieval."
 tr.beginner = "yapay zeka modelini kendi belgelerinize bağlayan ve cevapları bu belgelerden vermesini sağlayan bir kütüphane."
-tr.builder = "özel belgeleri indeksleyip geri getirme yöntemiyle sorgulayan, büyük dil modeli uygulamaları için bir veri çerçevesi."
+tr.builder = "özel belgeleri indeksleyip geri getirme yöntemiyle sorgulayan, büyük dil modeli uygulamaları için bir veri çatısı."
 
 [[tech]]
 id = "tiktoken-py"
@@ -1027,7 +1027,7 @@ pypi = ["lightgbm"]
 en.beginner = "a fast library for building prediction models from tables, using less memory and time."
 en.builder = "a Microsoft gradient boosting framework that uses histogram-based tree learning, for large tabular data."
 tr.beginner = "veri tablolarından tahmin modeli kurarken daha az bellek ve zaman kullanan hızlı bir kütüphane."
-tr.builder = "Microsoft'un histogram tabanlı karar ağacı öğrenmesi kullanan gradyan artırma çerçevesi; büyük tablo verilerine uygundur."
+tr.builder = "Microsoft'un histogram tabanlı karar ağacı öğrenmesi kullanan gradyan artırma çatısı; büyük tablo verilerine uygundur."
 
 [[tech]]
 id = "polars-py"
@@ -1119,7 +1119,7 @@ pypi = ["typer"]
 en.beginner = "a library that builds command-line tools from ordinary Python functions, using type hints."
 en.builder = "a command-line framework built on Click that creates commands and options from function signatures and type hints."
 tr.beginner = "sıradan Python fonksiyonlarından komut satırı araçları yapan, tür ipuçlarını kullanan bir kütüphane."
-tr.builder = "Click üzerine kurulu bir komut satırı çerçevesi; komutları ve seçenekleri fonksiyon imzalarından üretir."
+tr.builder = "Click üzerine kurulu bir komut satırı çatısı; komutları ve seçenekleri fonksiyon imzalarından üretir."
 
 [[tech]]
 id = "rich-py"

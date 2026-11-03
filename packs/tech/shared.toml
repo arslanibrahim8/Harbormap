@@ -385,5 +385,5 @@ nuget = ["Docker.DotNet"]
 crates = ["bollard"]
 en.beginner = "a container tool that packs your app and its needs so it runs the same anywhere."
 en.builder = "a container platform and CLI, with a daemon that builds images from Dockerfiles and runs containers."
-tr.beginner = "uygulamanızı ve ihtiyaçlarını bir konteynerde paketleyen, her yerde aynı çalışan bir araç."
+tr.beginner = "uygulamanızı ihtiyaçlarıyla birlikte bir konteynerde paketleyip her yerde aynı çalışmasını sağlayan bir araç."
 tr.builder = "Dockerfile'lardan imaj oluşturan ve konteynerleri çalıştıran konteyner platformu; arka planda çalışan bir hizmet ve komut satırı aracı içerir."

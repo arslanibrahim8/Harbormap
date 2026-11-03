@@ -5,7 +5,7 @@ id = "gin"
 name = "Gin"
 category = "framework"
 go = ["github.com/gin-gonic/gin"]
-en.beginner = "a fast tool for building web servers and web apis."
+en.beginner = "a fast tool for building web servers and web APIs."
 en.builder = "a fast HTTP web framework with routing, middleware and JSON handling."
 tr.beginner = "web sunucularını hızlıca kurmaya yarayan bir araç."
 tr.builder = "yönlendirme, ara katman ve JSON işlemleri içeren hızlı bir HTTP web çatısı."
@@ -15,9 +15,9 @@ id = "echo-go"
 name = "Echo"
 category = "framework"
 go = ["github.com/labstack/echo"]
-en.beginner = "a small, fast tool for building web servers and web apis."
+en.beginner = "a small, fast tool for building web servers and web APIs."
 en.builder = "a high-performance Go web framework with routing, middleware and data binding."
-tr.beginner = "web sunucuları ve web api'leri kurmak için küçük ve hızlı bir araç."
+tr.beginner = "web sunucuları ve web API'leri kurmak için küçük ve hızlı bir araç."
 tr.builder = "yönlendirme, ara katman ve veri bağlama özellikli, yüksek performanslı bir Go web çatısı."
 
 [[tech]]

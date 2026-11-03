@@ -7,8 +7,8 @@ category = "framework"
 maven = ["org.springframework.boot:*"]
 en.beginner = "a framework that helps you start a Java server app quickly with little setup."
 en.builder = "a layer on top of Spring that gives apps sensible defaults, an embedded server and auto-configuration."
-tr.beginner = "Java ile sunucu uygulamalarını az ayarlamayla hızlıca başlatmaya yarayan bir çerçeve."
-tr.builder = "Spring uygulamasını varsayılan ayarlarla kuran, gömülü sunucu ve otomatik yapılandırma sağlayan bir çerçeve."
+tr.beginner = "Java ile sunucu uygulamalarını az ayarlamayla hızlıca başlatmaya yarayan bir çatı."
+tr.builder = "Spring uygulamasını varsayılan ayarlarla kuran, gömülü sunucu ve otomatik yapılandırma sağlayan bir çatı."
 
 [[tech]]
 id = "spring-framework"
@@ -28,7 +28,7 @@ maven = ["org.springframework.security:*", "org.springframework.boot:spring-boot
 en.beginner = "a library that checks who can log in to your app and what each user may do."
 en.builder = "authentication and authorization framework for Java apps, with login, password hashing, CSRF protection and access rules."
 tr.beginner = "uygulamanıza kimin girebileceğini ve her kullanıcının neler yapabileceğini denetleyen bir kütüphane."
-tr.builder = "Java uygulamaları için kimlik doğrulama ve yetkilendirme çerçevesi; giriş, şifre karması, CSRF koruması ve erişim kuralları."
+tr.builder = "Java uygulamaları için kimlik doğrulama ve yetkilendirme çatısı; giriş, şifre karması, CSRF koruması ve erişim kuralları."
 
 [[tech]]
 id = "spring-data"
@@ -58,7 +58,7 @@ maven = ["org.hibernate.orm:hibernate-core", "org.hibernate:hibernate-core"]
 en.beginner = "a library that saves your Java objects in a database and loads them back for you."
 en.builder = "object-relational mapping framework that implements JPA, mapping Java classes to database tables."
 tr.beginner = "Java nesnelerini veritabanına kaydedip geri yükleyen bir kütüphane."
-tr.builder = "Java sınıflarını veritabanı tablolarına eşleyen, JPA'yı uygulayan bir nesne-ilişkisel eşleme çerçevesi."
+tr.builder = "Java sınıflarını veritabanı tablolarına eşleyen, JPA'yı uygulayan bir nesne-ilişkisel eşleme çatısı."
 
 [[tech]]
 id = "hibernate-validator"
@@ -198,7 +198,7 @@ maven = ["org.junit.jupiter:*", "junit:junit"]
 en.beginner = "a library for writing and running automatic tests that check your Java code works."
 en.builder = "the most common Java unit testing framework, with annotations like @Test and assertions."
 tr.beginner = "Java kodunuzun doğru çalıştığını kontrol eden otomatik testler yazmak ve çalıştırmak için bir kütüphane."
-tr.builder = "Java'nın en yaygın birim test çerçevesi; @Test gibi anotasyonlar ve assert metotları sunar."
+tr.builder = "Java'nın en yaygın birim test çatısı; @Test gibi anotasyonlar ve assert metotları sunar."
 
 [[tech]]
 id = "mockito-java"
@@ -208,7 +208,7 @@ maven = ["org.mockito:*"]
 en.beginner = "a library that creates fake objects, so your tests can run without the real parts."
 en.builder = "Java mocking framework for creating test doubles, stubbing method results and verifying calls."
 tr.beginner = "testlerde gerçek parçalar yerine sahte nesneler oluşturan, testleri bağımsız çalıştıran bir kütüphane."
-tr.builder = "Java için mock çerçevesi; test amaçlı yapay nesneler oluşturur, metot sonuçlarını ayarlar ve çağrıları doğrular."
+tr.builder = "Java için mock çatısı; test amaçlı yapay nesneler oluşturur, metot sonuçlarını ayarlar ve çağrıları doğrular."
 
 [[tech]]
 id = "assertj"
@@ -267,8 +267,8 @@ category = "framework"
 maven = ["io.micronaut:*"]
 en.beginner = "a framework for Java server apps that start fast and use little memory."
 en.builder = "a JVM framework with compile-time dependency injection and AOP for microservices and serverless apps."
-tr.beginner = "Java ile hızlı açılan ve az bellek kullanan sunucu uygulamaları yazmak için bir çerçeve."
-tr.builder = "derleme anında bağımlılık enjeksiyonu ve AOP sunan bir JVM çerçevesi; mikroservisler ve sunucusuz uygulamalar için."
+tr.beginner = "Java ile hızlı açılan ve az bellek kullanan sunucu uygulamaları yazmak için bir çatı."
+tr.builder = "derleme anında bağımlılık enjeksiyonu ve AOP sunan bir JVM çatısı; mikroservisler ve sunucusuz uygulamalar için."
 
 [[tech]]
 id = "quarkus"
@@ -277,8 +277,8 @@ category = "framework"
 maven = ["io.quarkus:*"]
 en.beginner = "a Java framework for server apps that is tuned to start fast and use little memory."
 en.builder = "Java framework that does most of its work at build time, with GraalVM native image support and live reload."
-tr.beginner = "Java ile sunucu uygulaması yazmak için, hızlı açılmaya ve az bellek kullanmaya odaklı bir çerçeve."
-tr.builder = "işin çoğunu derleme anında yapan bir Java çerçevesi; GraalVM ile yerel (native) derleme ve canlı yeniden yükleme destekler."
+tr.beginner = "Java ile sunucu uygulaması yazmak için, hızlı açılmaya ve az bellek kullanmaya odaklı bir çatı."
+tr.builder = "işin çoğunu derleme anında yapan bir Java çatısı; GraalVM ile yerel (native) derleme ve canlı yeniden yükleme destekler."
 
 [[tech]]
 id = "vertx-java"
@@ -398,7 +398,7 @@ maven = ["org.mybatis:mybatis"]
 en.beginner = "a library that connects your Java code to SQL queries you write yourself."
 en.builder = "SQL mapper framework for Java that maps query results to objects, with XML or annotation-based queries."
 tr.beginner = "Java kodunuzu, kendi yazdığınız SQL sorgularına bağlayan bir kütüphane."
-tr.builder = "Java için SQL eşleme (mapper) çerçevesi; sorgu sonuçlarını nesnelere çevirir, XML veya anotasyonla çalışır."
+tr.builder = "Java için SQL eşleme (mapper) çatısı; sorgu sonuçlarını nesnelere çevirir, XML veya anotasyonla çalışır."
 
 [[tech]]
 id = "h2-java"
