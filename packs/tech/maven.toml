@@ -6,7 +6,7 @@ name = "Spring Boot"
 category = "framework"
 maven = ["org.springframework.boot:*"]
 en.beginner = "a framework that helps you start a Java server app quickly with little setup."
-en.builder = "Spring Boot sets up a Spring application with sensible defaults, an embedded server and auto-configuration."
+en.builder = "a layer on top of Spring that gives apps sensible defaults, an embedded server and auto-configuration."
 tr.beginner = "Java ile sunucu uygulamalarını az ayarlamayla hızlıca başlatmaya yarayan bir çerçeve."
 tr.builder = "Spring uygulamasını varsayılan ayarlarla kuran, gömülü sunucu ve otomatik yapılandırma sağlayan bir çerçeve."
 
@@ -27,7 +27,7 @@ category = "auth"
 maven = ["org.springframework.security:*", "org.springframework.boot:spring-boot-starter-security"]
 en.beginner = "a library that checks who can log in to your app and what each user may do."
 en.builder = "authentication and authorization framework for Java apps, with login, password hashing, CSRF protection and access rules."
-tr.beginner = "uygulamana kimin girebileceğini ve her kullanıcının ne yapabileceğini denetleyen bir kütüphane."
+tr.beginner = "uygulamanıza kimin girebileceğini ve her kullanıcının neler yapabileceğini denetleyen bir kütüphane."
 tr.builder = "Java uygulamaları için kimlik doğrulama ve yetkilendirme çerçevesi; giriş, şifre karması, CSRF koruması ve erişim kuralları."
 
 [[tech]]
@@ -38,7 +38,7 @@ maven = ["org.springframework.data:*", "org.springframework.boot:spring-boot-sta
 en.beginner = "a library that saves and reads your app's data in a database with very little code."
 en.builder = "repositories that generate database queries for JPA, MongoDB, Redis and other stores."
 tr.beginner = "uygulamanızın verilerini veritabanına kaydedip okuyan, çok az kodla çalışan bir kütüphane."
-tr.builder = "veri depoları için sorgu üreten depo arayüzleri sunan Spring kütüphanesi; JPA, MongoDB ve Redis ile çalışır."
+tr.builder = "veritabanı sorgularını otomatik üreten depo (repository) arayüzleri sunan Spring kütüphanesi; JPA, MongoDB ve Redis ile çalışır."
 
 [[tech]]
 id = "spring-cloud"
@@ -68,7 +68,7 @@ maven = ["org.hibernate.validator:hibernate-validator", "org.springframework.boo
 en.beginner = "a library that checks the data users send, such as required fields or minimum length."
 en.builder = "implementation of Jakarta Bean Validation, using annotations such as @NotNull and @Size."
 tr.beginner = "kullanıcıdan gelen verileri zorunlu alan, en az uzunluk gibi kurallara göre denetleyen bir kütüphane."
-tr.builder = "Jakarta Bean Validation standardını uygulayan; @NotNull ve @Size gibi anotasyonlarla kural tanımlanmasını sağlar."
+tr.builder = "Jakarta Bean Validation standardını uygulayan kütüphane; @NotNull ve @Size gibi anotasyonlarla kural tanımlanır."
 
 [[tech]]
 id = "jakarta-persistence"
@@ -107,7 +107,7 @@ category = "build"
 maven = ["org.projectlombok:lombok"]
 en.beginner = "a library that writes repetitive Java code, like getters and setters, for you while you build."
 en.builder = "annotation processor that generates boilerplate such as getters, setters, constructors and builders at compile time."
-tr.beginner = "Java'da tekrar eden kodları, değer okuma ve yazma metotlarını, sizin yerinize yazan bir kütüphane."
+tr.beginner = "Java'da tekrar eden kodu, örneğin değer okuma ve yazma metotlarını, sizin yerinize yazan kütüphane."
 tr.builder = "derleme sırasında değer okuma ve yazma metotları, kurucular ve builder gibi tekrar eden kodları üreten bir anotasyon işlemcisi."
 
 [[tech]]
@@ -308,7 +308,7 @@ maven = ["io.reactivex.rxjava3:rxjava"]
 en.beginner = "a library for handling streams of events and results in Java with simple chained steps."
 en.builder = "reactive extensions for the JVM: Observable, Flowable and Single types for asynchronous data streams."
 tr.beginner = "Java'da olay ve sonuç akışlarını zincirleme adımlarla işlemeye yarayan bir kütüphane."
-tr.builder = "reaktif uzantılar, JVM üzerinde zaman uyumsuz veri akışları için Observable, Flowable ve Single türlerini sunar."
+tr.builder = "JVM üzerinde zaman uyumsuz veri akışları için Observable, Flowable ve Single türlerini sunan reaktif uzantılar kütüphanesi."
 
 [[tech]]
 id = "okhttp-java"
@@ -498,4 +498,4 @@ maven = ["io.micrometer:*"]
 en.beginner = "a library that collects numbers about your app, like request counts and speed, for monitoring tools."
 en.builder = "vendor-neutral metrics facade for Java, exporting to Prometheus, Datadog and other monitoring systems."
 tr.beginner = "uygulamanızla ilgili istek sayısı ve hız gibi sayıları toplayıp izleme araçlarına veren bir kütüphane."
-tr.builder = "Java için tedarikçiden bağımsız metrik soyutlaması; Prometheus, Datadog gibi izleme sistemlerine aktarır."
+tr.builder = "Java için, belirli bir izleme sistemine bağlı olmayan metrik katmanı; Prometheus, Datadog gibi sistemlere aktarır."
