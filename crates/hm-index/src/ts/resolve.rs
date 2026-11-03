@@ -49,6 +49,15 @@ impl ModuleResolver {
             .collect()
     }
 
+    /// True when a known file lies under folder `dir` (relative, without a trailing `/`).
+    pub(crate) fn has_file_under(&self, dir: &str) -> bool {
+        let prefix = format!("{dir}/");
+        self.known
+            .range(prefix.clone()..)
+            .next()
+            .is_some_and(|rel| rel.starts_with(&prefix))
+    }
+
     /// Resolves `specifier` as imported from the file `from_rel`.
     pub fn resolve(&self, from_rel: &str, specifier: &str) -> ModuleTarget {
         let from_dir = from_rel.rsplit_once('/').map_or("", |(dir, _)| dir);
@@ -478,7 +487,11 @@ fn binding_of(
 /// line is the one. Of two such, the smaller; when the smallest span is shared (a
 /// one-line getter and setter) nothing says which one holds the fact, so it goes to
 /// the file rather than to a guess.
-fn holder(facts: &FileFacts, owner: Option<&(String, String)>, line: u32) -> Option<usize> {
+pub(crate) fn holder(
+    facts: &FileFacts,
+    owner: Option<&(String, String)>,
+    line: u32,
+) -> Option<usize> {
     let (owner, name) = owner?;
     let holders: Vec<(usize, u32)> = facts
         .symbols

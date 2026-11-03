@@ -8,3 +8,7 @@ export async function placeOrder(prev: unknown, formData: FormData) {
 export async function cancelOrder(id: string) {
   return { cancelled: id }
 }
+
+export const refundOrder = async (id: string) => {
+  return { refunded: id }
+}

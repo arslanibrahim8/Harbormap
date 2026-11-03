@@ -176,6 +176,12 @@ fn server_actions_from_directives() {
             "app/lib/actions.ts#cancelOrder",
             "ts.next.action.file",
         ),
+        // `export const refundOrder = async (…) => …`
+        (
+            "ACTION",
+            "app/lib/actions.ts#refundOrder",
+            "ts.next.action.file",
+        ),
         (
             "ACTION",
             "app/ui/inline.tsx#Inline›save",
@@ -197,6 +203,17 @@ fn server_actions_from_directives() {
         place.handler_id.as_deref(),
         Some(symbol("next-app", "app/lib/actions.ts", "placeOrder").as_str())
     );
+    let refund = find(
+        &d,
+        "server_action",
+        "ACTION",
+        "app/lib/actions.ts#refundOrder",
+    );
+    assert_eq!(
+        refund.handler_id.as_deref(),
+        Some(symbol("next-app", "app/lib/actions.ts", "refundOrder").as_str())
+    );
+    assert_eq!(refund.line, 12);
     let save = find(
         &d,
         "server_action",
@@ -288,9 +305,7 @@ fn a_pages_folder_without_next_is_not_a_route_tree() {
     // A `pages/` folder only routes under a `package.json` that declares `next`.
     let d = derive_tree(&fixture("next-mono"));
     assert!(
-        d.routes
-            .iter()
-            .all(|r| !r.file.starts_with("packages/ui/") || r.rule.starts_with("npm.")),
+        d.routes.iter().all(|r| !r.file.starts_with("packages/ui/")),
         "{:#?}",
         d.routes
     );
@@ -504,4 +519,82 @@ fn a_middleware_without_matcher_runs_for_every_route() {
             .map(|s| s.to_string())
             .collect()
     );
+}
+
+#[test]
+fn a_parallel_slot_page_never_replaces_the_real_page() {
+    // https://nextjs.org/docs/app/api-reference/file-conventions/parallel-routes: a slot is
+    // not a URL segment; its page renders inside the parent layout, beside the real page.
+    let page = |name: &str| format!("export default function {name}() {{\n  return null\n}}\n");
+    let dir = tree(&[
+        (
+            "package.json",
+            "{\"dependencies\": {\"next\": \"15.2.0\"}}\n",
+        ),
+        ("app/page.tsx", &page("Home")),
+        ("app/@team/page.tsx", &page("TeamSlot")),
+        ("app/dashboard/page.tsx", &page("Dashboard")),
+        ("app/dashboard/@x/page.tsx", &page("XSlot")),
+        ("app/@team/settings/page.tsx", &page("TeamSettings")),
+    ]);
+    let d = derive_tree(dir.path());
+    let id_of = |rel: &str, name: &str| {
+        let facts = hm_index::ts::extract(
+            &fs::read_to_string(dir.path().join(rel)).expect("read a page"),
+            Lang::Tsx,
+        );
+        let at = facts
+            .symbols
+            .iter()
+            .position(|s| s.name == name)
+            .expect("the page");
+        symbol_ids(rel, &facts).swap_remove(at)
+    };
+    let home = find(&d, "page", "GET", "/");
+    assert_eq!(home.file, "app/page.tsx");
+    assert_eq!(home.handler_id, Some(id_of("app/page.tsx", "Home")));
+    let dashboard = find(&d, "page", "GET", "/dashboard");
+    assert_eq!(dashboard.file, "app/dashboard/page.tsx");
+    assert_eq!(
+        dashboard.handler_id,
+        Some(id_of("app/dashboard/page.tsx", "Dashboard"))
+    );
+    // A slot page with no real page at its URL is still a route.
+    assert_eq!(
+        find(&d, "page", "GET", "/settings").file,
+        "app/@team/settings/page.tsx"
+    );
+    assert_eq!(d.routes.len(), 3, "{:#?}", d.routes);
+    assert!(d.notes.is_empty(), "{:?}", d.notes);
+}
+
+#[test]
+fn src_trees_are_ignored_when_the_root_has_app_or_pages() {
+    // https://nextjs.org/docs/app/api-reference/file-conventions/src-folder: "`src/app` or
+    // `src/pages` will be ignored if `app` or `pages` are present in the root directory."
+    let page = "export default function Page() {\n  return null\n}\n";
+    let dir = tree(&[
+        (
+            "package.json",
+            "{\"dependencies\": {\"next\": \"15.2.0\"}}\n",
+        ),
+        ("app/page.tsx", page),
+        ("src/pages/about.tsx", page),
+        ("src/app/contact/page.tsx", page),
+    ]);
+    let d = derive_tree(dir.path());
+    let got: BTreeSet<&str> = d.routes.iter().map(|r| r.pattern.as_str()).collect();
+    assert_eq!(got, ["/"].into_iter().collect());
+
+    // A root `app` folder counts even when none of its files is parsed.
+    let dir = tree(&[
+        (
+            "package.json",
+            "{\"dependencies\": {\"next\": \"15.2.0\"}}\n",
+        ),
+        ("app/globals.css", "body { margin: 0 }\n"),
+        ("src/app/page.tsx", page),
+    ]);
+    let d = derive_tree(dir.path());
+    assert!(d.routes.is_empty(), "{:#?}", d.routes);
 }

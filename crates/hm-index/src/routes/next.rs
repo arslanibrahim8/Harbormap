@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use hm_core::ids::file_id;
 
-use super::{Derived, Ids, InferredEdge, Inputs, Route, route};
+use super::{Derived, Ids, InferredEdge, Inputs, Route, has_known_under, route};
 use crate::facts::SymbolKind;
 use crate::ts::resolve::{Project, resolve_export};
 
@@ -41,19 +41,30 @@ struct App<'a> {
 }
 
 impl App<'_> {
-    /// `R/<dir>` when a file is under it, else `R/src/<dir>` when a file is under that.
-    fn tree(&self, dir: &str) -> Option<String> {
-        [join(self.root, dir), join(self.root, &format!("src/{dir}"))]
-            .into_iter()
-            .find(|tree| self.under(tree).next().is_some())
-    }
-
-    /// The files under folder `tree`, with the path below it.
+    /// The parsed files under folder `tree`, with the path below it.
     fn under<'s>(&'s self, tree: &str) -> impl Iterator<Item = (&'s str, &'s str)> + 's {
         let prefix = format!("{tree}/");
         self.files
             .iter()
             .filter_map(move |rel| rel.strip_prefix(prefix.as_str()).map(|rest| (*rel, rest)))
+    }
+}
+
+/// The `app` and `pages` trees of the app at `root`: `R/app` and `R/pages` when either
+/// holds a known file, else `R/src/app` and `R/src/pages`. "`src/app` or `src/pages` will
+/// be ignored if `app` or `pages` are present in the root directory":
+/// <https://nextjs.org/docs/app/api-reference/file-conventions/src-folder>.
+fn trees(project: &Project, root: &str) -> (Option<String>, Option<String>) {
+    let pick = |base: &str| {
+        let present = |dir: &str| {
+            let tree = join(base, dir);
+            has_known_under(project, &tree).then_some(tree)
+        };
+        (present("app"), present("pages"))
+    };
+    match pick(root) {
+        (None, None) => pick(&join(root, "src")),
+        found => found,
     }
 }
 
@@ -94,11 +105,16 @@ fn apps<'a>(inputs: &Inputs<'a>) -> Vec<App<'a>> {
 pub(crate) fn routes(inputs: &Inputs, out: &mut Derived) {
     let mut ids = Ids::new(inputs.project);
     for app in apps(inputs) {
-        let app_tree = app.tree("app");
-        let pages_tree = app.tree("pages");
+        let (app_tree, pages_tree) = trees(inputs.project, app.root);
+        let mut slot_routes = Vec::new();
         if let Some(tree) = &app_tree {
             for (rel, rest) in app.under(tree) {
-                app_routes(inputs.project, &mut ids, app.root, rel, rest, out);
+                let (in_slot, found) = app_routes(inputs.project, &mut ids, app.root, rel, rest);
+                if in_slot {
+                    slot_routes.extend(found);
+                } else {
+                    out.routes.extend(found);
+                }
             }
         }
         if let Some(tree) = &pages_tree {
@@ -106,6 +122,21 @@ pub(crate) fn routes(inputs: &Inputs, out: &mut Derived) {
                 if let Some(r) = pages_route(inputs.project, &mut ids, app.root, rel, rest) {
                     out.routes.push(r);
                 }
+            }
+        }
+        // A slot's page renders beside the real page of its URL, not instead of it
+        // (<https://nextjs.org/docs/app/api-reference/file-conventions/parallel-routes>):
+        // it is a route only where no other page gives that URL, and that is no conflict.
+        let mut taken: BTreeSet<String> = out
+            .routes
+            .iter()
+            .filter(|r| r.root == app.root)
+            .map(|r| r.id.clone())
+            .collect();
+        slot_routes.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+        for r in slot_routes {
+            if taken.insert(r.id.clone()) {
+                out.routes.push(r);
             }
         }
         for rel in &app.files {
@@ -197,44 +228,46 @@ fn split_name(name: &str) -> Option<(&str, &str)> {
 }
 
 /// The routes of app-router file `rel`, `rest` being its path below the `app` folder: a
-/// `page` route for `page.*`, one `http` route per verb for `route.*`.
+/// `page` route for `page.*`, one `http` route per verb for `route.*`. The flag is true
+/// when the file sits in an `@slot` folder.
 fn app_routes(
     project: &Project,
     ids: &mut Ids,
     root: &str,
     rel: &str,
     rest: &str,
-    out: &mut Derived,
-) {
+) -> (bool, Vec<Route>) {
+    let mut routes = Vec::new();
     let (folders, name) = rest.rsplit_once('/').unwrap_or(("", rest));
     let Some((stem, ext)) = split_name(name) else {
-        return;
+        return (false, routes);
     };
     let is_page = stem == "page" && PAGE_EXTS.contains(&ext);
     let is_route = stem == "route" && ROUTE_EXTS.contains(&ext);
     if !is_page && !is_route {
-        return;
+        return (false, routes);
     }
     let mut segments = Vec::new();
+    let mut in_slot = false;
     for folder in folders.split('/').filter(|f| !f.is_empty()) {
         match app_segment(folder) {
             Segment::Push(s) => segments.push(s),
-            Segment::Drop => {}
-            Segment::Skip => return,
+            Segment::Drop => in_slot |= folder.starts_with('@'),
+            Segment::Skip => return (false, routes),
         }
     }
     let pattern = pattern_of(&segments);
 
     if is_page {
         let (handler_id, line) = exported(project, ids, rel, "default");
-        out.routes.push(Route {
+        routes.push(Route {
             handler_id,
             ..route(root, "page", "GET", &pattern, rel, line, "ts.next.app.page")
         });
-        return;
+        return (in_slot, routes);
     }
     let Some(facts) = project.facts.get(rel) else {
-        return;
+        return (in_slot, routes);
     };
     for verb in VERBS {
         let declared = facts.exports.iter().any(|e| !e.star && e.name == *verb);
@@ -242,11 +275,12 @@ fn app_routes(
         if !declared && handler_id.is_none() {
             continue;
         }
-        out.routes.push(Route {
+        routes.push(Route {
             handler_id,
             ..route(root, "http", verb, &pattern, rel, line, "ts.next.app.route")
         });
     }
+    (in_slot, routes)
 }
 
 /// The route of pages-router file `rel`, `rest` being its path below the `pages` folder:

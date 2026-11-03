@@ -713,7 +713,7 @@ fn skip_name(skip: Skip) -> &'static str {
 
 /// Whether L1 parses the file: a code file in a supported language, not a doc or an
 /// infrastructure file.
-fn parses(f: &WalkedFile) -> bool {
+pub(crate) fn parses(f: &WalkedFile) -> bool {
     f.skip.is_none()
         && !matches!(f.class, FileClass::Doc | FileClass::Infra)
         && f.lang.is_some_and(|l| l.parsed_in_l1())

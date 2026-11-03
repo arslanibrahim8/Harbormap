@@ -13,11 +13,12 @@ use std::path::Path;
 use hm_core::ids::route_id;
 use serde::Serialize;
 
-use crate::facts::{FileFacts, SymbolFact, SymbolKind};
+use crate::facts::FileFacts;
+use crate::index::parses;
 use crate::manifest::{ManifestCache, Manifests};
-use crate::ts::resolve::{ModuleResolver, ModuleTarget, Project, symbol_ids};
+use crate::ts::resolve::{ModuleResolver, ModuleTarget, Project, holder, symbol_ids};
 use crate::ts::tsconfig::load_tsconfigs;
-use crate::walk::{FileClass, walk};
+use crate::walk::walk;
 
 mod entries;
 mod express;
@@ -171,8 +172,7 @@ pub fn derive_tree(root: &Path) -> Derived {
     let mut facts: BTreeMap<String, FileFacts> = BTreeMap::new();
     for f in &walked.files {
         // The same files the indexer parses.
-        let parsed = f.skip.is_none() && !matches!(f.class, FileClass::Doc | FileClass::Infra);
-        let Some(lang) = f.lang.filter(|l| parsed && l.parsed_in_l1()) else {
+        let Some(lang) = f.lang.filter(|_| parses(f)) else {
             continue;
         };
         if let Ok(bytes) = fs::read(&f.abs) {
@@ -232,6 +232,17 @@ pub(crate) fn is_known(project: &Project, rel: &str) -> bool {
         )
 }
 
+/// True when some file of the tree lies under folder `dir`, by the rule of [`is_known`].
+pub(crate) fn has_known_under(project: &Project, dir: &str) -> bool {
+    let prefix = format!("{dir}/");
+    project
+        .facts
+        .range(prefix.clone()..)
+        .next()
+        .is_some_and(|(rel, _)| rel.starts_with(&prefix))
+        || project.modules.has_file_under(dir)
+}
+
 /// The symbol ids of each file, computed once per file. `symbol_ids` and `source_id`
 /// recompute the ids of the whole file on every call; the rules ask many times.
 pub(crate) struct Ids<'a> {
@@ -266,34 +277,7 @@ impl<'a> Ids<'a> {
         line: u32,
     ) -> Option<String> {
         let facts = self.project.facts.get(rel)?;
-        let index = holder(facts, owner?, line)?;
+        let index = holder(facts, owner, line)?;
         self.symbol(rel, index)
-    }
-}
-
-/// The same choice as the private `resolve::holder`, which `source_id` uses: of the
-/// symbols named `owner` that can hold code and span `line`, the one with the smallest
-/// span, when only one has it.
-fn holder(facts: &FileFacts, (owner, name): &(String, String), line: u32) -> Option<usize> {
-    let can_hold = |s: &SymbolFact| {
-        matches!(
-            s.kind,
-            SymbolKind::Function | SymbolKind::Method | SymbolKind::Class
-        )
-    };
-    let spans: Vec<(usize, u32)> = facts
-        .symbols
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| {
-            s.owner == *owner && s.name == *name && can_hold(s) && s.l0 <= line && line <= s.l1
-        })
-        .map(|(i, s)| (i, s.l1 - s.l0))
-        .collect();
-    let smallest = spans.iter().map(|&(_, span)| span).min();
-    let mut tightest = spans.iter().filter(|&&(_, span)| Some(span) == smallest);
-    match (tightest.next(), tightest.next()) {
-        (Some(&(i, _)), None) => Some(i),
-        _ => None,
     }
 }

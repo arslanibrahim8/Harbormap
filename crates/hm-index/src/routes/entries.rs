@@ -13,6 +13,12 @@ const RUNNERS: &[&str] = &["node", "tsx", "ts-node", "bun"];
 /// Words a runner takes before the file (`tsx watch x.ts`, `bun run x.ts`).
 const RUNNER_SUBCOMMANDS: &[&str] = &["run", "watch"];
 
+/// Flags whose value is the next word (`-r ./tracing.js`), not the script.
+const FLAGS_WITH_VALUE: &[&str] = &["-r", "--require", "--import", "--loader", "--env-file"];
+
+/// Flags that run code given on the command line: there is no script file.
+const EVAL_FLAGS: &[&str] = &["-e", "--eval", "-p", "--print"];
+
 /// One `cli` route per `bin`, a `main` route for `main` and one for `scripts.start`.
 pub(crate) fn routes(inputs: &Inputs, out: &mut Derived) {
     for m in &inputs.manifests.npm {
@@ -53,7 +59,8 @@ fn start_script(m: &NpmManifest) -> Option<&(String, String, u32)> {
 }
 
 /// The file `node|tsx|ts-node|bun <file>` runs, as written: the first argument after the
-/// runner that is not a flag or a subcommand. Leading `NAME=value` assignments are skipped.
+/// runner that is not a flag, a flag's value or a subcommand. Leading `NAME=value`
+/// assignments are skipped; a command that evaluates code (`node -e …`) runs no file.
 fn started_file(command: &str) -> Option<&str> {
     let mut words = command
         .split_whitespace()
@@ -62,7 +69,21 @@ fn started_file(command: &str) -> Option<&str> {
     if !RUNNERS.contains(&runner) {
         return None;
     }
-    words.find(|w| !w.starts_with('-') && !RUNNER_SUBCOMMANDS.contains(w))
+    while let Some(word) = words.next() {
+        if word.starts_with('-') {
+            // `--require=./x.js` carries its value; `--require ./x.js` takes the next word.
+            let flag = word.split_once('=').map_or(word, |(flag, _)| flag);
+            if EVAL_FLAGS.contains(&flag) {
+                return None;
+            }
+            if flag == word && FLAGS_WITH_VALUE.contains(&flag) {
+                words.next();
+            }
+        } else if !RUNNER_SUBCOMMANDS.contains(&word) {
+            return Some(word);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -80,5 +101,21 @@ mod tests {
         assert_eq!(started_file("bun run src/index.ts"), Some("src/index.ts"));
         assert_eq!(started_file("next start"), None);
         assert_eq!(started_file("node"), None);
+        // The value of a flag is not the script.
+        assert_eq!(
+            started_file("node -r ./tracing.js server.js"),
+            Some("server.js")
+        );
+        assert_eq!(
+            started_file("node --import tsx --env-file .env src/main.ts"),
+            Some("src/main.ts")
+        );
+        assert_eq!(
+            started_file("node --require=./tracing.js --loader ts-node/esm app.ts"),
+            Some("app.ts")
+        );
+        assert_eq!(started_file("node -e \"require('./x')\""), None);
+        assert_eq!(started_file("node --eval=1"), None);
+        assert_eq!(started_file("node -p 1"), None);
     }
 }
