@@ -1,22 +1,23 @@
-//! The JSON endpoints: cards, search, and the two lists that are empty until later
-//! levels fill them. Every body has `"v": 1`.
+//! The JSON endpoints: the map (overview and groups), cards, search, and the two lists
+//! that are empty until later levels fill them. Every body has `"v": 1`.
 
 use std::sync::{Arc, PoisonError};
 
 use axum::Json;
-use axum::extract::{FromRequestParts, Query, State};
+use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::request::Parts;
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use hm_index::index::Result as IndexResult;
 use hm_index::query::{FileCard, SymbolCard, file_card, symbol_card};
 use hm_index::view::search;
+use hm_layout::{FileLinks, GroupView, OverviewView};
 use hm_store::Store;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
-use crate::Shared;
+use crate::{Repo, Shared};
 
 /// The most results `/api/search` returns.
 const SEARCH_LIMIT: usize = 20;
@@ -118,7 +119,72 @@ pub(crate) fn check_path(path: &str) -> Result<(), ApiError> {
 pub(crate) struct CardParams {
     path: String,
     symbol: Option<String>,
-    // `view` (the group the card is opened from) only matters once cards carry links.
+    /// The view the card is opened from: `overview` (the default) or a group id.
+    view: Option<String>,
+}
+
+/// `GET /api/overview`: the top boxes and the arrows between them.
+#[derive(Serialize)]
+pub(crate) struct Overview {
+    v: u8,
+    seq: u64,
+    repo: Repo,
+    updated_ms: u64,
+    #[serde(flatten)]
+    view: OverviewView,
+    /// Files left off the map, by class.
+    excluded: Vec<Excluded>,
+    files_total: u32,
+}
+
+#[derive(Serialize)]
+struct Excluded {
+    class: String,
+    files: u32,
+}
+
+/// `GET /api/group/{id}`.
+#[derive(Serialize)]
+pub(crate) struct Group {
+    v: u8,
+    seq: u64,
+    #[serde(flatten)]
+    view: GroupView,
+}
+
+/// `GET /api/overview`.
+pub(crate) async fn overview(State(shared): State<Arc<Shared>>) -> Json<Overview> {
+    let now = shared.current();
+    let model = &now.model;
+    Json(Overview {
+        v: 1,
+        seq: now.seq,
+        repo: shared.repo.clone(),
+        updated_ms: now.updated_ms,
+        view: model.map.overview(),
+        // `Model::excluded` is already sorted by class.
+        excluded: (model.excluded.iter())
+            .map(|(class, files)| Excluded {
+                class: class.clone(),
+                files: *files,
+            })
+            .collect(),
+        files_total: model.files_total,
+    })
+}
+
+/// `GET /api/group/{id}`: 404 for an id that is no group of the current map.
+pub(crate) async fn group(
+    State(shared): State<Arc<Shared>>,
+    Path(id): Path<String>,
+) -> Result<Json<Group>, ApiError> {
+    let now = shared.current();
+    let view = now.model.map.group(&id).ok_or_else(ApiError::not_found)?;
+    Ok(Json(Group {
+        v: 1,
+        seq: now.seq,
+        view,
+    }))
 }
 
 /// The card of a file: what the index knows about it.
@@ -128,8 +194,12 @@ struct FileCardPayload {
     seq: u64,
     kind: &'static str,
     card: FileCard,
-    /// The file's arrows in the open view; filled once the map can tell.
-    links: Option<Value>,
+    /// The file's arrows lifted to the boxes of the open view; `null` when the file is
+    /// not on the map (a test, a doc) or the view is unknown.
+    links: Option<FileLinks>,
+    /// The groups holding the file, from its top box down to its parent group; `null`
+    /// when the file is not on the map.
+    ancestors: Option<Vec<String>>,
 }
 
 /// The card of a symbol.
@@ -147,8 +217,9 @@ pub(crate) async fn card(
     Params(params): Params<CardParams>,
 ) -> Result<Response, ApiError> {
     check_path(&params.path)?;
-    let seq = shared.seq();
-    let CardParams { path, symbol, .. } = params;
+    let now = shared.current();
+    let seq = now.seq;
+    let CardParams { path, symbol, view } = params;
     match symbol {
         Some(symbol) => {
             let card = read(&shared, move |s| symbol_card(s, &path, &symbol)).await?;
@@ -162,14 +233,19 @@ pub(crate) async fn card(
             .into_response())
         }
         None => {
+            let map_path = path.clone();
             let card = read(&shared, move |s| file_card(s, &path)).await?;
             let card = card.ok_or_else(ApiError::not_found)?;
+            let map = &now.model.map;
+            let links = map.file_links(&map_path, view.as_deref().unwrap_or("overview"));
+            let ancestors = map.ancestors(&map_path);
             Ok(Json(FileCardPayload {
                 v: 1,
                 seq,
                 kind: "file",
                 card,
-                links: None,
+                links,
+                ancestors,
             })
             .into_response())
         }

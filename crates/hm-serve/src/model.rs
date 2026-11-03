@@ -43,12 +43,29 @@ impl Model {
                 })
                 .collect(),
         };
-        let map = Map::build(&input, project_name, previous.map(|m| &m.map));
-        Ok(Model {
+        // A `BTreeMap` iterates by key, which is the class.
+        let excluded = facts.excluded.into_iter().collect();
+        Ok(Model::build(&input, project_name, excluded, previous))
+    }
+
+    fn build(
+        input: &Input,
+        project_name: &str,
+        excluded: Vec<(String, u32)>,
+        previous: Option<&Model>,
+    ) -> Model {
+        let map = Map::build(input, project_name, previous.map(|m| &m.map));
+        Model {
             map,
-            // A `BTreeMap` iterates by key, which is the class.
-            excluded: facts.excluded.into_iter().collect(),
+            excluded,
             files_total: input.files.len() as u32,
-        })
+        }
+    }
+
+    /// A model of a ready-made [`Input`], with the root box named `shop`. For tests
+    /// that need a project too large to index, such as the payload budgets.
+    #[doc(hidden)]
+    pub fn from_input(input: &Input, excluded: Vec<(String, u32)>) -> Model {
+        Model::build(input, "shop", excluded, None)
     }
 }

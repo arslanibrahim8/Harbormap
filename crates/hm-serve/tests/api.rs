@@ -32,7 +32,7 @@ async fn the_file_card_lists_jobs() {
     assert_eq!(status, 200);
     assert_eq!(body["kind"], "file");
     assert_eq!(body["seq"], 0);
-    assert!(body["links"].is_null());
+    assert!(body["links"].is_object(), "service.ts is on the map");
     let card = &body["card"];
     assert_eq!(card["path"], "src/orders/service.ts");
     assert_eq!(card["lang"], "typescript");

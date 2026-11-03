@@ -13,6 +13,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::Router;
 use axum::extract::Request;
@@ -52,12 +53,30 @@ pub struct ServeConfig {
 struct Live {
     model: Arc<Model>,
     seq: u64,
+    /// When `model` was published, in Unix milliseconds (the bind time at first).
+    updated_ms: u64,
+}
+
+/// One consistent read of the live state: a model with its own `seq` and time.
+pub(crate) struct Current {
+    pub(crate) model: Arc<Model>,
+    pub(crate) seq: u64,
+    pub(crate) updated_ms: u64,
+}
+
+/// Now, in Unix milliseconds; 0 if the clock is before 1970.
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 /// State shared by every request and by the [`Handle`]s.
 pub(crate) struct Shared {
     /// The canonical worktree root.
     pub(crate) root: PathBuf,
+    /// The repository the overview names.
+    pub(crate) repo: Repo,
     pub(crate) token: String,
     pub(crate) port: u16,
     /// The read connection; see [`api::read`].
@@ -75,6 +94,17 @@ impl Shared {
 
     pub(crate) fn seq(&self) -> u64 {
         self.live().seq
+    }
+
+    /// The model, its `seq` and its publish time, read under one lock so a response
+    /// never mixes the model of one publish with the `seq` of another.
+    pub(crate) fn current(&self) -> Current {
+        let live = self.live();
+        Current {
+            model: Arc::clone(&live.model),
+            seq: live.seq,
+            updated_ms: live.updated_ms,
+        }
     }
 
     /// A receiver of the deltas published from now on, and the `seq` it starts after.
@@ -112,12 +142,14 @@ impl Server {
         let (closing, _) = watch::channel(false);
         let shared = Arc::new(Shared {
             root,
+            repo: config.repo,
             token,
             port,
             store: Mutex::new(store),
             live: Mutex::new(Live {
                 model: Arc::new(model),
                 seq: 0,
+                updated_ms: now_ms(),
             }),
             deltas,
             closing,
@@ -166,6 +198,7 @@ impl Handle {
         live.seq += 1;
         delta.seq = live.seq;
         live.model = Arc::new(model);
+        live.updated_ms = now_ms();
         // No receiver is not an error: nobody has the panel open.
         let _ = self.shared.deltas.send(Arc::new(delta));
         live.seq
@@ -212,6 +245,8 @@ fn router(shared: Arc<Shared>) -> Router {
     let compressed = Router::new()
         .route("/", get(assets::index))
         .route("/assets/{*file}", get(assets::asset))
+        .route("/api/overview", get(api::overview))
+        .route("/api/group/{id}", get(api::group))
         .route("/api/card", get(api::card))
         .route("/api/file", get(source::file))
         .route("/api/search", get(api::find))
