@@ -1,1 +1,389 @@
 # Technologies that appear in more than one ecosystem. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "postgresql"
+name = "PostgreSQL"
+category = "data"
+npm = ["pg", "postgres", "pg-promise"]
+pypi = ["psycopg", "psycopg2", "psycopg2-binary", "asyncpg"]
+go = ["github.com/jackc/pgx", "github.com/lib/pq"]
+maven = ["org.postgresql:postgresql"]
+nuget = ["Npgsql", "Npgsql.EntityFrameworkCore.PostgreSQL"]
+crates = ["tokio-postgres", "postgres"]
+en.beginner = "a database that stores your app's data in organised tables."
+en.builder = "an open-source relational database server with SQL, transactions, JSON support and a strong extension system."
+tr.beginner = "uygulamanızın verilerini düzenli tablolarda saklayan bir veritabanı."
+tr.builder = "SQL, işlem desteği ve JSON özellikleriyle açık kaynaklı bir ilişkisel veritabanı sunucusu."
+
+[[tech]]
+id = "mysql"
+name = "MySQL"
+category = "data"
+npm = ["mysql", "mysql2"]
+pypi = ["mysqlclient", "PyMySQL", "mysql-connector-python", "aiomysql"]
+go = ["github.com/go-sql-driver/mysql"]
+maven = ["com.mysql:mysql-connector-j", "mysql:mysql-connector-java"]
+nuget = ["MySqlConnector", "MySql.Data", "Pomelo.EntityFrameworkCore.MySql"]
+crates = ["mysql", "mysql_async"]
+en.beginner = "a popular database that stores your app's data in tables, used by many websites."
+en.builder = "an open-source relational database server that speaks SQL, widely used by web applications."
+tr.beginner = "birçok web sitesinin kullandığı, verileri tablolarda saklayan popüler bir veritabanı."
+tr.builder = "SQL dilini kullanan, açık kaynaklı bir ilişkisel veritabanı sunucusu; web uygulamalarında yaygındır."
+
+[[tech]]
+id = "sqlite"
+name = "SQLite"
+category = "data"
+npm = ["better-sqlite3", "sqlite3", "sqlite"]
+pypi = ["aiosqlite"]
+go = ["github.com/mattn/go-sqlite3", "modernc.org/sqlite"]
+maven = ["org.xerial:sqlite-jdbc"]
+nuget = ["Microsoft.Data.Sqlite", "Microsoft.EntityFrameworkCore.Sqlite"]
+crates = ["rusqlite", "libsqlite3-sys"]
+en.beginner = "a small database kept in a single file, with no separate server to set up."
+en.builder = "an embedded SQL database engine in a C library, stored as one file, with transactions and no server process."
+tr.beginner = "ayrı sunucu gerektirmeyen, tek bir dosyada tutulan küçük bir veritabanı."
+tr.builder = "C ile yazılmış, SQL destekli ve tek dosya olarak saklanan gömülü bir veritabanı motoru; sunucu süreci yoktur."
+
+[[tech]]
+id = "mongodb"
+name = "MongoDB"
+category = "data"
+npm = ["mongodb"]
+pypi = ["pymongo", "motor"]
+go = ["go.mongodb.org/mongo-driver"]
+maven = ["org.mongodb:mongodb-driver-sync"]
+nuget = ["MongoDB.Driver"]
+crates = ["mongodb"]
+en.beginner = "a database that stores flexible records as documents instead of fixed tables."
+en.builder = "a document-oriented NoSQL database server that stores BSON documents, with a query language and aggregation pipelines."
+tr.beginner = "verileri sabit tablolar yerine esnek belgeler halinde saklayan bir veritabanı."
+tr.builder = "BSON belgeleri saklayan, belge yönelimli NoSQL veritabanı sunucusu; sorgu dili ve toplama hatları sunar."
+
+[[tech]]
+id = "redis"
+name = "Redis"
+category = "data"
+npm = ["redis", "ioredis", "@redis/client"]
+pypi = ["redis"]
+go = ["github.com/redis/go-redis", "github.com/go-redis/redis", "github.com/gomodule/redigo"]
+maven = ["redis.clients:jedis", "io.lettuce:lettuce-core"]
+nuget = ["StackExchange.Redis"]
+crates = ["redis"]
+en.beginner = "a very fast store that keeps data in memory, good for quick, temporary values."
+en.builder = "an open-source in-memory key-value store with data structures such as strings, lists, sets and streams."
+tr.beginner = "verileri bellekte tutan çok hızlı bir depo; kısa süreli değerler için uygundur."
+tr.builder = "anahtar-değer mantığıyla çalışan, bellek içi açık kaynaklı bir veri deposu; metin, liste ve küme veri yapılarını destekler."
+
+[[tech]]
+id = "sqlserver"
+name = "SQL Server"
+category = "data"
+npm = ["mssql", "tedious"]
+pypi = ["pymssql"]
+go = ["github.com/microsoft/go-mssqldb", "github.com/denisenkom/go-mssqldb"]
+maven = ["com.microsoft.sqlserver:mssql-jdbc"]
+nuget = ["Microsoft.Data.SqlClient", "System.Data.SqlClient", "Microsoft.EntityFrameworkCore.SqlServer"]
+crates = ["tiberius"]
+en.beginner = "Microsoft's database server for storing your app's data in tables."
+en.builder = "Microsoft's relational database server with T-SQL, transactions, stored procedures and Windows and Azure integration."
+tr.beginner = "Microsoft'un, uygulama verilerini tablolarda saklamak için geliştirdiği veritabanı sunucusu."
+tr.builder = "T-SQL, işlem ve saklı yordam desteği olan, Microsoft'un ilişkisel veritabanı sunucusu."
+
+[[tech]]
+id = "elasticsearch"
+name = "Elasticsearch"
+category = "data"
+npm = ["@elastic/elasticsearch"]
+pypi = ["elasticsearch"]
+go = ["github.com/elastic/go-elasticsearch"]
+maven = ["co.elastic.clients:elasticsearch-java"]
+nuget = ["Elastic.Clients.Elasticsearch", "NEST"]
+crates = ["elasticsearch"]
+en.beginner = "a search engine for your data, so you can find text and records very fast."
+en.builder = "a distributed search and analytics engine built on Apache Lucene, queried through a JSON REST API."
+tr.beginner = "metni ve kayıtları çok hızlı bulmanızı sağlayan bir arama motoru."
+tr.builder = "Apache Lucene üzerine kurulu, dağıtık bir arama ve analiz motoru; JSON tabanlı REST API ile sorgulanır."
+
+[[tech]]
+id = "kafka"
+name = "Kafka"
+category = "data"
+npm = ["kafkajs"]
+pypi = ["kafka-python", "confluent-kafka", "aiokafka"]
+go = ["github.com/segmentio/kafka-go", "github.com/IBM/sarama", "github.com/confluentinc/confluent-kafka-go"]
+maven = ["org.apache.kafka:kafka-clients", "org.springframework.kafka:spring-kafka"]
+nuget = ["Confluent.Kafka"]
+crates = ["rdkafka"]
+en.beginner = "a message system that passes events between parts of your app and keeps them for a while."
+en.builder = "a distributed event streaming platform that stores ordered topics in partitioned logs, with consumer groups."
+tr.beginner = "uygulamanın parçaları arasında mesaj ileten ve bu mesajları bir süre saklayan bir sistem."
+tr.builder = "bölümlere ayrılmış kayıt günlüklerinde sıralı konular tutan, dağıtık bir olay akışı platformu; tüketici grupları destekler."
+
+[[tech]]
+id = "rabbitmq"
+name = "RabbitMQ"
+category = "data"
+npm = ["amqplib"]
+pypi = ["pika", "aio-pika"]
+go = ["github.com/rabbitmq/amqp091-go"]
+maven = ["com.rabbitmq:amqp-client", "org.springframework.amqp:spring-rabbit"]
+nuget = ["RabbitMQ.Client"]
+crates = ["lapin"]
+en.beginner = "a message system that delivers tasks and messages from one part of your app to another."
+en.builder = "an open-source message broker supporting AMQP queues, exchanges and routing, with acknowledgements."
+tr.beginner = "uygulamanın bir parçasından diğerine görev ve mesaj ileten bir mesaj sistemi."
+tr.builder = "AMQP kuyrukları, değişim noktaları ve yönlendirme sunan, açık kaynaklı bir mesaj aracısı; onay mekanizması vardır."
+
+[[tech]]
+id = "graphql"
+name = "GraphQL"
+category = "data"
+npm = ["graphql", "graphql-tag"]
+pypi = ["graphql-core"]
+go = ["github.com/graphql-go/graphql"]
+maven = ["com.graphql-java:graphql-java"]
+en.beginner = "a way for an app to ask for exactly the data it needs in one request."
+en.builder = "a query language and runtime for APIs, with a typed schema that clients query over a single HTTP endpoint."
+tr.beginner = "bir uygulamanın tam olarak ihtiyaç duyduğu veriyi tek istekte isteyebilmesini sağlayan yöntem."
+tr.builder = "API'ler için sorgu dili; tür tanımlı şema tanımlanır ve istemciler tek bir HTTP uç noktasından sorgular."
+
+[[tech]]
+id = "grpc"
+name = "gRPC"
+category = "other"
+npm = ["@grpc/grpc-js", "@grpc/proto-loader"]
+pypi = ["grpcio", "grpcio-tools"]
+go = ["google.golang.org/grpc"]
+maven = ["io.grpc:grpc-*"]
+nuget = ["Grpc.AspNetCore", "Grpc.Net.Client", "Grpc.Tools"]
+crates = ["tonic"]
+en.beginner = "a fast way for two programs to call each other's functions over the network."
+en.builder = "a high-performance RPC framework using HTTP/2 and Protocol Buffers, with code generated from .proto files."
+tr.beginner = "iki programın ağ üzerinden birbirinin işlevlerini çağırmasını sağlayan hızlı bir yöntem."
+tr.builder = "HTTP/2 ve Protocol Buffers kullanan yüksek performanslı bir RPC çatısı; kod .proto dosyalarından üretilir."
+
+[[tech]]
+id = "protobuf"
+name = "Protocol Buffers"
+category = "other"
+npm = ["protobufjs", "google-protobuf", "@bufbuild/protobuf"]
+pypi = ["protobuf"]
+go = ["google.golang.org/protobuf", "github.com/golang/protobuf"]
+maven = ["com.google.protobuf:protobuf-java"]
+nuget = ["Google.Protobuf"]
+crates = ["prost"]
+en.beginner = "a compact format for describing data so programs can share it reliably."
+en.builder = "Google's binary serialization format and IDL, with a .proto schema compiled into code for many languages."
+tr.beginner = "programların verileri güvenle paylaşabilmesi için veriyi kompakt biçimde tanımlayan bir biçim."
+tr.builder = "Google'ın ikili serileştirme biçimi; .proto şemalarından birçok dil için kod üretir."
+
+[[tech]]
+id = "opentelemetry"
+name = "OpenTelemetry"
+category = "deploy"
+npm = ["@opentelemetry/*"]
+pypi = ["opentelemetry-*"]
+go = ["go.opentelemetry.io/otel", "go.opentelemetry.io/contrib"]
+maven = ["io.opentelemetry:*"]
+nuget = ["OpenTelemetry", "OpenTelemetry.*"]
+crates = ["opentelemetry", "opentelemetry-*"]
+en.beginner = "a set of tools that record how your app runs, to find slow or broken parts."
+en.builder = "a vendor-neutral observability framework with APIs and SDKs for traces, metrics and logs, and an OTLP protocol."
+tr.beginner = "uygulamanın nasıl çalıştığını kaydeden ve yavaş ya da bozuk yerleri bulmanızı sağlayan araçlar."
+tr.builder = "izleme, ölçüm ve günlük verileri için satıcıdan bağımsız API'ler ve SDK'lar sunan bir gözlemlenebilirlik çatısı."
+
+[[tech]]
+id = "sentry"
+name = "Sentry"
+category = "deploy"
+npm = ["@sentry/*"]
+pypi = ["sentry-sdk"]
+go = ["github.com/getsentry/sentry-go"]
+maven = ["io.sentry:*"]
+nuget = ["Sentry", "Sentry.*"]
+crates = ["sentry", "sentry-*"]
+en.beginner = "a service that tells you when your app crashes or throws an error, with details."
+en.builder = "an error tracking and performance monitoring platform, with SDKs that report exceptions and slow traces."
+tr.beginner = "uygulamanız hata verdiğinde ya da çöktüğünde ayrıntılarıyla size haber veren bir hizmet."
+tr.builder = "hataları ve performans sorunlarını izleyen bir platform; SDK'lar istisnaları ve yavaş işlemleri raporlar."
+
+[[tech]]
+id = "prometheus"
+name = "Prometheus"
+category = "deploy"
+npm = ["prom-client"]
+pypi = ["prometheus-client"]
+go = ["github.com/prometheus/client_golang"]
+maven = ["io.prometheus:*"]
+nuget = ["prometheus-net", "prometheus-net.*"]
+crates = ["prometheus"]
+en.beginner = "a monitoring system that collects numbers about your app over time, such as requests and errors."
+en.builder = "an open-source metrics system with a time-series database, a PromQL query language and pull-based scraping."
+tr.beginner = "uygulamanızın istek ve hata sayıları gibi değerlerini zamanla kaydeden bir izleme sistemi."
+tr.builder = "zaman serisi veritabanı ve PromQL sorgu dili olan, çekme tabanlı veri toplayan açık kaynaklı bir ölçüm sistemi."
+
+[[tech]]
+id = "stripe"
+name = "Stripe"
+category = "other"
+npm = ["stripe", "@stripe/stripe-js", "@stripe/react-stripe-js"]
+pypi = ["stripe"]
+go = ["github.com/stripe/stripe-go"]
+maven = ["com.stripe:stripe-java"]
+nuget = ["Stripe.net"]
+crates = ["async-stripe"]
+en.beginner = "a service that lets your website accept card and online payments."
+en.builder = "a payments platform with APIs and client libraries for charging cards, subscriptions, invoices and payouts."
+tr.beginner = "web siteniz üzerinden kartla ve çevrim içi ödeme almanızı sağlayan bir hizmet."
+tr.builder = "kart çekimi, abonelik, fatura ve ödeme aktarımları için API'ler ve istemci kütüphaneleri sunan bir ödeme platformu."
+
+[[tech]]
+id = "aws-sdk"
+name = "AWS SDK"
+category = "deploy"
+npm = ["@aws-sdk/*", "aws-sdk"]
+pypi = ["boto3", "botocore", "aioboto3"]
+go = ["github.com/aws/aws-sdk-go-v2", "github.com/aws/aws-sdk-go"]
+maven = ["software.amazon.awssdk:*", "com.amazonaws:*"]
+nuget = ["AWSSDK.*"]
+crates = ["aws-sdk-*", "aws-config"]
+en.beginner = "the official libraries your code uses to work with Amazon Web Services, like file storage and databases."
+en.builder = "Amazon's official SDKs for calling AWS services from JavaScript, Python, Go, Java, .NET and Rust."
+tr.beginner = "kodunuzun Amazon Web Services dosya depolama ve veritabanı gibi hizmetleri kullanmasını sağlayan kütüphaneler."
+tr.builder = "Amazon'un AWS hizmetlerini JavaScript, Python, Go, Java, .NET ve Rust'tan çağırmak için resmi SDK'ları."
+
+[[tech]]
+id = "google-cloud"
+name = "Google Cloud"
+category = "deploy"
+npm = ["@google-cloud/*"]
+pypi = ["google-cloud-*"]
+go = ["cloud.google.com/go"]
+maven = ["com.google.cloud:*"]
+nuget = ["Google.Cloud.*"]
+en.beginner = "the official libraries your code uses to work with Google Cloud services, like storage and databases."
+en.builder = "Google's official client libraries for Google Cloud APIs such as Storage, BigQuery, Pub/Sub and Firestore."
+tr.beginner = "kodunuzun Google Cloud depolama, veritabanı gibi hizmetlerini kullanmasını sağlayan resmi kütüphaneler."
+tr.builder = "Google'ın Storage, BigQuery, Pub/Sub ve Firestore gibi Google Cloud API'leri için resmi istemci kütüphaneleri."
+
+[[tech]]
+id = "azure-sdk"
+name = "Azure SDK"
+category = "deploy"
+npm = ["@azure/*"]
+pypi = ["azure-*"]
+go = ["github.com/Azure/azure-sdk-for-go"]
+maven = ["com.azure:*"]
+nuget = ["Azure.*"]
+en.beginner = "the official libraries your code uses to work with Microsoft Azure services, like storage and identity."
+en.builder = "Microsoft's official client libraries for Azure services, in JavaScript, Python, Go, Java and .NET."
+tr.beginner = "kodunuzun Microsoft Azure depolama, kimlik doğrulama gibi hizmetleriyle çalışmasını sağlayan resmi kütüphaneler."
+tr.builder = "Microsoft'un JavaScript, Python, Go, Java ve .NET için Azure hizmetlerine erişen resmi istemci kütüphaneleri."
+
+[[tech]]
+id = "firebase"
+name = "Firebase"
+category = "deploy"
+npm = ["firebase", "firebase-admin", "firebase-tools", "firebase-functions"]
+pypi = ["firebase-admin"]
+go = ["firebase.google.com/go"]
+maven = ["com.google.firebase:firebase-admin"]
+nuget = ["FirebaseAdmin"]
+en.beginner = "Google's online service for an app's login, database, file storage and hosting."
+en.builder = "Google's app platform with Auth, Firestore, Cloud Functions and hosting, with Admin SDKs for servers."
+tr.beginner = "bir uygulamanın giriş, veritabanı, dosya depolama ve barındırma işlerini yapan Google hizmeti."
+tr.builder = "Auth, Firestore, Cloud Functions ve barındırma sunan Google uygulama platformu; sunucular için Admin SDK'ları vardır."
+
+[[tech]]
+id = "supabase"
+name = "Supabase"
+category = "data"
+npm = ["@supabase/*", "supabase"]
+pypi = ["supabase"]
+en.beginner = "an open-source service with a Postgres database, logins and file storage for your app."
+en.builder = "an open-source Firebase alternative built on PostgreSQL, with auth, realtime, storage and a JavaScript client."
+tr.beginner = "uygulamanız için Postgres veritabanı, giriş ve dosya depolama sunan açık kaynaklı bir hizmet."
+tr.builder = "PostgreSQL üzerine kurulu; kimlik doğrulama, gerçek zamanlı veri, depolama ve JavaScript istemcisi sunan açık kaynaklı bir platform."
+
+[[tech]]
+id = "openai"
+name = "OpenAI"
+category = "other"
+npm = ["openai"]
+pypi = ["openai"]
+go = ["github.com/openai/openai-go", "github.com/sashabaranov/go-openai"]
+maven = ["com.openai:openai-java"]
+nuget = ["OpenAI"]
+crates = ["async-openai"]
+en.beginner = "a library that lets your code talk to OpenAI's AI models, such as for chat and images."
+en.builder = "the OpenAI API client libraries for JavaScript, Python, Go, Java and .NET, used to call GPT and other models."
+tr.beginner = "kodunuzun OpenAI'nin yapay zekâ modelleriyle konuşmasını sağlayan bir kütüphane."
+tr.builder = "GPT ve diğer modelleri çağırmak için JavaScript, Python, Go, Java ve .NET'te OpenAI API istemcileri."
+
+[[tech]]
+id = "anthropic"
+name = "Anthropic"
+category = "other"
+npm = ["@anthropic-ai/sdk"]
+pypi = ["anthropic"]
+go = ["github.com/anthropics/anthropic-sdk-go"]
+maven = ["com.anthropic:anthropic-java"]
+en.beginner = "a library that lets your code talk to Claude, Anthropic's AI model."
+en.builder = "the official Anthropic API client for TypeScript and JavaScript, Python, Go and Java, used to call Claude models."
+tr.beginner = "kodunuzun Anthropic'in yapay zekâ modeli Claude ile konuşmasını sağlayan bir kütüphane."
+tr.builder = "Claude modellerini çağırmak için TypeScript, Python, Go ve Java'da Anthropic API istemcisi."
+
+[[tech]]
+id = "langchain"
+name = "LangChain"
+category = "other"
+npm = ["langchain", "@langchain/*"]
+pypi = ["langchain", "langchain-*"]
+en.beginner = "a toolkit that helps your code build AI apps, linking AI models with data and other tools."
+en.builder = "a framework for LLM applications with model, prompt, retriever and agent building blocks, in JavaScript and Python."
+tr.beginner = "yapay zekâ uygulamaları kurmayı kolaylaştıran bir araç takımı."
+tr.builder = "yapay zekâ modellerini, komutları, veri erişimini ve ajanları birbirine bağlayan; JavaScript ve Python'da çalışan bir çatı."
+
+[[tech]]
+id = "selenium"
+name = "Selenium"
+category = "testing"
+npm = ["selenium-webdriver"]
+pypi = ["selenium"]
+maven = ["org.seleniumhq.selenium:*"]
+nuget = ["Selenium.WebDriver", "Selenium.Support"]
+en.beginner = "a tool that opens a web browser and clicks through your site, to test it automatically."
+en.builder = "a browser automation suite with WebDriver bindings for JavaScript, Python, Java and C#, driving real browsers."
+tr.beginner = "bir web tarayıcısını açıp sitenizde tıklayarak onu otomatik olarak test eden bir araç."
+tr.builder = "JavaScript, Python, Java ve C# için WebDriver bağlantıları sunan, gerçek tarayıcıları süren bir tarayıcı otomasyon aracı."
+
+[[tech]]
+id = "testcontainers"
+name = "Testcontainers"
+category = "testing"
+npm = ["testcontainers", "@testcontainers/*"]
+pypi = ["testcontainers"]
+go = ["github.com/testcontainers/testcontainers-go"]
+maven = ["org.testcontainers:*"]
+nuget = ["Testcontainers", "Testcontainers.*"]
+crates = ["testcontainers"]
+en.beginner = "a library that starts real databases for your tests and stops them when the tests end."
+en.builder = "a library that runs throwaway Docker containers for integration tests, with modules for many databases and services."
+tr.beginner = "testler için gerçek veritabanları başlatan, testler bitince de onları kapatan bir kütüphane."
+tr.builder = "entegrasyon testleri için tek kullanımlık Docker konteynerleri çalıştıran; birçok veritabanı için modülleri olan bir kütüphane."
+
+[[tech]]
+id = "docker"
+name = "Docker"
+category = "deploy"
+npm = ["dockerode"]
+pypi = ["docker"]
+go = ["github.com/docker/docker"]
+maven = ["com.github.docker-java:docker-java"]
+nuget = ["Docker.DotNet"]
+crates = ["bollard"]
+en.beginner = "a container tool that packs your app and its needs so it runs the same anywhere."
+en.builder = "a container platform and CLI, with a daemon that builds images from Dockerfiles and runs containers."
+tr.beginner = "uygulamanızı ve ihtiyaçlarını bir konteynerde paketleyen, her yerde aynı çalışan bir araç."
+tr.builder = "Dockerfile'lardan imaj oluşturan ve konteynerleri çalıştıran bir daemon, CLI ve konteyner platformu."

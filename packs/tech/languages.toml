@@ -1,1 +1,118 @@
 # Programming languages by file extension. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "typescript"
+name = "TypeScript"
+category = "language"
+languages = ["typescript", "tsx"]
+npm = ["typescript"]
+en.beginner = "a language that adds types to javascript, so many mistakes are caught early."
+en.builder = "a typed superset of javascript that compiles to plain javascript, with a type checker and the tsc compiler."
+tr.beginner = "javascript'e tür ekleyen bir dil; hataları daha erken yakalar."
+tr.builder = "JavaScript'in tür denetimli üst kümesi; düz JavaScript'e derlenir ve tür denetimini tsc yapar."
+
+[[tech]]
+id = "javascript"
+name = "JavaScript"
+category = "language"
+languages = ["javascript"]
+en.beginner = "the programming language that makes websites interactive and runs in browsers and on servers."
+en.builder = "the scripting language of browsers and Node.js, standardised as ECMAScript and run by JS engines such as V8."
+tr.beginner = "web sayfalarını etkileşimli yapan ve sunucularda da çalışan bir programlama dili."
+tr.builder = "tarayıcıda ve Node.js gibi sunucu ortamlarında çalışan betik dili; ECMAScript olarak standartlaştırılmıştır."
+
+[[tech]]
+id = "python"
+name = "Python"
+category = "language"
+languages = ["python"]
+en.beginner = "an easy-to-read programming language used for scripts, data work, websites and AI."
+en.builder = "a high-level, interpreted programming language with a large standard library and a huge package ecosystem on PyPI."
+tr.beginner = "okunması kolay, betikler, veri işleri ve yapay zekâ için kullanılan bir programlama dili."
+tr.builder = "üst düzey, yorumlanan bir programlama dili; geniş standart kütüphanesi ve PyPI paket deposu vardır."
+
+[[tech]]
+id = "go"
+name = "Go"
+category = "language"
+languages = ["go"]
+en.beginner = "a simple and fast programming language made by Google for servers and command-line tools."
+en.builder = "a statically typed, compiled language with garbage collection, built-in concurrency and a single standard toolchain."
+tr.beginner = "sunucular ve komut satırı araçları için Google'ın yaptığı sade, hızlı bir programlama dili."
+tr.builder = "statik tür denetimli, derlenen bir dil; çöp toplama ve yerleşik eşzamanlılık özellikleri vardır."
+
+[[tech]]
+id = "java"
+name = "Java"
+category = "language"
+languages = ["java"]
+en.beginner = "a long-used programming language for large business apps, Android apps and servers."
+en.builder = "an object-oriented, class-based language that runs on the Java Virtual Machine (JVM) and has a huge library ecosystem."
+tr.beginner = "kurumsal uygulamalar, Android uygulamaları ve sunucular için uzun süredir kullanılan bir dil."
+tr.builder = "Java Sanal Makinesi (JVM) üzerinde çalışan, nesne yönelimli ve sınıf tabanlı bir dil; geniş bir kütüphane ekosistemi vardır."
+
+[[tech]]
+id = "csharp"
+name = "C#"
+category = "language"
+languages = ["csharp"]
+en.beginner = "a modern programming language from Microsoft for Windows apps, websites, games and business software."
+en.builder = "a statically typed, object-oriented language that runs on .NET, with garbage collection and a rich type system."
+tr.beginner = "Microsoft'un Windows uygulamaları, web siteleri, oyunlar ve iş yazılımları için yaptığı bir dil."
+tr.builder = ".NET üzerinde çalışan, nesne yönelimli ve tür denetimli bir dil; çöp toplama ve zengin bir tür sistemi sunar."
+
+[[tech]]
+id = "rust"
+name = "Rust"
+category = "language"
+languages = ["rust"]
+en.beginner = "a fast programming language that catches memory bugs before the program runs."
+en.builder = "a systems language with no garbage collector, memory safety enforced by the borrow checker, and the Cargo build tool."
+tr.beginner = "bellek hatalarını program çalışmadan önce yakalayan, hızlı bir programlama dili."
+tr.builder = "çöp toplayıcısı olmayan bir sistem dili; bellek güvenliğini derleme sırasında denetler ve Cargo aracıyla derlenir."
+
+[[tech]]
+id = "nodejs"
+name = "Node.js"
+category = "language"
+en.beginner = "the engine that runs JavaScript outside the browser, on your computer or a server."
+en.builder = "a JavaScript runtime built on Chrome's V8 engine, with an event loop and the npm package manager."
+tr.beginner = "JavaScript'i tarayıcı dışında, bilgisayarında ya da bir sunucuda çalıştıran motor."
+tr.builder = "Chrome'un V8 motoru üzerine kurulu bir JavaScript çalışma ortamı; olay döngüsü ve npm paket yöneticisi vardır."
+
+[[tech]]
+id = "bun"
+name = "Bun"
+category = "language"
+en.beginner = "a fast all-in-one tool that runs JavaScript and TypeScript and installs packages."
+en.builder = "a JavaScript and TypeScript runtime and toolkit with a bundler, test runner and npm-compatible package manager."
+tr.beginner = "JavaScript ve TypeScript kodunu çalıştıran, paket kurabilen hepsi bir arada hızlı bir araç."
+tr.builder = "JavaScript ve TypeScript için çalışma ortamı ve araç seti; paketleyici, test koşucusu ve npm uyumlu paket yöneticisi içerir."
+
+[[tech]]
+id = "deno"
+name = "Deno"
+category = "language"
+en.beginner = "a secure way to run JavaScript and TypeScript, with tools for testing and formatting built in."
+en.builder = "a JavaScript and TypeScript runtime built on V8 and Rust, which asks for permission before file, network or environment access."
+tr.beginner = "JavaScript ve TypeScript'i güvenli bir şekilde çalıştırır; test ve biçimlendirme araçları içerir."
+tr.builder = "V8 ve Rust üzerine kurulu bir çalışma ortamı; dosya, ağ ve ortam erişimi için açıkça izin ister."
+
+[[tech]]
+id = "dotnet"
+name = ".NET"
+category = "language"
+en.beginner = "Microsoft's free platform for building and running apps in C#, F# and other languages."
+en.builder = "a cross-platform developer platform and runtime, with the dotnet CLI, the SDK and the Common Language Runtime (CLR)."
+tr.beginner = "Microsoft'un C#, F# ve başka dillerle uygulama geliştirmek ve çalıştırmak için ücretsiz platformu."
+tr.builder = "çapraz platform geliştirici platformu ve çalışma ortamı; dotnet komut satırı aracı, SDK ve CLR'yi içerir."
+
+[[tech]]
+id = "kotlin"
+name = "Kotlin"
+category = "language"
+maven = ["org.jetbrains.kotlin:*"]
+en.beginner = "a modern language for Android apps and server programs, often shorter than Java."
+en.builder = "a statically typed language for the JVM, JavaScript and native targets, by JetBrains, with null-safety and coroutines."
+tr.beginner = "Android uygulamaları ve sunucu programları için modern bir dil; genellikle Java'dan daha kısadır."
+tr.builder = "JetBrains'in geliştirdiği; JVM, JavaScript ve yerel hedefler için tür denetimli bir dil; boş değer güvenliği ve eş yordamlar içerir."
