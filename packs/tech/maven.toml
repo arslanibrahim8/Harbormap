@@ -1,1 +1,501 @@
 # Java and Kotlin packages from Maven. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "spring-boot"
+name = "Spring Boot"
+category = "framework"
+maven = ["org.springframework.boot:*"]
+en.beginner = "a framework that helps you start a Java server app quickly with little setup."
+en.builder = "Spring Boot sets up a Spring application with sensible defaults, an embedded server and auto-configuration."
+tr.beginner = "Java ile sunucu uygulamalarını az ayarlamayla hızlıca başlatmaya yarayan bir çerçeve."
+tr.builder = "Spring uygulamasını varsayılan ayarlarla kuran, gömülü sunucu ve otomatik yapılandırma sağlayan bir çerçeve."
+
+[[tech]]
+id = "spring-framework"
+name = "Spring Framework"
+category = "framework"
+maven = ["org.springframework:*"]
+en.beginner = "a large toolkit for building Java apps, the base that other Spring tools are built on."
+en.builder = "the core Spring library: dependency injection, web MVC, data access and transactions."
+tr.beginner = "Java uygulamaları yazmak için geniş bir araç seti; diğer Spring araçlarının üzerine kurulduğu temel."
+tr.builder = "bağımlılık enjeksiyonu, web MVC, veri erişimi ve işlemler sunan çekirdek Spring kütüphanesi."
+
+[[tech]]
+id = "spring-security"
+name = "Spring Security"
+category = "auth"
+maven = ["org.springframework.security:*", "org.springframework.boot:spring-boot-starter-security"]
+en.beginner = "a library that checks who can log in to your app and what each user may do."
+en.builder = "authentication and authorization framework for Java apps, with login, password hashing, CSRF protection and access rules."
+tr.beginner = "uygulamana kimin girebileceğini ve her kullanıcının ne yapabileceğini denetleyen bir kütüphane."
+tr.builder = "Java uygulamaları için kimlik doğrulama ve yetkilendirme çerçevesi; giriş, şifre karması, CSRF koruması ve erişim kuralları."
+
+[[tech]]
+id = "spring-data"
+name = "Spring Data"
+category = "data"
+maven = ["org.springframework.data:*", "org.springframework.boot:spring-boot-starter-data-jpa"]
+en.beginner = "a library that saves and reads your app's data in a database with very little code."
+en.builder = "repositories that generate database queries for JPA, MongoDB, Redis and other stores."
+tr.beginner = "uygulamanızın verilerini veritabanına kaydedip okuyan, çok az kodla çalışan bir kütüphane."
+tr.builder = "veri depoları için sorgu üreten depo arayüzleri sunan Spring kütüphanesi; JPA, MongoDB ve Redis ile çalışır."
+
+[[tech]]
+id = "spring-cloud"
+name = "Spring Cloud"
+category = "framework"
+maven = ["org.springframework.cloud:*"]
+en.beginner = "a set of tools that helps several Java services find, configure and talk to each other."
+en.builder = "toolkit for distributed systems: config server, service discovery, gateway and circuit breakers on top of Spring Boot."
+tr.beginner = "birden çok Java servisinin birbirini bulmasına, ayarlanmasına ve haberleşmesine yardım eden araçlar."
+tr.builder = "dağıtık sistemler için yapılandırma sunucusu, servis keşfi, ağ geçidi ve devre kesici araçları sunan Spring araç seti."
+
+[[tech]]
+id = "hibernate"
+name = "Hibernate"
+category = "data"
+maven = ["org.hibernate.orm:hibernate-core", "org.hibernate:hibernate-core"]
+en.beginner = "a library that saves your Java objects in a database and loads them back for you."
+en.builder = "object-relational mapping framework that implements JPA, mapping Java classes to database tables."
+tr.beginner = "Java nesnelerini veritabanına kaydedip geri yükleyen bir kütüphane."
+tr.builder = "Java sınıflarını veritabanı tablolarına eşleyen, JPA'yı uygulayan bir nesne-ilişkisel eşleme çerçevesi."
+
+[[tech]]
+id = "hibernate-validator"
+name = "Hibernate Validator"
+category = "validation"
+maven = ["org.hibernate.validator:hibernate-validator", "org.springframework.boot:spring-boot-starter-validation"]
+en.beginner = "a library that checks the data users send, such as required fields or minimum length."
+en.builder = "implementation of Jakarta Bean Validation, using annotations such as @NotNull and @Size."
+tr.beginner = "kullanıcıdan gelen verileri zorunlu alan, en az uzunluk gibi kurallara göre denetleyen bir kütüphane."
+tr.builder = "Jakarta Bean Validation standardını uygulayan; @NotNull ve @Size gibi anotasyonlarla kural tanımlanmasını sağlar."
+
+[[tech]]
+id = "jakarta-persistence"
+name = "Jakarta Persistence"
+category = "data"
+maven = ["jakarta.persistence:jakarta.persistence-api"]
+en.beginner = "a standard set of rules for saving Java objects in a database, used by tools like Hibernate."
+en.builder = "Jakarta Persistence API, the JPA specification with annotations like @Entity and @Id, implemented by Hibernate."
+tr.beginner = "Java nesnelerini veritabanına kaydetmek için standart kurallar kümesi; Hibernate gibi araçlar kullanır."
+tr.builder = "Jakarta Persistence API; @Entity ve @Id gibi anotasyonlarla JPA belirtimini tanımlar, Hibernate uygular."
+
+[[tech]]
+id = "jakarta-validation"
+name = "Jakarta Validation"
+category = "validation"
+maven = ["jakarta.validation:jakarta.validation-api"]
+en.beginner = "a standard set of rules for checking data, such as required fields and value limits."
+en.builder = "Jakarta Bean Validation API: annotations such as @NotNull and @Size, implemented by Hibernate Validator."
+tr.beginner = "verileri kontrol etmek için standart bir kurallar kümesi; zorunlu alanlar, değer sınırları gibi."
+tr.builder = "Jakarta Bean Validation API; @NotNull ve @Size gibi anotasyonları tanımlar, Hibernate Validator uygular."
+
+[[tech]]
+id = "jakarta-servlet"
+name = "Jakarta Servlet"
+category = "framework"
+maven = ["jakarta.servlet:jakarta.servlet-api"]
+en.beginner = "the standard that lets Java web code handle web requests, used by servers like Tomcat."
+en.builder = "Jakarta Servlet API, the base interface for HTTP request and response handling in Java web servers."
+tr.beginner = "Java web kodunun gelen istekleri işlemesini sağlayan standart; Tomcat gibi sunucular kullanır."
+tr.builder = "Jakarta Servlet API; HTTP isteklerini ve yanıtlarını işleyen temel arayüz."
+
+[[tech]]
+id = "lombok"
+name = "Lombok"
+category = "build"
+maven = ["org.projectlombok:lombok"]
+en.beginner = "a library that writes repetitive Java code, like getters and setters, for you while you build."
+en.builder = "annotation processor that generates boilerplate such as getters, setters, constructors and builders at compile time."
+tr.beginner = "Java'da tekrar eden kodları, değer okuma ve yazma metotlarını, sizin yerinize yazan bir kütüphane."
+tr.builder = "derleme sırasında değer okuma ve yazma metotları, kurucular ve builder gibi tekrar eden kodları üreten bir anotasyon işlemcisi."
+
+[[tech]]
+id = "mapstruct"
+name = "MapStruct"
+category = "other"
+maven = ["org.mapstruct:mapstruct"]
+en.beginner = "a library that copies data between Java objects, writing the copying code for you."
+en.builder = "annotation processor that generates type-safe mapping code between Java bean classes at compile time."
+tr.beginner = "Java nesneleri arasında verileri kopyalayan, bu kopyalama kodunu sizin yerinize yazan bir kütüphane."
+tr.builder = "derleme sırasında Java sınıfları arasında tür güvenli eşleme kodu üreten bir anotasyon işlemcisi."
+
+[[tech]]
+id = "gson-java"
+name = "Gson"
+category = "other"
+maven = ["com.google.code.gson:gson"]
+en.beginner = "a library that turns Java objects into JSON text and back again."
+en.builder = "Google's JSON library for Java, serializing and deserializing objects with reflection or custom adapters."
+tr.beginner = "Java nesnelerini JSON metnine çeviren, bunu geri de yapabilen bir kütüphane."
+tr.builder = "Google'ın Java için JSON kütüphanesi; nesneleri JSON'a ve JSON'dan yansıma ya da özel adaptörlerle çevirir."
+
+[[tech]]
+id = "guava"
+name = "Guava"
+category = "other"
+maven = ["com.google.guava:guava"]
+en.beginner = "a set of helper tools from Google that make everyday Java code shorter and safer."
+en.builder = "Google's core Java libraries: collections, caching, string utilities, I/O and concurrency helpers."
+tr.beginner = "Java kodunu daha kısa ve güvenli yazmayı sağlayan, Google'dan yardımcı araçlar seti."
+tr.builder = "Google'ın koleksiyon, önbellekleme, metin, giriş-çıkış ve eşzamanlılık yardımcılarını içeren Java kütüphanesi."
+
+[[tech]]
+id = "commons-lang3"
+name = "Apache Commons Lang"
+category = "other"
+maven = ["org.apache.commons:commons-lang3"]
+en.beginner = "a set of small helper methods for common text, number and object tasks in Java."
+en.builder = "Apache library with utility classes for strings, arrays, numbers and objects, extending java.lang."
+tr.beginner = "Java'da yaygın metin, sayı ve nesne işleri için küçük yardımcı metotlar sunan bir kütüphane."
+tr.builder = "dizeler, diziler, sayılar ve nesneler için yardımcı sınıflar sunan; java.lang'i genişleten Apache kütüphanesi."
+
+[[tech]]
+id = "commons-io-java"
+name = "Apache Commons IO"
+category = "other"
+maven = ["commons-io:commons-io"]
+en.beginner = "a set of helper tools for reading, writing and copying files in Java."
+en.builder = "Apache library of file and stream utilities for copying, reading and filtering files."
+tr.beginner = "Java'da dosyaları okumak, yazmak ve kopyalamak için yardımcı araçlar sunan bir kütüphane."
+tr.builder = "dosya ve veri akışları için kopyalama, okuma ve filtreleme yardımcıları sunan Apache kütüphanesi."
+
+[[tech]]
+id = "slf4j-java"
+name = "SLF4J"
+category = "other"
+maven = ["org.slf4j:slf4j-api"]
+en.beginner = "a standard way for Java code to write log messages, whichever logging tool you pick."
+en.builder = "logging facade API that delegates to Logback, Log4j or java.util.logging at runtime."
+tr.beginner = "Java kodunun kayıt (log) mesajları yazması için standart bir yol; kayıt aracını sonra seçebilirsiniz."
+tr.builder = "Logback, Log4j ve java.util.logging gibi kayıt araçlarına çalışma anında yönlendiren bir arayüz (API)."
+
+[[tech]]
+id = "logback"
+name = "Logback"
+category = "other"
+maven = ["ch.qos.logback:logback-classic"]
+en.beginner = "a logging tool that writes messages from your app to the console or to files."
+en.builder = "the reference implementation of SLF4J, with configurable appenders, levels and rolling log files."
+tr.beginner = "uygulamanızın mesajlarını konsola ya da dosyalara yazan bir kayıt (log) aracı."
+tr.builder = "SLF4J'nin referans uygulaması; yapılandırılabilir kayıt hedefleri, seviyeler ve dönen kayıt dosyaları sunar."
+
+[[tech]]
+id = "log4j-java"
+name = "Log4j"
+category = "other"
+maven = ["org.apache.logging.log4j:*"]
+en.beginner = "a logging tool that records what your Java app is doing, to the console or to files."
+en.builder = "Apache's logging library with configurable appenders, levels and filters, in the log4j-api and log4j-core modules."
+tr.beginner = "Java uygulamanızın ne yaptığını konsola ya da dosyalara kaydeden bir kayıt (log) aracı."
+tr.builder = "yapılandırılabilir kayıt hedefi, seviye ve filtreleriyle Apache'nin kayıt kütüphanesi; log4j-api ve log4j-core modülleri."
+
+[[tech]]
+id = "junit-java"
+name = "JUnit"
+category = "testing"
+maven = ["org.junit.jupiter:*", "junit:junit"]
+en.beginner = "a library for writing and running automatic tests that check your Java code works."
+en.builder = "the most common Java unit testing framework, with annotations like @Test and assertions."
+tr.beginner = "Java kodunuzun doğru çalıştığını kontrol eden otomatik testler yazmak ve çalıştırmak için bir kütüphane."
+tr.builder = "Java'nın en yaygın birim test çerçevesi; @Test gibi anotasyonlar ve assert metotları sunar."
+
+[[tech]]
+id = "mockito-java"
+name = "Mockito"
+category = "testing"
+maven = ["org.mockito:*"]
+en.beginner = "a library that creates fake objects, so your tests can run without the real parts."
+en.builder = "Java mocking framework for creating test doubles, stubbing method results and verifying calls."
+tr.beginner = "testlerde gerçek parçalar yerine sahte nesneler oluşturan, testleri bağımsız çalıştıran bir kütüphane."
+tr.builder = "Java için mock çerçevesi; test amaçlı yapay nesneler oluşturur, metot sonuçlarını ayarlar ve çağrıları doğrular."
+
+[[tech]]
+id = "assertj"
+name = "AssertJ"
+category = "testing"
+maven = ["org.assertj:assertj-core"]
+en.beginner = "a library that makes test checks easier to read, like a sentence."
+en.builder = "fluent assertion library for Java tests, with chained checks such as assertThat(x).isEqualTo(y)."
+tr.beginner = "testlerdeki kontrolleri bir cümle gibi okunacak şekilde yazmayı sağlayan bir kütüphane."
+tr.builder = "Java testleri için akıcı (fluent) kontrol kütüphanesi; assertThat(x).isEqualTo(y) gibi zincirleme kontroller sunar."
+
+[[tech]]
+id = "rest-assured"
+name = "REST Assured"
+category = "testing"
+maven = ["io.rest-assured:rest-assured"]
+en.beginner = "a library that tests web APIs by sending requests and checking the replies."
+en.builder = "Java DSL for testing REST and HTTP services with given/when/then style checks."
+tr.beginner = "web API'lerine istek gönderip gelen cevapları kontrol ederek test eden bir kütüphane."
+tr.builder = "Java'da REST ve HTTP servislerini test etmek için alan dili (DSL) sunan kütüphane; given/when/then tarzı kullanır."
+
+[[tech]]
+id = "awaitility"
+name = "Awaitility"
+category = "testing"
+maven = ["org.awaitility:awaitility"]
+en.beginner = "a library that waits in tests until something happens, instead of using fixed sleep delays."
+en.builder = "Java DSL for waiting on asynchronous results in tests, polling until a condition holds or a timeout expires."
+tr.beginner = "testlerde bir şey olana kadar sabit beklemeler yerine bekleyen bir kütüphane."
+tr.builder = "Java testlerinde zaman uyumsuz sonuçları, bir koşul sağlanana ya da süre dolana kadar yoklayan kütüphane."
+
+[[tech]]
+id = "flyway-java"
+name = "Flyway"
+category = "data"
+maven = ["org.flywaydb:*"]
+en.beginner = "a tool that applies your database changes in order, one versioned script at a time."
+en.builder = "database migration tool that runs versioned SQL or Java migrations in order and tracks what has been applied."
+tr.beginner = "veritabanı değişikliklerini sürümlü betikler halinde sırayla uygulayan bir araç."
+tr.builder = "veritabanı geçişi (migration) aracı; sürümlü SQL veya Java betiklerini sırayla çalıştırır ve uygulananları izler."
+
+[[tech]]
+id = "liquibase"
+name = "Liquibase"
+category = "data"
+maven = ["org.liquibase:liquibase-core"]
+en.beginner = "a tool that tracks and applies database structure changes, written as files you can review."
+en.builder = "database migration tool that applies changesets from XML, YAML, JSON or SQL files and records them."
+tr.beginner = "veritabanı yapısındaki değişiklikleri dosyalar halinde takip edip uygulayan bir araç."
+tr.builder = "XML, YAML, JSON veya SQL dosyalarındaki değişiklik kümelerini uygulayan ve kaydeden veritabanı geçiş aracı."
+
+[[tech]]
+id = "micronaut"
+name = "Micronaut"
+category = "framework"
+maven = ["io.micronaut:*"]
+en.beginner = "a framework for Java server apps that start fast and use little memory."
+en.builder = "a JVM framework with compile-time dependency injection and AOP for microservices and serverless apps."
+tr.beginner = "Java ile hızlı açılan ve az bellek kullanan sunucu uygulamaları yazmak için bir çerçeve."
+tr.builder = "derleme anında bağımlılık enjeksiyonu ve AOP sunan bir JVM çerçevesi; mikroservisler ve sunucusuz uygulamalar için."
+
+[[tech]]
+id = "quarkus"
+name = "Quarkus"
+category = "framework"
+maven = ["io.quarkus:*"]
+en.beginner = "a Java framework for server apps that is tuned to start fast and use little memory."
+en.builder = "Java framework that does most of its work at build time, with GraalVM native image support and live reload."
+tr.beginner = "Java ile sunucu uygulaması yazmak için, hızlı açılmaya ve az bellek kullanmaya odaklı bir çerçeve."
+tr.builder = "işin çoğunu derleme anında yapan bir Java çerçevesi; GraalVM ile yerel (native) derleme ve canlı yeniden yükleme destekler."
+
+[[tech]]
+id = "vertx-java"
+name = "Eclipse Vert.x"
+category = "framework"
+maven = ["io.vertx:*"]
+en.beginner = "a toolkit for building fast Java apps that handle many connections at the same time."
+en.builder = "reactive, non-blocking toolkit for the JVM with HTTP server, client and messaging modules."
+tr.beginner = "aynı anda çok sayıda bağlantıyı karşılayabilen, hızlı Java uygulamaları yazmak için bir araç seti."
+tr.builder = "engellemeyen (non-blocking) reaktif bir JVM araç seti; HTTP sunucu, istemci ve mesajlaşma modülleri içerir."
+
+[[tech]]
+id = "reactor-java"
+name = "Project Reactor"
+category = "other"
+maven = ["io.projectreactor:reactor-core"]
+en.beginner = "a library for handling streams of data that arrive over time, without blocking the app."
+en.builder = "reactive streams library for Java with Flux and Mono types, the base of Spring WebFlux."
+tr.beginner = "zamanla gelen veri akışlarını, uygulamayı bekletmeden işleyen bir kütüphane."
+tr.builder = "Java için reaktif akış kütüphanesi; Flux ve Mono türleriyle, Spring WebFlux'un temelidir."
+
+[[tech]]
+id = "rxjava"
+name = "RxJava"
+category = "other"
+maven = ["io.reactivex.rxjava3:rxjava"]
+en.beginner = "a library for handling streams of events and results in Java with simple chained steps."
+en.builder = "reactive extensions for the JVM: Observable, Flowable and Single types for asynchronous data streams."
+tr.beginner = "Java'da olay ve sonuç akışlarını zincirleme adımlarla işlemeye yarayan bir kütüphane."
+tr.builder = "reaktif uzantılar, JVM üzerinde zaman uyumsuz veri akışları için Observable, Flowable ve Single türlerini sunar."
+
+[[tech]]
+id = "okhttp-java"
+name = "OkHttp"
+category = "other"
+maven = ["com.squareup.okhttp3:okhttp"]
+en.beginner = "a library that sends web requests from your Java app and reads the replies."
+en.builder = "HTTP client for Java and Android with connection pooling, transparent retries and response caching."
+tr.beginner = "Java uygulamanızdan web istekleri gönderen ve cevapları okuyan bir kütüphane."
+tr.builder = "Java ve Android için HTTP istemcisi; bağlantı havuzu, otomatik yeniden deneme ve önbellekleme sunar."
+
+[[tech]]
+id = "retrofit-java"
+name = "Retrofit"
+category = "other"
+maven = ["com.squareup.retrofit2:retrofit"]
+en.beginner = "a library that lets you call a web API by writing a simple Java interface."
+en.builder = "type-safe HTTP client for Java, generating implementations from annotated interfaces using OkHttp."
+tr.beginner = "bir Java arayüzü yazarak web API'lerini çağırmanızı sağlayan bir kütüphane."
+tr.builder = "anotasyonlu arayüzlerden HTTP istemci kodu üreten, tür güvenli bir Java kütüphanesi; OkHttp kullanır."
+
+[[tech]]
+id = "httpclient5"
+name = "Apache HttpClient 5"
+category = "other"
+maven = ["org.apache.httpcomponents.client5:httpclient5"]
+en.beginner = "a library from Apache for sending web requests from Java code."
+en.builder = "Apache HttpComponents 5 client for HTTP/1.1 and HTTP/2, with connection pooling and redirect handling."
+tr.beginner = "Java kodundan web istekleri göndermek için Apache'nin bir kütüphanesi."
+tr.builder = "Apache HttpComponents 5 istemcisi; HTTP/1.1 ve HTTP/2 için bağlantı havuzu ve yönlendirme yönetimi sunar."
+
+[[tech]]
+id = "jjwt"
+name = "JJWT"
+category = "auth"
+maven = ["io.jsonwebtoken:*"]
+en.beginner = "a library that creates and checks login tokens, the signed codes that prove who a user is."
+en.builder = "JSON Web Token (JWT) library for Java that builds, signs, parses and validates tokens."
+tr.beginner = "giriş belirteçleri (token) üreten ve kontrol eden bir kütüphane."
+tr.builder = "Java için JSON Web Token (JWT) kütüphanesi; belirteç oluşturma, imzalama, ayrıştırma ve doğrulama sunar."
+
+[[tech]]
+id = "java-jwt"
+name = "java-jwt"
+category = "auth"
+maven = ["com.auth0:java-jwt"]
+en.beginner = "a small library for making and checking the login tokens your app gives to users."
+en.builder = "Auth0's Java library for creating, signing and verifying JSON Web Tokens with HMAC, RSA and EC algorithms."
+tr.beginner = "uygulamanızın kullanıcılara verdiği giriş belirteçlerini oluşturan ve kontrol eden küçük bir kütüphane."
+tr.builder = "Auth0'un Java kütüphanesi; JSON Web Token'ları HMAC, RSA ve EC algoritmalarıyla oluşturur, imzalar ve doğrular."
+
+[[tech]]
+id = "springdoc"
+name = "springdoc-openapi"
+category = "other"
+maven = ["org.springdoc:*"]
+en.beginner = "a tool that creates a web page describing your Spring app's API, so others can try it."
+en.builder = "generates OpenAPI 3 documentation and Swagger UI for Spring Boot apps from code and annotations."
+tr.beginner = "Spring uygulamanızın API'sini anlatan bir web sayfası oluşturan, başkalarının deneyebileceği bir araç."
+tr.builder = "Spring Boot uygulamaları için OpenAPI 3 belgesi ve Swagger UI üreten bir kütüphane; kod ve anotasyonları okur."
+
+[[tech]]
+id = "swagger-core-java"
+name = "Swagger Core"
+category = "other"
+maven = ["io.swagger.core.v3:*"]
+en.beginner = "a library that describes your Java web API in a standard format that tools can read."
+en.builder = "Swagger (OpenAPI) annotations and model library for Java, used to generate API descriptions."
+tr.beginner = "Java web API'nizi, araçların okuyabileceği standart bir biçimde anlatan kütüphane."
+tr.builder = "Java için Swagger (OpenAPI) anotasyonları ve modelleri; API açıklamaları üretmek için kullanılır."
+
+[[tech]]
+id = "jooq"
+name = "jOOQ"
+category = "data"
+maven = ["org.jooq:jooq"]
+en.beginner = "a library that lets you write database queries in Java code and catches many mistakes early."
+en.builder = "SQL builder for Java with type-safe queries generated from your database schema."
+tr.beginner = "Java kodunda veritabanı sorguları yazmanızı sağlayan ve hataları erkenden yakalayan bir kütüphane."
+tr.builder = "veritabanı şemasından üretilen, tür güvenli sorgular yazmayı sağlayan bir SQL oluşturma kütüphanesi."
+
+[[tech]]
+id = "mybatis"
+name = "MyBatis"
+category = "data"
+maven = ["org.mybatis:mybatis"]
+en.beginner = "a library that connects your Java code to SQL queries you write yourself."
+en.builder = "SQL mapper framework for Java that maps query results to objects, with XML or annotation-based queries."
+tr.beginner = "Java kodunuzu, kendi yazdığınız SQL sorgularına bağlayan bir kütüphane."
+tr.builder = "Java için SQL eşleme (mapper) çerçevesi; sorgu sonuçlarını nesnelere çevirir, XML veya anotasyonla çalışır."
+
+[[tech]]
+id = "h2-java"
+name = "H2"
+category = "data"
+maven = ["com.h2database:h2"]
+en.beginner = "a small database that runs inside your Java app, handy for tests and quick tries."
+en.builder = "embedded Java SQL database that runs in memory or in files, often used for tests."
+tr.beginner = "Java uygulamanızın içinde çalışan küçük bir veritabanı; testler ve hızlı denemeler için uygundur."
+tr.builder = "Java içinde gömülü çalışan SQL veritabanı; bellekte ya da dosyada çalışır, çoğunlukla testlerde kullanılır."
+
+[[tech]]
+id = "hikaricp"
+name = "HikariCP"
+category = "data"
+maven = ["com.zaxxer:HikariCP"]
+en.beginner = "a fast pool of database connections, so your app reuses connections instead of opening new ones."
+en.builder = "a JDBC connection pool, the default in Spring Boot, that keeps connections open and hands them out on demand."
+tr.beginner = "veritabanı bağlantılarını havuzda tutan hızlı bir araç; bağlantıları yeniden kullanır."
+tr.builder = "Java veritabanı bağlantısı (JDBC) havuzu; Spring Boot'un varsayılanıdır ve bağlantıları açık tutup istek üzerine verir."
+
+[[tech]]
+id = "apache-poi"
+name = "Apache POI"
+category = "other"
+maven = ["org.apache.poi:*"]
+en.beginner = "a library that reads and writes Microsoft Office files, like Excel and Word, from Java code."
+en.builder = "Java API for Microsoft Office formats such as .xls, .xlsx, .doc and .docx."
+tr.beginner = "Java kodundan Excel ve Word gibi Microsoft Office dosyalarını okuyup yazan bir kütüphane."
+tr.builder = "Microsoft Office biçimleri (.xls, .xlsx, .doc, .docx) için Java API'si."
+
+[[tech]]
+id = "caffeine-java"
+name = "Caffeine"
+category = "data"
+maven = ["com.github.ben-manes.caffeine:caffeine"]
+en.beginner = "a fast Java cache that keeps results in memory for quick reuse."
+en.builder = "high-performance in-memory Java cache library with size, expiry and eviction policies."
+tr.beginner = "sonuçları bellekte tutarak tekrar hesaplanmalarına gerek kalmadan hızlıca yeniden kullanan bir Java önbelleği."
+tr.builder = "yüksek performanslı bellek içi Java önbellek kütüphanesi; boyut, süre dolumu ve çıkarma politikaları sunar."
+
+[[tech]]
+id = "thymeleaf"
+name = "Thymeleaf"
+category = "ui"
+maven = ["org.thymeleaf:*"]
+en.beginner = "a template tool that fills in web pages on the server with data from your Java app."
+en.builder = "server-side HTML template engine, with natural templates that also open correctly in a browser."
+tr.beginner = "web sayfalarını sunucuda, Java uygulamanızın verileriyle dolduran bir şablon aracı."
+tr.builder = "sunucu tarafında çalışan HTML şablon motoru; şablonlar tarayıcıda da doğru açılabilen HTML'dir."
+
+[[tech]]
+id = "bouncycastle"
+name = "Bouncy Castle"
+category = "auth"
+maven = ["org.bouncycastle:*"]
+en.beginner = "a library with security tools for Java, such as encryption, signatures and secure random numbers."
+en.builder = "Java cryptography API with ciphers, hashes, signatures, certificates and TLS, from the Bouncy Castle project."
+tr.beginner = "Java'da şifreleme, dijital imza ve güvenli rastgele sayılar gibi güvenlik araçları sunan bir kütüphane."
+tr.builder = "Java için kriptografi API'si; şifreleme, özet (hash), imza, sertifika ve TLS işlemlerini kapsar."
+
+[[tech]]
+id = "picocli"
+name = "picocli"
+category = "other"
+maven = ["info.picocli:picocli"]
+en.beginner = "a library that helps you build command-line tools in Java, with options and help text."
+en.builder = "annotation-based command-line parser for Java, generating help messages and shell completion."
+tr.beginner = "Java ile komut satırı araçları yazmanıza destek olan, seçenekleri ve yardım metnini hazırlayan bir kütüphane."
+tr.builder = "anotasyonlarla komut satırı ayrıştırıcısı; yardım metinleri ve kabuk tamamlama (completion) üretir."
+
+[[tech]]
+id = "jsoup"
+name = "jsoup"
+category = "other"
+maven = ["org.jsoup:jsoup"]
+en.beginner = "a library that reads web pages in Java and pulls out text, links and other parts."
+en.builder = "HTML parser and cleaner for Java, supporting CSS selectors and safe HTML output."
+tr.beginner = "Java ile web sayfalarını okuyup içlerinden metin, bağlantı gibi parçaları ayıklayan bir kütüphane."
+tr.builder = "Java için HTML ayrıştırıcı ve temizleyici; CSS seçicileri ve güvenli HTML çıktısı destekler."
+
+[[tech]]
+id = "jackson"
+name = "Jackson"
+category = "other"
+maven = ["com.fasterxml.jackson.core:*"]
+en.beginner = "a popular library for converting Java objects to JSON and reading JSON into objects."
+en.builder = "JSON processing library for Java with streaming, tree and data-binding APIs, the default in Spring Boot."
+tr.beginner = "Java nesnelerini JSON'a ve JSON'u nesnelere çeviren, çok yaygın bir kütüphane."
+tr.builder = "Java için JSON işleme kütüphanesi; akış, ağaç ve veri bağlama API'leri sunar, Spring Boot'un varsayılanıdır."
+
+[[tech]]
+id = "micrometer"
+name = "Micrometer"
+category = "deploy"
+maven = ["io.micrometer:*"]
+en.beginner = "a library that collects numbers about your app, like request counts and speed, for monitoring tools."
+en.builder = "vendor-neutral metrics facade for Java, exporting to Prometheus, Datadog and other monitoring systems."
+tr.beginner = "uygulamanızla ilgili istek sayısı ve hız gibi sayıları toplayıp izleme araçlarına veren bir kütüphane."
+tr.builder = "Java için tedarikçiden bağımsız metrik soyutlaması; Prometheus, Datadog gibi izleme sistemlerine aktarır."
