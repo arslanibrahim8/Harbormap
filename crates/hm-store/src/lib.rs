@@ -6,11 +6,14 @@ use std::path::Path;
 use rusqlite::{Connection, Transaction};
 
 /// The schema version this build writes and understands.
-pub const FACTS_SCHEMA: u32 = 1;
+pub const FACTS_SCHEMA: u32 = 2;
 
 /// Migrations in order; each runs once, inside a transaction, when `user_version` is
 /// below its version.
-const MIGRATIONS: &[(u32, &str)] = &[(1, include_str!("schema/facts_v1.sql"))];
+const MIGRATIONS: &[(u32, &str)] = &[
+    (1, include_str!("schema/facts_v1.sql")),
+    (2, include_str!("schema/facts_v2.sql")),
+];
 
 #[derive(Debug)]
 pub enum StoreError {
@@ -143,11 +146,11 @@ mod tests {
     }
 
     #[test]
-    fn fresh_store_has_schema_1_and_wal() {
+    fn fresh_store_has_schema_2_and_wal() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("learn").join("w_x").join("facts.sqlite");
         let store = Store::open(&path).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 1);
+        assert_eq!(store.schema_version().unwrap(), 2);
         assert_eq!(pragma::<String>(&store, "journal_mode"), "wal");
         assert_eq!(pragma::<i64>(&store, "foreign_keys"), 1);
         drop(store);
@@ -166,10 +169,62 @@ mod tests {
             .unwrap();
         match Store::open(&path) {
             Err(StoreError::NewerSchema { found, supported }) => {
-                assert_eq!((found, supported), (99, 1));
+                assert_eq!((found, supported), (99, 2));
             }
             other => panic!("expected NewerSchema, got {:?}", other.map(|_| ())),
         }
+    }
+
+    #[test]
+    fn a_v1_store_migrates_and_keeps_its_rows() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("facts.sqlite");
+        {
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            conn.execute_batch(include_str!("schema/facts_v1.sql"))
+                .unwrap();
+            conn.execute(
+                "INSERT INTO file(id, path, lang, class, size, mtime_ns, loc, content_hash, parse_status, facts_json)
+                 VALUES ('f_a', 'a.ts', 'ts', 'source', 1, 1, 1, 'h', 'parsed', '{}')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO edge(kind, src_id, dst_id, file_id, line, rule, prov, conf)
+                 VALUES ('calls', 'y_a', 'y_b', 'f_a', 1, 'r', 'parsed', 'sure')",
+                [],
+            )
+            .unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+        }
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.schema_version().unwrap(), 2);
+        let edges: i64 = store
+            .conn()
+            .query_row(
+                "SELECT count(*) FROM edge WHERE src_id = 'y_a' AND prov = 'parsed'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(edges, 1);
+        let facts_null: bool = store
+            .conn()
+            .query_row(
+                "SELECT facts_json IS NULL FROM file WHERE id = 'f_a'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(facts_null);
+        store
+            .conn()
+            .execute(
+                "INSERT INTO edge(kind, src_id, dst_id, file_id, line, rule, prov, conf)
+                 VALUES ('calls', 'y_a', 'y_b', 'f_a', 1, 'r', 'inferred', 'probably')",
+                [],
+            )
+            .unwrap();
     }
 
     #[test]
@@ -224,13 +279,54 @@ mod tests {
                 tx.execute(
                     "INSERT INTO reverse_import(dst_file_id, src_file_id) VALUES ('f_b', 'f_a')",
                     [],
+                )?;
+                tx.execute(
+                    "INSERT INTO route(id, root, entry_kind, method, pattern, handler_id, file_id, line, rule, prov, conf, detail)
+                     VALUES ('r_a', '', 'page', 'GET', '/', NULL, 'f_a', 1, 'ts.next.app.page', 'matched', 'sure', NULL)",
+                    [],
+                )?;
+                tx.execute(
+                    "INSERT INTO client_call(file_id, src_id, line, method, url, rule)
+                     VALUES ('f_a', 'y_a', 1, 'GET', '/x', 'ts.client.fetch')",
+                    [],
+                )?;
+                tx.execute(
+                    "INSERT INTO manifest(file_id, root, kind, name, lockfile, detail)
+                     VALUES ('f_a', '', 'npm', 'shop', NULL, '{}')",
+                    [],
+                )?;
+                tx.execute(
+                    "INSERT INTO dependency(file_id, section, name, declared, resolved, dev, line)
+                     VALUES ('f_a', 'dependencies', 'next', '^14', NULL, 0, 3)",
+                    [],
+                )?;
+                tx.execute(
+                    "INSERT INTO pattern(file_id, subject_id, kind, line, rule, conf, term, detail)
+                     VALUES ('f_a', 'y_a', 'env_read', 1, 'ts.pattern.env', 'sure', NULL, 'HOME')",
+                    [],
+                )?;
+                tx.execute(
+                    "INSERT INTO gap(file_id, subject_id, kind, line) VALUES ('f_a', 'y_a', 'k', 1)",
+                    [],
                 )
             })
             .unwrap();
         store
             .write(|tx| tx.execute("DELETE FROM file WHERE id = 'f_a'", []))
             .unwrap();
-        for table in ["file", "symbol", "edge", "ref", "reverse_import"] {
+        for table in [
+            "file",
+            "symbol",
+            "edge",
+            "ref",
+            "reverse_import",
+            "route",
+            "client_call",
+            "manifest",
+            "dependency",
+            "pattern",
+            "gap",
+        ] {
             let rows: i64 = store
                 .conn()
                 .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {

@@ -289,6 +289,121 @@ pub fn dump(store: &hm_store::Store) -> String {
         ),
     ));
 
+    sections.push((
+        "route",
+        sorted(
+            col("SELECT id, root, entry_kind, method, pattern, handler_id, file_id, line, rule, prov, conf, detail FROM route")
+                .iter()
+                .map(|r| {
+                    let handler = if r[5] == "-" { "-".to_string() } else { name(&r[5]) };
+                    format!(
+                        "{} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {}",
+                        r[0],
+                        r[1],
+                        r[2],
+                        r[3],
+                        r[4],
+                        handler,
+                        path(&r[6]),
+                        r[7],
+                        r[8],
+                        r[9],
+                        r[10],
+                        r[11]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "client_call",
+        sorted(
+            col("SELECT file_id, src_id, line, method, url, rule FROM client_call")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        name(&r[1]),
+                        r[2],
+                        r[3],
+                        r[4],
+                        r[5]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "manifest",
+        sorted(
+            col("SELECT file_id, root, kind, name, lockfile, detail FROM manifest")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        r[1],
+                        r[2],
+                        r[3],
+                        r[4],
+                        r[5]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "dependency",
+        sorted(
+            col("SELECT file_id, section, name, declared, resolved, dev, line FROM dependency")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        r[1],
+                        r[2],
+                        r[3],
+                        r[4],
+                        r[5],
+                        r[6]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "pattern",
+        sorted(
+            col("SELECT file_id, subject_id, kind, line, rule, conf, term, detail FROM pattern")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        name(&r[1]),
+                        r[2],
+                        r[3],
+                        r[4],
+                        r[5],
+                        r[6],
+                        r[7]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "gap",
+        sorted(
+            col("SELECT file_id, subject_id, kind, line FROM gap")
+                .iter()
+                .map(|r| format!("{} | {} | {} | {}", path(&r[0]), name(&r[1]), r[2], r[3]))
+                .collect(),
+        ),
+    ));
+
     let mut out = String::new();
     for (title, rows) in sections {
         out.push_str(&format!("[{title}] {}\n", rows.len()));

@@ -60,6 +60,21 @@ pub fn symbol_id(
     format!("y_{}", &hasher.finalize().to_hex()[..12])
 }
 
+/// `r_` + 12 hex characters of BLAKE3 over the manifest root, entry kind, method and
+/// pattern, NUL-separated. The root and kind keep two apps of a monorepo, and a page
+/// and an API route on one path, apart.
+pub fn route_id(root: &str, entry_kind: &str, method: &str, pattern: &str) -> String {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"route\0");
+    for (i, part) in [root, entry_kind, method, pattern].iter().enumerate() {
+        if i > 0 {
+            hasher.update(&[0]);
+        }
+        hasher.update(part.as_bytes());
+    }
+    format!("r_{}", &hasher.finalize().to_hex()[..12])
+}
+
 /// `w_` + 12 hex characters of BLAKE3 over the canonical worktree root; it names the
 /// folder that holds that worktree's Learn store.
 pub fn worktree_key(canonical_root: &Path) -> String {
@@ -110,5 +125,17 @@ mod tests {
         assert!(y.starts_with("y_") && y.len() == 14);
         let w = worktree_key(Path::new("/work/shop"));
         assert!(w.starts_with("w_") && w != worktree_key(Path::new("/work/shop-wt")));
+    }
+
+    #[test]
+    fn route_ids_are_stable_and_keyed_by_root_and_kind() {
+        let r = route_id("apps/web", "page", "GET", "/orders/{id}");
+        assert_eq!(r, route_id("apps/web", "page", "GET", "/orders/{id}"));
+        assert!(r.starts_with("r_") && r.len() == 14);
+        assert!(r[2..].chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(r, route_id("apps/admin", "page", "GET", "/orders/{id}"));
+        assert_ne!(r, route_id("apps/web", "api", "GET", "/orders/{id}"));
+        assert_ne!(r, route_id("apps/web", "page", "POST", "/orders/{id}"));
+        assert_ne!(r, route_id("apps/web", "page", "GET", "/orders"));
     }
 }

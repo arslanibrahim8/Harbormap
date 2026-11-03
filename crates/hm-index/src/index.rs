@@ -1316,21 +1316,25 @@ fn forwards(p: &Project, rel: &str, target: &str) -> bool {
 }
 
 fn count_edges(tx: &Transaction, id: &str) -> rusqlite::Result<u32> {
-    tx.prepare_cached("SELECT count(*) FROM edge WHERE file_id = ?1")?
+    tx.prepare_cached("SELECT count(*) FROM edge WHERE file_id = ?1 AND prov = 'parsed'")?
         .query_row([id], |row| row.get(0))
 }
 
 /// Resolves the file at `rel` and writes only the difference from its stored
-/// `edge`, `ref` and `reverse_import` rows, so resolving a file again whose result
+/// `parsed` `edge` rows (inferred ones belong to the mediation pass) and its `ref` and
+/// `reverse_import` rows, so resolving a file again whose result
 /// did not change writes nothing. Returns the number of edges added and removed.
 fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Result<(u32, u32)> {
     let id = file_id(rel);
     let resolved = resolve_file(project, rel);
 
-    // `prov` and `conf` are not in the key: every L1 edge is `parsed` and `sure`. L2
-    // must add them when `inferred` / `probably` edges arrive.
+    // Only `parsed` edges are read, deleted and counted here, and every one is `sure`,
+    // so `prov` and `conf` stay out of the key.
     let old_edges: BTreeSet<(String, String, String, u32, String)> = tx
-        .prepare_cached("SELECT kind, src_id, dst_id, line, rule FROM edge WHERE file_id = ?1")?
+        .prepare_cached(
+            "SELECT kind, src_id, dst_id, line, rule FROM edge
+             WHERE file_id = ?1 AND prov = 'parsed'",
+        )?
         .query_map([&id], |row| {
             Ok((
                 row.get(0)?,
@@ -1355,7 +1359,8 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
         })
         .collect();
     let mut delete = tx.prepare_cached(
-        "DELETE FROM edge WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4",
+        "DELETE FROM edge
+         WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4 AND prov = 'parsed'",
     )?;
     let gone: Vec<_> = old_edges.difference(&new_edges).collect();
     for (kind, src, dst, line, _) in &gone {
