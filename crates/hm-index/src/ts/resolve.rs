@@ -194,7 +194,7 @@ pub struct Project<'a> {
     pub modules: &'a ModuleResolver,
 }
 
-/// An edge of the graph; every L1 edge is `Sure` and `parsed`.
+/// An edge of the graph; every TypeScript edge is `Sure` and `parsed`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EdgeRow {
     /// `imports`, `calls` or `extends`.
@@ -203,6 +203,8 @@ pub struct EdgeRow {
     pub dst_id: String,
     pub line: u32,
     pub rule: &'static str,
+    /// A `Probably` edge with provenance `inferred`; `false` means `Sure` and `parsed`.
+    pub inferred: bool,
 }
 
 /// A reference that is not an edge.
@@ -494,6 +496,7 @@ pub fn resolve_file(p: &Project, rel: &str) -> ResolvedFile {
                 dst_id,
                 line,
                 rule,
+                inferred: false,
             })
             .collect(),
         refs: r

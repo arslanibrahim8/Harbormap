@@ -137,6 +137,9 @@ pub fn extract(src: &str, lang: Lang) -> FileFacts {
         exports: exports.into_iter().map(|(_, e)| e).collect(),
         calls,
         heritage,
+        package: None,
+        labels: Vec::new(),
+        attrs: Vec::new(),
     }
 }
 

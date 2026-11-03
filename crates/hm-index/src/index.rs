@@ -19,16 +19,31 @@ use serde::Serialize;
 use crate::facts::{FileFacts, ImportKind, ImportedName, ParseStatus, SymbolKind};
 use crate::hash::{content_hash, facts_hash, interface_hash};
 use crate::lang::Lang;
-use crate::ts::resolve::{ModuleResolver, ModuleTarget, Project, resolve_file, symbol_ids};
+use crate::ts::resolve::{
+    EdgeRow, ModuleResolver, ModuleTarget, Project, resolve_file, symbol_ids,
+};
 use crate::ts::tsconfig::load_tsconfigs;
 use crate::walk::{
     FileClass, IGNORE_FILES, Skip, WalkRules, WalkedFile, is_unreadable, walk, walked_file,
 };
 
-/// Where every L1 edge comes from.
+/// Where an exact edge comes from.
 const PROVENANCE: &str = "parsed";
+/// Where a name-match edge comes from.
+const PROV_INFERRED: &str = "inferred";
 /// `Confidence::Sure` as the store spells it (checked by a test).
 const CONF_SURE: &str = "sure";
+/// `Confidence::Probably` as the store spells it (checked by a test).
+const CONF_PROBABLY: &str = "probably";
+
+/// The `(prov, conf)` an edge is stored with.
+fn evidence(e: &EdgeRow) -> (&'static str, &'static str) {
+    if e.inferred {
+        (PROV_INFERRED, CONF_PROBABLY)
+    } else {
+        (PROVENANCE, CONF_SURE)
+    }
+}
 
 #[derive(Debug)]
 pub enum IndexError {
@@ -973,8 +988,9 @@ fn replace_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite:
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )?;
     for e in &resolved.edges {
+        let (prov, conf) = evidence(e);
         edge.execute(params![
-            e.kind, e.src_id, e.dst_id, id, e.line, e.rule, PROVENANCE, CONF_SURE
+            e.kind, e.src_id, e.dst_id, id, e.line, e.rule, prov, conf
         ])?;
     }
     let mut reference = tx.prepare_cached(
@@ -1327,10 +1343,11 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
     let id = file_id(rel);
     let resolved = resolve_file(project, rel);
 
-    // `prov` and `conf` are not in the key: every L1 edge is `parsed` and `sure`. L2
-    // must add them when `inferred` / `probably` edges arrive.
-    let old_edges: BTreeSet<(String, String, String, u32, String)> = tx
-        .prepare_cached("SELECT kind, src_id, dst_id, line, rule FROM edge WHERE file_id = ?1")?
+    type EdgeKey = (String, String, String, u32, String, String, String);
+    let old_edges: BTreeSet<EdgeKey> = tx
+        .prepare_cached(
+            "SELECT kind, src_id, dst_id, line, rule, prov, conf FROM edge WHERE file_id = ?1",
+        )?
         .query_map([&id], |row| {
             Ok((
                 row.get(0)?,
@@ -1338,19 +1355,24 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
                 row.get(2)?,
                 row.get(3)?,
                 row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
             ))
         })?
         .collect::<rusqlite::Result<_>>()?;
-    let new_edges: BTreeSet<(String, String, String, u32, String)> = resolved
+    let new_edges: BTreeSet<EdgeKey> = resolved
         .edges
         .iter()
         .map(|e| {
+            let (prov, conf) = evidence(e);
             (
                 e.kind.to_string(),
                 e.src_id.clone(),
                 e.dst_id.clone(),
                 e.line,
                 e.rule.to_string(),
+                prov.to_string(),
+                conf.to_string(),
             )
         })
         .collect();
@@ -1358,7 +1380,7 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
         "DELETE FROM edge WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4",
     )?;
     let gone: Vec<_> = old_edges.difference(&new_edges).collect();
-    for (kind, src, dst, line, _) in &gone {
+    for (kind, src, dst, line, ..) in &gone {
         delete.execute(params![kind, src, dst, line])?;
     }
     let mut insert = tx.prepare_cached(
@@ -1366,10 +1388,8 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )?;
     let fresh: Vec<_> = new_edges.difference(&old_edges).collect();
-    for (kind, src, dst, line, rule) in &fresh {
-        insert.execute(params![
-            kind, src, dst, id, line, rule, PROVENANCE, CONF_SURE
-        ])?;
+    for (kind, src, dst, line, rule, prov, conf) in &fresh {
+        insert.execute(params![kind, src, dst, id, line, rule, prov, conf])?;
     }
 
     let old_refs: BTreeSet<(String, String, u32, String)> = tx
@@ -1512,5 +1532,13 @@ mod tests {
     fn the_confidence_constant_is_how_the_model_spells_sure() {
         let sure = serde_json::to_value(hm_core::model::Confidence::Sure).unwrap();
         assert_eq!(sure, super::CONF_SURE);
+    }
+
+    #[test]
+    fn the_confidence_constants_are_how_the_model_spells_them() {
+        let sure = serde_json::to_value(hm_core::model::Confidence::Sure).unwrap();
+        assert_eq!(sure, super::CONF_SURE);
+        let probably = serde_json::to_value(hm_core::model::Confidence::Probably).unwrap();
+        assert_eq!(probably, super::CONF_PROBABLY);
     }
 }
