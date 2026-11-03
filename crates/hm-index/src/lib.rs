@@ -12,6 +12,10 @@ pub mod py;
 pub mod query;
 #[doc(hidden)]
 pub mod synth;
+#[doc(hidden)]
+pub mod synth_go;
+#[doc(hidden)]
+pub mod synth_py;
 pub mod ts;
 pub mod walk;
 pub mod watch;

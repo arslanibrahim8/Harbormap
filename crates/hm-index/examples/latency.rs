@@ -2,14 +2,16 @@
 //! times saves from the file write to the delta that reports the file.
 //!
 //! ```text
-//! cargo run --release -p hm-index --example latency -- --files 1000 --saves 200 \
-//!     --seed 7 --max-p95-body-ms 300 --max-p95-sig-ms 500 --max-cold-ms 2000 \
-//!     --branch-switch 300
+//! cargo run --release -p hm-index --example latency -- --lang ts --files 1000 \
+//!     --saves 200 --seed 7 --max-p95-body-ms 300 --max-p95-sig-ms 500 \
+//!     --max-cold-ms 2000 --branch-switch 300
 //! ```
 //!
-//! Prints one JSON object `{files, cold_ms, body:{p50,p95}, sig:{p50,p95},
-//! branch_switch_ms}` and exits 2 when a maximum is exceeded. Times are in
-//! milliseconds; `branch_switch_ms` is `null` without `--branch-switch`.
+//! `--lang` is `ts` (the default), `go` or `python`: it picks the synthetic project
+//! and the files that are edited. Prints one JSON object `{lang, files, cold_ms,
+//! body:{p50,p95}, sig:{p50,p95}, branch_switch_ms}` and exits 2 when a maximum is
+//! exceeded. Times are in milliseconds; `branch_switch_ms` is `null` without
+//! `--branch-switch`.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -23,6 +25,7 @@ use hm_index::index::{Delta, Indexer};
 use hm_index::synth::{self, Edit};
 use hm_index::walk::walk;
 use hm_index::watch::Watcher;
+use hm_index::{synth_go, synth_py};
 use hm_store::Store;
 
 /// How long to wait for a delta before the run is given up.
@@ -30,7 +33,8 @@ const DELTA_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Every flag the harness takes; anything else is a typo that would silently skip a
 /// measurement, so it is refused.
-const FLAGS: [&str; 7] = [
+const FLAGS: [&str; 8] = [
+    "lang",
     "files",
     "saves",
     "seed",
@@ -40,10 +44,53 @@ const FLAGS: [&str; 7] = [
     "branch-switch",
 ];
 
-const USAGE: &str = "usage: latency --files N --saves S [--seed K] --max-p95-body-ms X \
---max-p95-sig-ms Y --max-cold-ms Z [--branch-switch N]";
+const USAGE: &str = "usage: latency [--lang ts|go|python] --files N --saves S [--seed K] \
+--max-p95-body-ms X --max-p95-sig-ms Y --max-cold-ms Z [--branch-switch N]";
+
+/// The language of the synthetic project.
+#[derive(Clone, Copy)]
+enum Lang {
+    Ts,
+    Go,
+    Python,
+}
+
+impl Lang {
+    fn name(self) -> &'static str {
+        match self {
+            Lang::Ts => "ts",
+            Lang::Go => "go",
+            Lang::Python => "python",
+        }
+    }
+
+    fn extension(self) -> &'static str {
+        match self {
+            Lang::Ts => ".ts",
+            Lang::Go => ".go",
+            Lang::Python => ".py",
+        }
+    }
+
+    fn project(self, root: &Path, seed: u64, files: u32) {
+        match self {
+            Lang::Ts => synth::project(root, seed, files),
+            Lang::Go => synth_go::project(root, seed, files),
+            Lang::Python => synth_py::project(root, seed, files),
+        }
+    }
+
+    fn edit_function(self, root: &Path, rel: &str, seed: u64, kind: Edit) -> BTreeSet<String> {
+        match self {
+            Lang::Ts => synth::edit_function(root, rel, seed, kind),
+            Lang::Go => synth_go::edit_function(root, rel, seed, kind),
+            Lang::Python => synth_py::edit_function(root, rel, seed, kind),
+        }
+    }
+}
 
 struct Args {
+    lang: Lang,
     files: u32,
     saves: u32,
     seed: u64,
@@ -76,7 +123,14 @@ fn parse_args() -> Result<Args, String> {
     let need = |name: &str| -> Result<f64, String> {
         get(&values, name)?.ok_or_else(|| format!("--{name} is required"))
     };
+    let lang = match values.get("lang").map(String::as_str) {
+        None | Some("ts") => Lang::Ts,
+        Some("go") => Lang::Go,
+        Some("python") => Lang::Python,
+        Some(other) => return Err(format!("--lang: bad value {other}\n{USAGE}")),
+    };
     Ok(Args {
+        lang,
         files: get(&values, "files")?.ok_or("--files is required")?,
         saves: get(&values, "saves")?.ok_or("--saves is required")?,
         seed: get(&values, "seed")?.unwrap_or(7),
@@ -121,14 +175,14 @@ fn round1(x: f64) -> f64 {
     (x * 10.0).round() / 10.0
 }
 
-/// The `.ts` modules of the project, from a walk of its tree.
-fn modules(root: &Path) -> Vec<String> {
+/// The source files of the project, from a walk of its tree.
+fn modules(root: &Path, lang: Lang) -> Vec<String> {
     let walked = walk(root).expect("walk the synthetic project");
     walked
         .files
         .into_iter()
         .map(|f| f.rel)
-        .filter(|rel| rel.ends_with(".ts"))
+        .filter(|rel| rel.ends_with(lang.extension()))
         .collect()
 }
 
@@ -162,8 +216,8 @@ fn run(args: &Args) -> Result<serde_json::Value, String> {
     let store_dir = tempfile::tempdir().map_err(|e| e.to_string())?;
     // Canonical, so the paths the watcher reports match on macOS (`/var` -> `/private/var`).
     let root = std::fs::canonicalize(project.path()).map_err(|e| e.to_string())?;
-    synth::project(&root, args.seed, args.files);
-    let files = modules(&root);
+    args.lang.project(&root, args.seed, args.files);
+    let files = modules(&root, args.lang);
     if files.is_empty() {
         return Err("the synthetic project has no modules".into());
     }
@@ -225,7 +279,7 @@ fn run(args: &Args) -> Result<serde_json::Value, String> {
             let rel = &files[pick];
             while deltas.try_recv().is_ok() {}
             let t_write = Instant::now();
-            let changed = synth::edit_function(&root, rel, next_seed(), kind);
+            let changed = args.lang.edit_function(&root, rel, next_seed(), kind);
             if !changed.is_empty() {
                 break (t_write, changed);
             }
@@ -244,12 +298,10 @@ fn run(args: &Args) -> Result<serde_json::Value, String> {
         // are passed over.
         while rewritten.len() < n && !pool.is_empty() {
             let rel = pool.swap_remove(rng.below(pool.len()));
-            rewritten.extend(synth::edit_function(
-                &root,
-                &rel,
-                next_seed(),
-                Edit::BodyChange,
-            ));
+            rewritten.extend(
+                args.lang
+                    .edit_function(&root, &rel, next_seed(), Edit::BodyChange),
+            );
         }
         let t_delta = wait_for(&deltas, rewritten);
         round1(ms(t_delta.saturating_duration_since(t_write)))
@@ -261,6 +313,7 @@ fn run(args: &Args) -> Result<serde_json::Value, String> {
     body.sort_by(f64::total_cmp);
     sig.sort_by(f64::total_cmp);
     Ok(serde_json::json!({
+        "lang": args.lang.name(),
         "files": args.files,
         "cold_ms": round1(ms(cold)),
         "body": { "p50": round1(percentile(&body, 0.5)), "p95": round1(percentile(&body, 0.95)) },
