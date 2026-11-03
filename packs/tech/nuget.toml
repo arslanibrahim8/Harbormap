@@ -7,8 +7,8 @@ category = "framework"
 nuget = ["Microsoft.AspNetCore.*"]
 en.beginner = "the framework for building websites and web servers in C#."
 en.builder = "Microsoft's cross-platform web framework for .NET, covering hosting, routing, request middleware, Razor pages and Web APIs."
-tr.beginner = "C# ile web siteleri ve web sunucuları yapmaya yarayan bir çerçeve."
-tr.builder = "Microsoft'un .NET için çapraz platform web çerçevesi; sunucu kurulumu, yönlendirme, istek ara katmanları, Razor sayfaları ve Web API'leri sağlar."
+tr.beginner = "C# ile web siteleri ve web sunucuları yapmaya yarayan bir çatı."
+tr.builder = "Microsoft'un .NET için çapraz platform web çatısı; sunucu kurulumu, yönlendirme, istek ara katmanları, Razor sayfaları ve Web API'leri sağlar."
 
 [[tech]]
 id = "aspnetcore-jwt-bearer"
@@ -38,7 +38,7 @@ nuget = ["Microsoft.AspNetCore.Components.*"]
 en.beginner = "a way to build interactive web pages using C# instead of JavaScript."
 en.builder = "Microsoft's component framework for interactive web UIs, running on the server or in the browser via WebAssembly."
 tr.beginner = "JavaScript yerine C# ile etkileşimli web sayfaları yapmayı sağlayan bir yöntem."
-tr.builder = "Microsoft'un bileşen tabanlı, etkileşimli web arayüzü çerçevesi; sunucuda veya WebAssembly ile tarayıcıda çalışabilir."
+tr.builder = "Microsoft'un bileşen tabanlı, etkileşimli web arayüzü çatısı; sunucuda veya WebAssembly ile tarayıcıda çalışabilir."
 
 [[tech]]
 id = "signalr-dotnet"
@@ -66,7 +66,7 @@ name = "Dapper"
 category = "data"
 nuget = ["Dapper"]
 en.beginner = "a small, fast helper that runs your SQL queries and fills C# objects with the results."
-en.builder = "A lightweight micro-ORM for .NET that maps raw SQL query results to objects with very little overhead."
+en.builder = "a lightweight micro-ORM for .NET that maps raw SQL query results to objects with very little overhead."
 tr.beginner = "ham SQL sorgularınızı çalıştırıp sonuçları C# nesnelerine dolduran küçük ve hızlı bir yardımcı."
 tr.builder = ".NET için hafif bir mikro-ORM; ham SQL sorgu sonuçlarını çok az ek yükle nesnelere eşler."
 
@@ -96,7 +96,7 @@ name = "Serilog"
 category = "other"
 nuget = ["Serilog", "Serilog.*"]
 en.beginner = "a logging library that writes clear, structured messages about what your app is doing."
-en.builder = "A .NET structured logging library with sinks that write events to consoles, files and other destinations."
+en.builder = "a .NET structured logging library with sinks that write events to consoles, files and other destinations."
 tr.beginner = "uygulamanın ne yaptığını anlatan düzenli kayıtlar (log) yazan bir kütüphane."
 tr.builder = ".NET için yapılandırılmış günlük kütüphanesi; olayları konsola, dosyaya ve başka hedeflere yazar."
 
@@ -106,7 +106,7 @@ name = "NLog"
 category = "other"
 nuget = ["NLog"]
 en.beginner = "a long-standing logging library that records what happens in your app to files or other places."
-en.builder = "A flexible .NET logging platform that routes log events to targets such as files, databases and consoles through configuration."
+en.builder = "a flexible .NET logging platform that routes log events to targets such as files, databases and consoles through configuration."
 tr.beginner = "uygulamada olanları dosyalara veya başka yerlere kaydeden, uzun süredir kullanılan bir kayıt kütüphanesi."
 tr.builder = ".NET için esnek bir günlük platformu; kayıt olaylarını yapılandırmaya göre dosya, veritabanı ve konsol gibi hedeflere yönlendirir."
 
@@ -126,7 +126,7 @@ name = "AutoMapper"
 category = "other"
 nuget = ["AutoMapper"]
 en.beginner = "a helper that copies data from one kind of object to another, saving repetitive code."
-en.builder = "An object-to-object mapping library for .NET that maps properties by naming convention and can be configured explicitly."
+en.builder = "an object-to-object mapping library for .NET that maps properties by naming convention and can be configured explicitly."
 tr.beginner = "verileri bir nesne türünden diğerine kopyalayarak tekrarlanan kodu azaltan bir yardımcı."
 tr.builder = ".NET için nesneden nesneye eşleme kütüphanesi; özellikleri isim kuralına göre eşler, ayrıca açıkça ayarlanabilir."
 
@@ -136,7 +136,7 @@ name = "MediatR"
 category = "other"
 nuget = ["MediatR"]
 en.beginner = "a helper that passes requests to the right handler, keeping the parts of your app loosely connected."
-en.builder = "An in-process mediator library for .NET that implements request/response and notification messaging patterns."
+en.builder = "an in-process mediator library for .NET that implements request/response and notification messaging patterns."
 tr.beginner = "istekleri doğru işleyiciye ileten, uygulamanın parçalarını gevşek bağlı tutan bir yardımcı."
 tr.builder = ".NET için aynı süreçte çalışan arabulucu kütüphanesi; istek/yanıt ve bildirim mesajlaşmasını uygular."
 
@@ -146,7 +146,7 @@ name = "FluentValidation"
 category = "validation"
 nuget = ["FluentValidation", "FluentValidation.*"]
 en.beginner = "a library for writing clear rules that check that user input is valid before the app uses it."
-en.builder = "A .NET validation library that uses a fluent interface to define rules in strongly typed classes."
+en.builder = "a .NET validation library that uses a fluent interface to define rules in strongly typed classes."
 tr.beginner = "kullanıcı girişlerinin geçerli olduğunu denetleyen net kurallar yazmayı sağlayan kütüphane."
 tr.builder = ".NET için, kuralları akıcı bir arayüzle güçlü tipli sınıflarda tanımlayan doğrulama kütüphanesi."
 
@@ -156,7 +156,7 @@ name = "Swashbuckle"
 category = "other"
 nuget = ["Swashbuckle.AspNetCore", "Swashbuckle.AspNetCore.*"]
 en.beginner = "a tool that builds a web page describing your app's API, so others can try its requests."
-en.builder = "A Swagger/OpenAPI generator and Swagger UI for ASP.NET Core, creating interactive API documentation from code."
+en.builder = "a Swagger/OpenAPI generator and Swagger UI for ASP.NET Core, creating interactive API documentation from code."
 tr.beginner = "uygulamanızın API'sini anlatan ve başkalarının istek denemesini sağlayan bir sayfa oluşturan araç."
 tr.builder = "ASP.NET Core için Swagger/OpenAPI üreticisi ve Swagger arayüzü; koddan etkileşimli API belgeleri oluşturur."
 
@@ -166,7 +166,7 @@ name = "NSwag"
 category = "other"
 nuget = ["NSwag.*"]
 en.beginner = "a tool that creates API documentation and helper code for calling your app's web API."
-en.builder = "An OpenAPI/Swagger toolchain for .NET that generates API specifications, Swagger UI and typed clients."
+en.builder = "an OpenAPI/Swagger toolchain for .NET that generates API specifications, Swagger UI and typed clients."
 tr.beginner = "uygulamanın API belgelerini ve API'yi çağırmak için hazır kod üreten bir araç."
 tr.builder = ".NET için OpenAPI/Swagger araç seti; API tanımları, Swagger arayüzü ve tip güvenli istemciler üretir."
 
@@ -176,9 +176,9 @@ name = "xUnit.net"
 category = "testing"
 nuget = ["xunit", "xunit.*"]
 en.beginner = "a testing tool for writing small checks that confirm your C# code behaves as expected."
-en.builder = "The xUnit.net test framework for .NET, where each test is a method marked with the Fact or Theory attribute."
+en.builder = "the xUnit.net test framework for .NET, where each test is a method marked with the Fact or Theory attribute."
 tr.beginner = "C# kodunun beklendiği gibi çalıştığını doğrulayan küçük kontroller yazmaya yarayan bir test aracı."
-tr.builder = ".NET için xUnit.net test çerçevesi; her test, Fact ya da Theory özniteliğiyle işaretlenmiş bir metottur."
+tr.builder = ".NET için xUnit.net test çatısı; her test, Fact ya da Theory özniteliğiyle işaretlenmiş bir metottur."
 
 [[tech]]
 id = "nunit-dotnet"
@@ -186,9 +186,9 @@ name = "NUnit"
 category = "testing"
 nuget = ["NUnit", "NUnit3TestAdapter"]
 en.beginner = "a long-used testing tool for writing checks that confirm your C# code works as expected."
-en.builder = "The NUnit test framework for .NET, with the NUnit3TestAdapter that lets IDEs and dotnet test run its tests."
+en.builder = "the NUnit test framework for .NET, with the NUnit3TestAdapter that lets IDEs and dotnet test run its tests."
 tr.beginner = "C# kodunuzun beklendiği gibi çalıştığını doğrulayan, uzun süredir kullanılan bir test aracı."
-tr.builder = ".NET için NUnit test çerçevesi; NUnit3TestAdapter, testleri IDE'lerde ve dotnet test komutuyla çalıştırır."
+tr.builder = ".NET için NUnit test çatısı; NUnit3TestAdapter, testleri IDE'lerde ve dotnet test komutuyla çalıştırır."
 
 [[tech]]
 id = "mstest-dotnet"
@@ -198,7 +198,7 @@ nuget = ["MSTest.TestFramework", "MSTest.TestAdapter"]
 en.beginner = "Microsoft's own testing tool for checking that your .NET code works."
 en.builder = "Microsoft's MSTest unit test framework for .NET, made of the TestFramework attributes and the TestAdapter runner."
 tr.beginner = "Microsoft'un kendi test aracı; .NET kodunuzun doğru çalıştığını kontrol etmek için kullanılır."
-tr.builder = "Microsoft'un .NET için birim test çerçevesi MSTest; TestFramework öznitelikleri ve TestAdapter çalıştırıcısından oluşur."
+tr.builder = "Microsoft'un .NET için birim test çatısı MSTest; TestFramework öznitelikleri ve TestAdapter çalıştırıcısından oluşur."
 
 [[tech]]
 id = "moq-dotnet"
@@ -206,7 +206,7 @@ name = "Moq"
 category = "testing"
 nuget = ["Moq"]
 en.beginner = "a helper that makes fake stand-ins for code parts, so you can test each piece alone."
-en.builder = "A mocking library for .NET that builds test doubles from interfaces and delegates, using lambda-based setup and verification."
+en.builder = "a mocking library for .NET that builds test doubles from interfaces and delegates, using lambda-based setup and verification."
 tr.beginner = "kodunuzun parçaları için sahte nesneler üreterek her parçayı tek başına test etmenizi sağlar."
 tr.builder = ".NET için mock kütüphanesi; arayüzlerden ve temsilcilerden test sahteleri üretir, lambda ifadeleriyle kurulum ve doğrulama yapar."
 
@@ -216,7 +216,7 @@ name = "NSubstitute"
 category = "testing"
 nuget = ["NSubstitute"]
 en.beginner = "a simple helper for making fake stand-ins for parts of your code during tests."
-en.builder = "A friendly .NET mocking library whose syntax reads like plain C# for setting up substitutes and checking calls."
+en.builder = "a friendly .NET mocking library whose syntax reads like plain C# for setting up substitutes and checking calls."
 tr.beginner = "testler sırasında kodunuzun parçaları yerine geçecek sahte nesneler oluşturmaya yarayan basit bir yardımcı."
 tr.builder = ".NET için sade sözdizimli bir taklit (mock) kütüphanesi; yerine geçen nesneleri kurmak ve çağrıları denetlemek için kullanılır."
 
@@ -226,7 +226,7 @@ name = "FluentAssertions"
 category = "testing"
 nuget = ["FluentAssertions"]
 en.beginner = "a helper that makes test checks read like plain sentences, so failures are easy to understand."
-en.builder = "A .NET assertion library with fluent, readable checks such as result.Should().Be(...) and detailed failure messages."
+en.builder = "a .NET assertion library with fluent, readable checks such as result.Should().Be(...) and detailed failure messages."
 tr.beginner = "testlerdeki kontrolleri düz cümle gibi okunan hale getirerek hataları kolay anlaşılır kılan bir yardımcı."
 tr.builder = ".NET için akıcı ve okunabilir kontroller sunan doğrulama kütüphanesi; ayrıntılı hata mesajları üretir."
 
@@ -236,7 +236,7 @@ name = "Shouldly"
 category = "testing"
 nuget = ["Shouldly"]
 en.beginner = "a testing helper whose failure messages clearly show what was expected and what was actually found."
-en.builder = "A .NET assertion library focused on readable syntax such as value.ShouldBe(expected), with descriptive failure output."
+en.builder = "a .NET assertion library focused on readable syntax such as value.ShouldBe(expected), with descriptive failure output."
 tr.beginner = "hata mesajları neyin beklendiğini ve neyin bulunduğunu açıkça gösteren bir test yardımcısı."
 tr.builder = ".NET için okunabilir sözdizimli (ör. value.ShouldBe) bir doğrulama kütüphanesi; açıklayıcı hata çıktısı verir."
 
@@ -246,7 +246,7 @@ name = "coverlet"
 category = "testing"
 nuget = ["coverlet.collector"]
 en.beginner = "a tool that measures which parts of your C# code your tests actually run."
-en.builder = "A code coverage collector for dotnet test, producing coverage reports from test runs on .NET projects."
+en.builder = "a code coverage collector for dotnet test, producing coverage reports from test runs on .NET projects."
 tr.beginner = "testlerinizin C# kodunuzun hangi kısımlarını gerçekten çalıştırdığını ölçen bir araç."
 tr.builder = "dotnet test ile çalışan, .NET projelerinde kod kapsamı raporu üreten bir toplayıcı."
 
@@ -266,7 +266,7 @@ name = "Bogus"
 category = "testing"
 nuget = ["Bogus"]
 en.beginner = "a tool that generates realistic fake names, emails and addresses for testing and demos."
-en.builder = "A .NET port of faker.js for generating fake test data with rules for names, addresses, dates and more."
+en.builder = "a .NET port of faker.js for generating fake test data with rules for names, addresses, dates and more."
 tr.beginner = "test ve gösterimler için gerçekçi sahte isim, e-posta ve adres üreten bir araç."
 tr.builder = ".NET için sahte test verisi üreten kütüphane; isim, adres ve tarih gibi alanlar için kurallar tanımlamaya izin verir."
 
@@ -276,7 +276,7 @@ name = "Polly"
 category = "other"
 nuget = ["Polly", "Polly.*"]
 en.beginner = "a helper that retries failed calls and pauses repeated failing ones, keeping your app steady."
-en.builder = "A .NET resilience library offering retry, circuit breaker, timeout and fallback policies for unreliable calls."
+en.builder = "a .NET resilience library offering retry, circuit breaker, timeout and fallback policies for unreliable calls."
 tr.beginner = "başarısız istekleri yeniden deneyen, sık hata veren istekleri geçici durduran bir yardımcı."
 tr.builder = ".NET dayanıklılık kütüphanesi; güvenilmeyen çağrılar için yeniden deneme, devre kesici, zaman aşımı ve yedek planlar sunar."
 
@@ -286,7 +286,7 @@ name = "Hangfire"
 category = "other"
 nuget = ["Hangfire", "Hangfire.*"]
 en.beginner = "a tool that runs slow jobs in the background, such as sending emails, on a schedule."
-en.builder = "A .NET background job library with persistent storage, retries, a dashboard and recurring job scheduling."
+en.builder = "a .NET background job library with persistent storage, retries, a dashboard and recurring job scheduling."
 tr.beginner = "e-posta gönderme gibi uzun işleri arka planda, zamanlanmış olarak çalıştıran bir araç."
 tr.builder = ".NET için arka plan iş kütüphanesi; işleri kalıcı depoda tutar, yeniden dener, panel sunar ve yinelenen işleri zamanlar."
 
@@ -296,7 +296,7 @@ name = "MassTransit"
 category = "data"
 nuget = ["MassTransit", "MassTransit.*"]
 en.beginner = "a helper that lets parts of an app send messages to each other through a queue."
-en.builder = "A .NET distributed application framework for message-based communication over brokers such as RabbitMQ and Azure Service Bus."
+en.builder = "a .NET distributed application framework for message-based communication over brokers such as RabbitMQ and Azure Service Bus."
 tr.beginner = "uygulamanın parçalarının bir kuyruk üzerinden birbirine mesaj göndermesini sağlayan bir yardımcı."
 tr.builder = ".NET için mesaj tabanlı iletişim çatısı; RabbitMQ ve Azure Service Bus gibi aracılar üzerinden çalışır."
 
@@ -316,7 +316,7 @@ name = "Refit"
 category = "other"
 nuget = ["Refit"]
 en.beginner = "a helper that lets C# code call a web API by describing it as a simple interface."
-en.builder = "A type-safe REST client library for .NET that generates the implementations of annotated interfaces automatically."
+en.builder = "a type-safe REST client library for .NET that generates the implementations of annotated interfaces automatically."
 tr.beginner = "bir web API'sini basit bir arayüz olarak tanımlayıp C# kodundan kolayca çağırmanızı sağlayan yardımcı."
 tr.builder = ".NET için tip güvenli REST istemci kütüphanesi; işaretlenmiş arayüzlerin uygulamasını otomatik olarak üretir."
 
@@ -326,7 +326,7 @@ name = "RestSharp"
 category = "other"
 nuget = ["RestSharp"]
 en.beginner = "a library that makes it easy for C# code to send web requests and read the replies."
-en.builder = "A simple .NET REST and HTTP client library for calling web APIs with typed responses and JSON handling."
+en.builder = "a simple .NET REST and HTTP client library for calling web APIs with typed responses and JSON handling."
 tr.beginner = "C# kodunun web istekleri gönderip yanıtları okumasını kolaylaştıran bir kütüphane."
 tr.builder = ".NET için basit bir REST ve HTTP istemci kütüphanesi; web API'lerini çağırır ve JSON yanıtlarını işler."
 
@@ -346,7 +346,7 @@ name = "BCrypt.Net-Next"
 category = "auth"
 nuget = ["BCrypt.Net-Next"]
 en.beginner = "a helper that scrambles user passwords into safe stored values, so plain passwords are never saved."
-en.builder = "A .NET implementation of the bcrypt password hashing function, with salt generation and verification."
+en.builder = "a .NET implementation of the bcrypt password hashing function, with salt generation and verification."
 tr.beginner = "kullanıcı şifrelerini düz metin olarak saklamak yerine güvenli bir özete çevirerek saklayan yardımcı."
 tr.builder = ".NET için bcrypt şifre özetleme algoritması; tuz üretimi ve şifre doğrulama işlemlerini yapar."
 
@@ -376,7 +376,7 @@ name = "MudBlazor"
 category = "ui"
 nuget = ["MudBlazor"]
 en.beginner = "a ready-made set of web page parts, such as buttons, tables and forms, for Blazor apps."
-en.builder = "A Material Design component library for Blazor, providing ready-to-use UI components with theming."
+en.builder = "a Material Design component library for Blazor, providing ready-to-use UI components with theming."
 tr.beginner = "Blazor uygulamaları için düğme, tablo ve form gibi hazır sayfa parçaları seti."
 tr.builder = "Blazor için Material Design tasarımlı bileşen kütüphanesi; tema ile özelleştirilebilen hazır arayüz bileşenleri sunar."
 
@@ -386,7 +386,7 @@ name = "CommunityToolkit.Mvvm"
 category = "ui"
 nuget = ["CommunityToolkit.Mvvm"]
 en.beginner = "a helper that cuts the repeated code needed to keep app screens and their data in sync."
-en.builder = "A .NET MVVM toolkit with source generators for observable properties, relay commands and messaging."
+en.builder = "a .NET MVVM toolkit with source generators for observable properties, relay commands and messaging."
 tr.beginner = "uygulama ekranlarını ve verilerini senkron tutmak için gereken tekrarlayan kodu azaltan bir yardımcı."
 tr.builder = ".NET için MVVM araç seti; gözlemlenebilir özellikleri, komutları ve mesajlaşmayı kaynak üreteçlerle sağlar."
 
@@ -396,9 +396,9 @@ name = "Avalonia UI"
 category = "ui"
 nuget = ["Avalonia"]
 en.beginner = "a way to build desktop app windows in C# that run on Windows, macOS and Linux."
-en.builder = "A cross-platform .NET UI framework using XAML for desktop, mobile and browser apps."
-tr.beginner = "C# ile Windows, macOS ve Linux'ta çalışan masaüstü uygulama pencereleri yapmanızı sağlayan bir çerçeve."
-tr.builder = "XAML kullanan çapraz platform .NET arayüz çerçevesi; masaüstü, mobil ve tarayıcı uygulamaları için."
+en.builder = "a cross-platform .NET UI framework using XAML for desktop, mobile and browser apps."
+tr.beginner = "C# ile Windows, macOS ve Linux'ta çalışan masaüstü uygulama pencereleri yapmanızı sağlayan bir çatı."
+tr.builder = "XAML kullanan çapraz platform .NET arayüz çatısı; masaüstü, mobil ve tarayıcı uygulamaları için."
 
 [[tech]]
 id = "csvhelper"
@@ -406,7 +406,7 @@ name = "CsvHelper"
 category = "other"
 nuget = ["CsvHelper"]
 en.beginner = "a library that reads and writes spreadsheet-style CSV files as C# objects."
-en.builder = "A fast .NET library for reading and writing CSV files, mapping rows to and from strongly typed classes."
+en.builder = "a fast .NET library for reading and writing CSV files, mapping rows to and from strongly typed classes."
 tr.beginner = "CSV dosyalarını okuyup yazan ve satırları C# nesnelerine çeviren bir kütüphane."
 tr.builder = ".NET için hızlı bir CSV kütüphanesi; satırları tip tanımlı sınıflara ve sınıflardan eşler."
 
@@ -416,7 +416,7 @@ name = "ClosedXML"
 category = "other"
 nuget = ["ClosedXML"]
 en.beginner = "a library that creates and edits Excel spreadsheets (.xlsx files) from C# code without Excel installed."
-en.builder = "A .NET library for reading and writing Excel .xlsx files using the Open XML format, with no Office dependency."
+en.builder = "a .NET library for reading and writing Excel .xlsx files using the Open XML format, with no Office dependency."
 tr.beginner = "Excel kurulu olmadan C# kodundan Excel tabloları (.xlsx) oluşturup düzenleyen bir kütüphane."
 tr.builder = ".NET için Open XML tabanlı bir kütüphane; Office kurulumu gerektirmeden .xlsx dosyalarını okur ve yazar."
 
@@ -426,7 +426,7 @@ name = "YamlDotNet"
 category = "other"
 nuget = ["YamlDotNet"]
 en.beginner = "a library that reads and writes YAML settings files, a human-friendly format used in many projects."
-en.builder = "A .NET YAML parser and serializer that converts YAML text to and from C# objects."
+en.builder = "a .NET YAML parser and serializer that converts YAML text to and from C# objects."
 tr.beginner = "projelerde sıkça kullanılan, insanların okuyabildiği YAML ayar dosyalarını okuyup yazan bir kütüphane."
 tr.builder = ".NET için YAML ayrıştırıcı ve serileştirici; YAML metnini C# nesnelerine ve tersine çevirir."
 
@@ -436,9 +436,9 @@ name = "FastEndpoints"
 category = "framework"
 nuget = ["FastEndpoints"]
 en.beginner = "a lightweight way to build web API routes in C# with less setup code."
-en.builder = "A .NET library on ASP.NET Core for building web APIs with one class per endpoint, plus validation and binding."
-tr.beginner = "C# ile web API yollarını az kurulum koduyla yazmanızı sağlayan hafif bir çerçeve."
-tr.builder = ".NET için ASP.NET Core üzerinde çalışan; her uç nokta için bir sınıf kullanan, doğrulama ve bağlama içeren web API çerçevesi."
+en.builder = "a .NET library on ASP.NET Core for building web APIs with one class per endpoint, plus validation and binding."
+tr.beginner = "C# ile web API yollarını az kurulum koduyla yazmanızı sağlayan hafif bir çatı."
+tr.builder = ".NET için ASP.NET Core üzerinde çalışan; her uç nokta için bir sınıf kullanan, doğrulama ve bağlama içeren web API çatısı."
 
 [[tech]]
 id = "spectre-console"
@@ -446,7 +446,7 @@ name = "Spectre.Console"
 category = "other"
 nuget = ["Spectre.Console"]
 en.beginner = "a helper that makes command-line programs show colors, tables, progress bars and menus."
-en.builder = "A .NET library for building rich, styled console applications with colors, tables, trees, charts and prompts."
+en.builder = "a .NET library for building rich, styled console applications with colors, tables, trees, charts and prompts."
 tr.beginner = "komut satırı programlarının renkler, tablolar, ilerleme çubukları ve menüler göstermesini sağlayan bir yardımcı."
 tr.builder = ".NET için zengin ve renkli konsol uygulamaları yapan kütüphane; tablo, ağaç, grafik ve soru istemleri sunar."
 
