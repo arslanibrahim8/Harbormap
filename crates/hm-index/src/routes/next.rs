@@ -574,8 +574,10 @@ enum Seg {
     Literal(String),
     /// `{name}`: any one segment.
     Param,
-    /// `{...name}` or `{...name?}`: any rest.
-    CatchAll,
+    /// `{...name}` (one or more segments) or `{...name?}` (any number).
+    CatchAll {
+        optional: bool,
+    },
 }
 
 fn route_segments(pattern: &str) -> Vec<Seg> {
@@ -584,7 +586,9 @@ fn route_segments(pattern: &str) -> Vec<Seg> {
         .filter(|s| !s.is_empty())
         .map(|s| {
             if s.starts_with("{...") {
-                Seg::CatchAll
+                Seg::CatchAll {
+                    optional: s.ends_with("?}"),
+                }
             } else if s.starts_with('{') {
                 Seg::Param
             } else {
@@ -594,32 +598,80 @@ fn route_segments(pattern: &str) -> Vec<Seg> {
         .collect()
 }
 
-/// True when some URL of the route matches the matcher. Matchers are anchored at the
-/// start of the path only (`/about` matches `/about/team`), so a matcher that is used up
-/// matches whatever the route has left.
-fn overlaps(matcher: &[Part], route: &[Seg]) -> bool {
-    let Some((head, rest)) = matcher.split_first() else {
-        return true;
-    };
-    let Some((first, after)) = route.split_first() else {
-        // The route ends: only parameters that may take no segment can remain.
-        return matcher
-            .iter()
-            .all(|p| matches!(p, Part::Param(Repeat::ZeroOrOne | Repeat::ZeroOrMore)));
-    };
-    if *first == Seg::CatchAll {
-        // A catch-all can supply whatever segments the matcher still wants.
-        return true;
+/// One position of a matcher or a route pattern, as a path language: one segment equal to
+/// a text, any one segment, at most one segment, or any number of segments.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Step {
+    Literal(String),
+    One,
+    Optional,
+    Many,
+}
+
+fn matcher_steps(matcher: &[Part]) -> Vec<Step> {
+    let mut out = Vec::new();
+    for part in matcher {
+        match part {
+            Part::Literal(text) => out.push(Step::Literal(text.clone())),
+            Part::Param(Repeat::One) => out.push(Step::One),
+            Part::Param(Repeat::ZeroOrOne) => out.push(Step::Optional),
+            Part::Param(Repeat::ZeroOrMore) => out.push(Step::Many),
+            Part::Param(Repeat::OneOrMore) => out.extend([Step::One, Step::Many]),
+        }
     }
-    match head {
-        Part::Literal(text) => match first {
-            Seg::Literal(other) => text == other && overlaps(rest, after),
-            _ => overlaps(rest, after),
-        },
-        Part::Param(Repeat::One) => overlaps(rest, after),
-        Part::Param(Repeat::ZeroOrOne) => overlaps(rest, route) || overlaps(rest, after),
-        Part::Param(Repeat::ZeroOrMore) => overlaps(rest, route) || overlaps(matcher, after),
-        Part::Param(Repeat::OneOrMore) => overlaps(rest, after) || overlaps(matcher, after),
+    out
+}
+
+fn route_steps(route: &[Seg]) -> Vec<Step> {
+    let mut out = Vec::new();
+    for seg in route {
+        match seg {
+            Seg::Literal(text) => out.push(Step::Literal(text.clone())),
+            Seg::Param => out.push(Step::One),
+            Seg::CatchAll { optional: true } => out.push(Step::Many),
+            Seg::CatchAll { optional: false } => out.extend([Step::One, Step::Many]),
+        }
+    }
+    out
+}
+
+/// True when some URL of the route matches the matcher. A matcher matches the whole path,
+/// as the docs say: `/about/:path` matches `/about/a` but not `/about/a/c`, so `/about`
+/// does not cover `/about/team` and `/` covers only `/`. A literal or `:p` takes exactly
+/// one segment, `:p?` zero or one, `:p*` zero or more, `:p+` one or more; route segments
+/// left over are covered only by a trailing `:p*`/`:p+`, and a route's catch-all takes any
+/// segments the matcher still has.
+fn overlaps(matcher: &[Part], route: &[Seg]) -> bool {
+    intersect(&matcher_steps(matcher), &route_steps(route))
+}
+
+/// True when the two path languages share a path. Each branch shortens one side, so it
+/// ends.
+fn intersect(a: &[Step], b: &[Step]) -> bool {
+    match (a.split_first(), b.split_first()) {
+        (None, None) => true,
+        // `Many` takes no more segments, or the first segment of the other side.
+        (Some((Step::Many, rest)), _) => {
+            intersect(rest, b) || (!b.is_empty() && intersect(a, &b[1..]))
+        }
+        (_, Some((Step::Many, rest))) => {
+            intersect(a, rest) || (!a.is_empty() && intersect(&a[1..], b))
+        }
+        (Some((Step::Optional, rest)), _) => {
+            intersect(rest, b) || intersect(&[&[Step::One], rest].concat(), b)
+        }
+        (_, Some((Step::Optional, rest))) => {
+            intersect(a, rest) || intersect(a, &[&[Step::One], rest].concat())
+        }
+        (Some((x, a_rest)), Some((y, b_rest))) => {
+            let agree = match (x, y) {
+                (Step::Literal(l), Step::Literal(r)) => l == r,
+                _ => true,
+            };
+            agree && intersect(a_rest, b_rest)
+        }
+        // One side ends while the other still needs a segment.
+        _ => false,
     }
 }
 
@@ -655,20 +707,38 @@ mod tests {
         assert!(parse_matcher("/about/(.*)").is_none());
         assert!(parse_matcher("about").is_none());
 
+        // The matcher matches the whole path: `/about/:path` matches `/about/a` but not
+        // `/about/a/c`.
         assert!(covers("/about", "/about"));
-        assert!(covers("/about", "/about/team"));
+        assert!(!covers("/about", "/about/team"));
         assert!(!covers("/about", "/blog/about"));
         assert!(!covers("/about", "/"));
+        assert!(covers("/about/:path", "/about/{id}"));
+        assert!(covers("/about/:path", "/about/a"));
+        assert!(!covers("/about/:path", "/about/a/c"));
+        assert!(!covers("/about/:path", "/about"));
         assert!(covers("/about/:path*", "/about"));
+        assert!(covers("/about/:path*", "/about/a/c"));
         assert!(!covers("/about/:path+", "/about"));
         assert!(covers("/about/:path+", "/about/{id}"));
+        assert!(covers("/about/:path+", "/about/a/c"));
         assert!(covers("/about/:path?", "/about"));
+        assert!(covers("/about/:path?", "/about/a"));
+        assert!(!covers("/about/:path?", "/about/a/c"));
         assert!(covers("/:lang/docs", "/{lang}/docs"));
-        assert!(covers("/:lang/docs", "/en/docs/intro"));
+        assert!(covers("/:lang/docs", "/en/docs"));
+        assert!(!covers("/:lang/docs", "/en/docs/intro"));
         assert!(!covers("/:lang/docs", "/en/blog"));
+        // A route's catch-all takes whatever segments the matcher still has.
         assert!(covers("/docs/intro", "/docs/{...slug}"));
+        assert!(covers("/docs/a/b", "/docs/{...slug}"));
+        assert!(covers("/docs/:p", "/docs/{...slug}"));
+        assert!(!covers("/docs", "/docs/{...slug}"));
+        assert!(covers("/docs", "/docs/{...slug?}"));
         assert!(covers("/docs/intro", "/docs/{id}"));
+        assert!(!covers("/docs/intro/more", "/docs/{id}"));
         assert!(covers("/", "/"));
-        assert!(covers("/", "/anything"));
+        assert!(!covers("/", "/anything"));
+        assert!(covers("/", "/{...all?}"));
     }
 }

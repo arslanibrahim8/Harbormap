@@ -19,9 +19,10 @@
 //! - Every file under `pages/api` is an API endpoint that takes every method.
 //!   https://nextjs.org/docs/pages/building-your-application/routing/api-routes
 //! - `proxy.ts` (formerly `middleware.ts`) at the root or in `src` exports one function,
-//!   named `proxy` (or `middleware`) or as the default export; matcher sources are anchored
-//!   to the start of the path (`/about` matches `/about/team`), `:p*` is zero or more
-//!   segments, and a regex in parentheses is allowed.
+//!   named `proxy` (or `middleware`) or as the default export; a matcher source matches the
+//!   whole path (`/about/:path` matches `/about/a` but not `/about/a/c`), `:p?` is zero or
+//!   one segment, `:p*` zero or more, `:p+` one or more, and a regex in parentheses is
+//!   allowed.
 //!   https://nextjs.org/docs/app/api-reference/file-conventions/proxy
 
 mod common;
