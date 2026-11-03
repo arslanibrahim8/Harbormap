@@ -159,7 +159,7 @@ pub(crate) async fn overview(State(shared): State<Arc<Shared>>) -> Json<Overview
     Json(Overview {
         v: 1,
         seq: now.seq,
-        repo: shared.repo.clone(),
+        repo: now.repo.clone(),
         updated_ms: now.updated_ms,
         view: model.map.overview(),
         // `Model::excluded` is already sorted by class.

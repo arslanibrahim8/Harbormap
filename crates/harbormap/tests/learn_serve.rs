@@ -319,6 +319,68 @@ fn a_saved_file_arrives_as_a_facts_event() {
     assert!(overview["seq"].as_u64().unwrap() >= 1);
 }
 
+/// Runs `git` in `dir` with a fixed identity; returns its trimmed stdout.
+fn git(dir: &Path, args: &[&str]) -> String {
+    let out = Command::new("git")
+        .args(["-c", "user.name=Test", "-c", "user.email=test@example.com"])
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("git is installed");
+    assert!(out.status.success(), "git {args:?} failed");
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+#[test]
+fn a_commit_followed_by_a_save_updates_the_branch_and_commit_in_the_overview() {
+    let live = start(|dir| {
+        shop(dir);
+        git(dir, &["init", "-q", "-b", "main"]);
+        git(dir, &["add", "-A"]);
+        git(dir, &["commit", "-q", "-m", "first"]);
+    });
+    let first = git(live.project.path(), &["rev-parse", "--short=7", "HEAD"]);
+    let (_, overview) = live.get("/api/overview");
+    assert_eq!(overview["repo"]["branch"], "main");
+    assert_eq!(overview["repo"]["commit"], first.as_str());
+
+    let events = live.events();
+    assert_eq!(events.next(Duration::from_secs(5)).1, "hello");
+    write(
+        live.project.path(),
+        "src/orders/service.ts",
+        "import { saveOrder, listOrders } from './repo';\n\
+         export function placeOrder(cart: object) { const n = 2; return saveOrder(cart); }\n\
+         export function history() { return listOrders(); }\n",
+    );
+    git(live.project.path(), &["commit", "-q", "-a", "-m", "second"]);
+    let second = git(live.project.path(), &["rev-parse", "--short=7", "HEAD"]);
+    assert_ne!(first, second);
+    // The first save may have been published before the commit landed; a save after it
+    // is published with the new commit.
+    events.facts_for("src/orders/service.ts", false, Duration::from_secs(5));
+    write(
+        live.project.path(),
+        "src/orders/service.ts",
+        "import { saveOrder, listOrders } from './repo';\n\
+         export function placeOrder(cart: object) { const n = 3; return saveOrder(cart); }\n\
+         export function history() { return listOrders(); }\n",
+    );
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let (_, overview) = live.get("/api/overview");
+        if overview["repo"]["commit"] == second.as_str() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the overview still names {}",
+            overview["repo"]["commit"]
+        );
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
 #[test]
 fn deleting_a_file_sends_a_removed_delta() {
     let live = start(shop);
@@ -466,6 +528,23 @@ fn ts_files(dir: &Path) -> Vec<String> {
     out.into_iter().collect()
 }
 
+/// The nearest-rank percentile of a sorted, non-empty list: the value at 1-based rank
+/// ceil(pct / 100 * n).
+fn percentile(sorted: &[u64], pct: usize) -> u64 {
+    sorted[(pct * sorted.len()).div_ceil(100).max(1) - 1]
+}
+
+#[test]
+fn percentile_is_the_nearest_rank() {
+    let fifty: Vec<u64> = (1..=50).collect();
+    assert_eq!(percentile(&fifty, 50), 25);
+    assert_eq!(percentile(&fifty, 95), 48, "rank ceil(0.95 * 50) = 48");
+    assert_eq!(percentile(&fifty, 100), 50);
+    let twenty: Vec<u64> = (1..=20).collect();
+    assert_eq!(percentile(&twenty, 95), 19);
+    assert_eq!(percentile(&[7], 95), 7);
+}
+
 /// 50 saves 400 ms apart in a 1 000-file project: how long until each one is on the
 /// event stream. The spec asks for 300 ms at p95; the assert is a noise guard.
 /// Run in release: `cargo test --release -p harbormap --test learn_serve -- --ignored --nocapture`.
@@ -504,11 +583,58 @@ fn live_latency_on_1000_files() {
         thread::sleep(Duration::from_millis(400));
     }
     millis.sort_unstable();
-    let (p50, p95) = (millis[24], millis[47]);
+    let (p50, p95) = (percentile(&millis, 50), percentile(&millis, 95));
     println!(
         "live latency over {} saves: p50 {p50} ms, p95 {p95} ms, max {} ms",
         millis.len(),
-        millis[49]
+        millis[millis.len() - 1]
     );
     assert!(p95 < 1_000, "p95 {p95} ms");
+}
+
+/// Sends SIGINT to `child`, as Ctrl-C in its terminal would.
+#[cfg(unix)]
+fn interrupt(child: &Child) {
+    let status = Command::new("kill")
+        .args(["-INT", &child.id().to_string()])
+        .status()
+        .expect("kill is installed");
+    assert!(status.success());
+}
+
+/// A graceful stop waits for open connections, so one that never finishes its request
+/// holds it up; a second Ctrl-C must still end the process, with code 130.
+#[cfg(unix)]
+#[test]
+fn a_second_ctrl_c_ends_a_stuck_shutdown_with_code_130() {
+    use std::io::Write;
+    use std::os::unix::process::ExitStatusExt;
+    let mut live = start(shop);
+    // A request that stops in the middle of its headers.
+    let mut stuck = std::net::TcpStream::connect(("127.0.0.1", live.port)).unwrap();
+    write!(
+        stuck,
+        "GET /api/tech HTTP/1.1\r\nHost: 127.0.0.1:{}\r\n",
+        live.port
+    )
+    .unwrap();
+    thread::sleep(Duration::from_millis(300));
+
+    interrupt(&live.child);
+    thread::sleep(Duration::from_secs(1));
+    assert!(
+        live.child.try_wait().unwrap().is_none(),
+        "the first Ctrl-C waits for the open connection"
+    );
+    interrupt(&live.child);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let status = loop {
+        if let Some(status) = live.child.try_wait().unwrap() {
+            break status;
+        }
+        assert!(Instant::now() < deadline, "the second Ctrl-C did nothing");
+        thread::sleep(Duration::from_millis(50));
+    };
+    assert_eq!(status.code(), Some(130), "{:?}", status.signal());
+    drop(stuck);
 }

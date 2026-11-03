@@ -39,7 +39,7 @@ L5 is split. **L5a (this plan)** runs early, on L1 facts only, so the user sees 
 ## Before you start
 
 - `cargo` may not be on PATH: `export PATH="$HOME/.cargo/bin:$PATH"`.
-- Work only in `/Users/ibrahim/Desktop/CodeOrbit-wt/s2-l5a` (branch `feat/learn-l5a-panel`). Touch only the files listed in your task.
+- Work only in your session worktree (branch `feat/learn-l5a-panel`). Touch only the files listed in your task.
 - Commits: `git commit -s`, conventional prefix, and the message ends with exactly this trailer line (no other model trailer):
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 - After every task: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` stay clean. Front-end tasks also run `npm --prefix ui/learn run check`, `npm --prefix ui/learn test` and `npm --prefix ui/learn run build`, and commit `ui/learn/dist/`.

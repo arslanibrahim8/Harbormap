@@ -52,6 +52,9 @@ pub struct ServeConfig {
 /// The model and its version, changed together under one lock.
 struct Live {
     model: Arc<Model>,
+    /// The repository the overview names; it moves with the branch and the commit, so
+    /// it is published together with the model.
+    repo: Repo,
     seq: u64,
     /// When `model` was published, in Unix milliseconds (the bind time at first).
     updated_ms: u64,
@@ -60,6 +63,7 @@ struct Live {
 /// One consistent read of the live state: a model with its own `seq` and time.
 pub(crate) struct Current {
     pub(crate) model: Arc<Model>,
+    pub(crate) repo: Repo,
     pub(crate) seq: u64,
     pub(crate) updated_ms: u64,
 }
@@ -75,8 +79,6 @@ fn now_ms() -> u64 {
 pub(crate) struct Shared {
     /// The canonical worktree root.
     pub(crate) root: PathBuf,
-    /// The repository the overview names.
-    pub(crate) repo: Repo,
     pub(crate) token: String,
     pub(crate) port: u16,
     /// The read connection; see [`api::read`].
@@ -102,6 +104,7 @@ impl Shared {
         let live = self.live();
         Current {
             model: Arc::clone(&live.model),
+            repo: live.repo.clone(),
             seq: live.seq,
             updated_ms: live.updated_ms,
         }
@@ -142,12 +145,12 @@ impl Server {
         let (closing, _) = watch::channel(false);
         let shared = Arc::new(Shared {
             root,
-            repo: config.repo,
             token,
             port,
             store: Mutex::new(store),
             live: Mutex::new(Live {
                 model: Arc::new(model),
+                repo: config.repo,
                 seq: 0,
                 updated_ms: now_ms(),
             }),
@@ -192,9 +195,22 @@ impl Server {
 
 impl Handle {
     /// Swaps in the new model, sets `delta.seq` to the next seq, and sends the `facts`
-    /// event. Returns the new seq.
-    pub fn publish(&self, model: Model, mut delta: FactsDelta) -> u64 {
+    /// event. Returns the new seq. The repository stays as it is.
+    pub fn publish(&self, model: Model, delta: FactsDelta) -> u64 {
+        self.publish_inner(model, None, delta)
+    }
+
+    /// [`Handle::publish`], and the overview names `repo` from now on (the branch or
+    /// the commit moved). Model, repo and seq change under one lock.
+    pub fn publish_with_repo(&self, model: Model, delta: FactsDelta, repo: Repo) -> u64 {
+        self.publish_inner(model, Some(repo), delta)
+    }
+
+    fn publish_inner(&self, model: Model, repo: Option<Repo>, mut delta: FactsDelta) -> u64 {
         let mut live = self.shared.live();
+        if let Some(repo) = repo {
+            live.repo = repo;
+        }
         live.seq += 1;
         delta.seq = live.seq;
         live.model = Arc::new(model);
@@ -207,6 +223,11 @@ impl Handle {
     /// The version of the current model: 0, plus 1 per published delta.
     pub fn seq(&self) -> u64 {
         self.shared.seq()
+    }
+
+    /// The repository the overview names now.
+    pub fn repo(&self) -> Repo {
+        self.shared.live().repo.clone()
     }
 
     /// The current model.

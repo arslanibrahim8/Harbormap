@@ -21,6 +21,9 @@ use crate::cli::LearnArgs;
 use crate::index::open;
 use crate::status::{printable, write_stdout};
 
+/// The exit code of a process ended by Ctrl-C (128 + SIGINT).
+const INTERRUPTED: i32 = 130;
+
 /// How long the indexer thread waits for a batch before it looks around again.
 const POLL: Duration = Duration::from_secs(1);
 
@@ -93,11 +96,19 @@ pub fn run(args: &LearnArgs, json: bool) -> anyhow::Result<ExitCode> {
             async move {
                 let ctrl_c = async {
                     if let Err(error) = tokio::signal::ctrl_c().await {
-                        // Without the handler Ctrl-C kills the process the hard way; the
+                        // The handler could not be registered, so SIGINT keeps its
+                        // default action and Ctrl-C kills the process at once; the
                         // server keeps serving until the indexer stops.
                         eprintln!("harbormap: cannot listen for Ctrl-C: {error}");
                         std::future::pending::<()>().await;
                     }
+                    // The graceful stop has begun and may be slow (an open connection
+                    // holds it up): a second Ctrl-C ends the process at once.
+                    tokio::spawn(async {
+                        if tokio::signal::ctrl_c().await.is_ok() {
+                            std::process::exit(INTERRUPTED);
+                        }
+                    });
                 };
                 tokio::select! {
                     () = ctrl_c => {}
@@ -231,7 +242,11 @@ fn live_loop(
         }
         unsent.0.extend(delta.files_changed.iter().cloned());
         unsent.1.extend(delta.files_removed.iter().cloned());
-        if delta == Delta::default() && unsent.0.is_empty() && unsent.1.is_empty() {
+        // The branch and the commit move without any file changing (a commit, a
+        // checkout), so they are read again each time and travel with the model.
+        let current = repo(root, name);
+        let moved = current != handle.repo();
+        if !moved && delta == Delta::default() && unsent.0.is_empty() && unsent.1.is_empty() {
             // A catch-up rescan that found nothing, or a save that changed nothing.
             continue;
         }
@@ -263,7 +278,7 @@ fn live_loop(
             ..FactsDelta::default()
         };
         let files = (delta.files_changed.len() + delta.files_removed.len()) as u32;
-        let seq = handle.publish(model, delta);
+        let seq = handle.publish_with_repo(model, delta, current);
         if json {
             let line = serde_json::json!({ "seq": seq, "files": files, "took_ms": took_ms });
             if !write_line(&line.to_string())? {

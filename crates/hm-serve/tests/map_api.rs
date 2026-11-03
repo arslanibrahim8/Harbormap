@@ -150,6 +150,36 @@ async fn publishing_bumps_the_seq_in_the_overview() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_publish_with_a_new_repo_changes_branch_and_commit_in_the_overview() {
+    let dir = project();
+    let live = start(dir.path()).await;
+    let (_, before) = get_json(&live, "/api/overview");
+    assert_eq!(before["repo"]["branch"], "main");
+    assert_eq!(before["repo"]["commit"], "abc1234");
+
+    let model = (*live.handle.model()).clone();
+    let moved = hm_serve::Repo {
+        name: "shop".into(),
+        branch: Some("topic".into()),
+        commit: Some("def5678".into()),
+    };
+    assert_eq!(live.handle.repo().commit.as_deref(), Some("abc1234"));
+    live.handle
+        .publish_with_repo(model, hm_serve::FactsDelta::default(), moved.clone());
+    assert_eq!(live.handle.repo(), moved);
+    let (_, after) = get_json(&live, "/api/overview");
+    assert_eq!(after["repo"]["branch"], "topic");
+    assert_eq!(after["repo"]["commit"], "def5678");
+
+    // A plain publish keeps the repo it has.
+    let model = (*live.handle.model()).clone();
+    live.handle.publish(model, hm_serve::FactsDelta::default());
+    let (_, kept) = get_json(&live, "/api/overview");
+    assert_eq!(kept["repo"]["commit"], "def5678");
+    assert_eq!(kept["seq"], 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_file_card_links_lift_to_the_view() {
     let dir = project();
     let live = start(dir.path()).await;
