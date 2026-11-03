@@ -39,8 +39,11 @@ pub const MAX_ITEMS: usize = 150;
 /// Chips a group view sends; the rest are counted in `elsewhere_more`.
 pub const MAX_CHIPS: usize = 8;
 
-/// One build of the map. Two builds of the same input compare equal, whether or not
-/// the second one reused the first one's positions.
+/// One build of the map. Two cold builds of the same input compare equal. A warm
+/// build (with `previous`) equals the cold one only when every node it reuses a
+/// placement for had the same links in the previous map, for example when the
+/// previous map was built from the same input; otherwise it keeps the older
+/// positions on purpose.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Map {
     tree: Tree,
@@ -250,7 +253,11 @@ impl Map {
                             beginner,
                         })
                         .collect();
-                    let at = |c: usize| node.children.binary_search(&c).unwrap_or(0);
+                    let at = |c: usize| {
+                        let k = node.children.binary_search(&c);
+                        debug_assert!(k.is_ok(), "an inner link ends at a child of its node");
+                        k.unwrap_or(0)
+                    };
                     let edges: Vec<Edge> = inner[g]
                         .iter()
                         .map(|&(a, b, r)| (at(a), at(b), r))
@@ -493,11 +500,11 @@ impl Map {
                 (None, None) => break,
             }
         }
-        for (src, dst) in differ {
-            for path in [src, dst] {
-                for m in [self, old] {
-                    marked.extend(m.ancestors(path).unwrap_or_default());
-                }
+        // One ancestor walk per file, however many of its links differ.
+        let files: BTreeSet<&str> = differ.into_iter().flat_map(|(s, d)| [s, d]).collect();
+        for path in files {
+            for m in [self, old] {
+                marked.extend(m.ancestors(path).unwrap_or_default());
             }
         }
         let groups = marked
@@ -567,7 +574,9 @@ impl Map {
     /// are in pre-order, so their indexes increase.
     fn child_holding(&self, g: usize, n: usize) -> usize {
         let children = &self.tree.nodes[g].children;
-        children[children.partition_point(|&c| c <= n).saturating_sub(1)]
+        let k = children.partition_point(|&c| c <= n);
+        debug_assert!(k > 0 && self.inside(g, n), "node {n} is not below {g}");
+        children[k.saturating_sub(1)]
     }
 
     /// The top box holding node `n`.

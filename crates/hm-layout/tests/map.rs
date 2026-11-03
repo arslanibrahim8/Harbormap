@@ -297,13 +297,14 @@ fn beginner_children_are_the_12_most_linked() {
     got.sort();
     assert_eq!(got.len(), BEGINNER_CHILDREN);
     assert_eq!(got, want);
-    // Beginner children come first in their column.
-    let col0: Vec<bool> = {
-        let mut c: Vec<_> = g.children.iter().filter(|c| c.x == 24).collect();
-        c.sort_by_key(|c| c.y);
+    // All 20 share rank 0; read top to bottom, then the next sub-column, the
+    // beginner children come first, so they fill the first sub-columns.
+    let order: Vec<bool> = {
+        let mut c: Vec<_> = g.children.iter().collect();
+        c.sort_by_key(|c| (c.x, c.y));
         c.iter().map(|c| c.beginner).collect()
     };
-    assert!(col0.windows(2).all(|w| w[0] >= w[1]), "{col0:?}");
+    assert!(order.windows(2).all(|w| w[0] >= w[1]), "{order:?}");
     assert!(g.children.iter().all(|c| !c.expandable));
 }
 
@@ -475,4 +476,96 @@ fn chips_serialize_in_and_out() {
     assert_eq!(chip["in"], 2);
     assert_eq!(chip["out"], 0);
     assert_eq!(chip["role"], "keep");
+}
+
+/// Distinct values of `f` over `boxes`.
+fn distinct(boxes: &[hm_layout::BoxView], f: impl Fn(&hm_layout::BoxView) -> u32) -> usize {
+    let mut v: Vec<u32> = boxes.iter().map(f).collect();
+    v.sort_unstable();
+    v.dedup();
+    v.len()
+}
+
+fn assert_disjoint(boxes: &[hm_layout::BoxView]) {
+    for (i, a) in boxes.iter().enumerate() {
+        for b in &boxes[i + 1..] {
+            assert!(
+                a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y,
+                "{} overlaps {}",
+                a.name,
+                b.name
+            );
+        }
+    }
+}
+
+#[test]
+fn a_group_of_25_unlinked_children_wraps_at_6_rows() {
+    let mut paths: Vec<String> = (0..25).map(|i| format!("src/orders/o{i:02}.ts")).collect();
+    paths.push("src/db/client.ts".into());
+    let p: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+    let m = map(&input(&p, &[]));
+    let g = m.group(&id(&m, "orders")).unwrap();
+    assert_eq!(g.children.len(), 25);
+    assert!(distinct(&g.children, |c| c.y) <= 6, "more than 6 rows");
+    assert_eq!(
+        distinct(&g.children, |c| c.x),
+        5,
+        "25 boxes in sub-columns of 6"
+    );
+    assert_disjoint(&g.children);
+    for c in &g.children {
+        assert!(
+            c.x + c.w <= g.w && c.y + c.h <= g.h,
+            "{} leaves the group",
+            c.name
+        );
+    }
+    // Filled top to bottom, then the next sub-column, in name order.
+    let mut read: Vec<&hm_layout::BoxView> = g.children.iter().collect();
+    read.sort_by_key(|c| (c.x, c.y));
+    let names: Vec<&str> = read.iter().map(|c| c.name.as_str()).collect();
+    let mut sorted = names.clone();
+    sorted.sort();
+    assert_eq!(names, sorted);
+    assert_eq!(
+        (g.w, g.h),
+        (24 * 2 + 176 * 5 + 96 * 4, 44 + 52 * 6 + 24 * 5 + 24)
+    );
+}
+
+#[test]
+fn twelve_overview_boxes_in_one_lane_wrap_at_6_rows() {
+    let paths: Vec<String> = (0..12).map(|i| format!("src/f{i:02}/x.ts")).collect();
+    let p: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+    let o = map(&input(&p, &[])).overview();
+    assert_eq!(o.boxes.len(), 12);
+    assert_eq!(distinct(&o.boxes, |b| b.y), 6);
+    assert_eq!(distinct(&o.boxes, |b| b.x), 2);
+    assert_disjoint(&o.boxes);
+}
+
+#[test]
+fn a_link_to_a_shared_box_does_not_pull_a_lane_box() {
+    // Work lane: aaa (linked to components, row 1) and zzz (linked only to the
+    // shared utils box). zzz has no neighbour in an earlier lane, so it keeps its
+    // row and the tie goes to aaa by name.
+    let m = map(&input(
+        &[
+            "src/app/page.tsx",
+            "src/components/cart.tsx",
+            "src/aaa/a.ts",
+            "src/zzz/z.ts",
+            "src/utils/format.ts",
+        ],
+        &[
+            ("src/aaa/a.ts", "src/components/cart.tsx", 1),
+            ("src/zzz/z.ts", "src/utils/format.ts", 5),
+        ],
+    ));
+    let o = m.overview();
+    let (aaa, zzz, utils) = (top_box(&o, "aaa"), top_box(&o, "zzz"), top_box(&o, "utils"));
+    assert_eq!(aaa.x, zzz.x);
+    assert!(aaa.y < zzz.y, "zzz was pulled up by the shared box");
+    assert!(utils.y > zzz.y);
 }

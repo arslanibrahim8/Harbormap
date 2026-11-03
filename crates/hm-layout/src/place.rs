@@ -4,13 +4,16 @@
 //!   the order see, work, keep, outside; `shared` boxes form one row under the
 //!   tallest column. Inside a lane, boxes are ordered by the barycentre of the boxes
 //!   they link to in earlier lanes (a forward sweep, then a backward one over later
-//!   lanes), ties by files (most first) and name.
+//!   lanes), ties by files (most first) and name. Items outside the lanes (the
+//!   `shared` boxes) never count as neighbours.
 //! - **Inside a group:** children of 176 × 52 in a small layered layout. Ranks are
 //!   longest paths from the sources of the condensation of the child links (Tarjan's
 //!   strongly connected components); ranks from 4 up share the last of at most 5
 //!   columns. Within a column the beginner children come first, then the order of
 //!   two barycentre sweeps, ties by name. The group's size fits its grid plus
 //!   padding and a header.
+//! - **Wrapping:** a lane or rank column holds at most 6 boxes; a longer one wraps
+//!   into sub-columns of its own, filled top to bottom in the order computed above.
 //!
 //! A [`Placement`] depends only on the children it is given and their links; the
 //! map caches it by the node's shape hash, so a new link never moves a box.
@@ -21,7 +24,7 @@ use crate::roles::Role;
 
 /// The version of the layout parameters below. Cached placements carry it in their
 /// key, so changing a parameter and bumping it drops them.
-pub const PARAMS_VERSION: u32 = 1;
+pub const PARAMS_VERSION: u32 = 2;
 
 /// Overview box size.
 pub(crate) const TOP_W: u32 = 200;
@@ -41,6 +44,8 @@ const PAD: u32 = 24;
 const HEADER: u32 = 44;
 /// Ranks from `MAX_COLUMNS - 1` up share the last column.
 const MAX_COLUMNS: usize = 5;
+/// A lane or rank column holds at most this many boxes before it wraps.
+const MAX_ROWS: usize = 6;
 
 /// The overview lanes, left to right.
 const LANES: [Role; 4] = [Role::See, Role::Work, Role::Keep, Role::Outside];
@@ -92,15 +97,10 @@ pub(crate) fn overview(items: &[Item], edges: &[Edge]) -> Placement {
         .collect();
     shared.sort_by(|&a, &b| by_size(a, b));
 
+    let (cells, _, tallest) = grid(&columns);
     let mut at = vec![(0, 0); items.len()];
-    let tallest = columns.iter().map(Vec::len).max().unwrap_or(0) as u32;
-    for (c, column) in columns.iter().enumerate() {
-        for (r, &i) in column.iter().enumerate() {
-            at[i] = (
-                c as u32 * (TOP_W + TOP_GAP_X),
-                r as u32 * (TOP_H + TOP_GAP_Y),
-            );
-        }
+    for (i, c, r) in cells {
+        at[i] = (c * (TOP_W + TOP_GAP_X), r * (TOP_H + TOP_GAP_Y));
     }
     for (k, &i) in shared.iter().enumerate() {
         at[i] = (
@@ -113,7 +113,8 @@ pub(crate) fn overview(items: &[Item], edges: &[Edge]) -> Placement {
     Placement { w, h, at }
 }
 
-/// Places the children of one group in at most [`MAX_COLUMNS`] ranked columns.
+/// Places the children of one group in at most [`MAX_COLUMNS`] ranked columns, each
+/// wrapped at [`MAX_ROWS`].
 pub(crate) fn group(items: &[Item], edges: &[Edge]) -> Placement {
     let n = items.len();
     let column: Vec<usize> = ranks(n, edges)
@@ -132,26 +133,42 @@ pub(crate) fn group(items: &[Item], edges: &[Edge]) -> Placement {
     }
     sweeps(&mut columns, n, edges, &by_name, &band);
 
+    let (cells, ncols, rows) = grid(&columns);
     let mut at = vec![(0, 0); n];
-    for (c, column) in columns.iter().enumerate() {
-        for (r, &i) in column.iter().enumerate() {
-            at[i] = (
-                PAD + c as u32 * (CHILD_W + CHILD_GAP_X),
-                HEADER + r as u32 * (CHILD_H + CHILD_GAP_Y),
-            );
-        }
+    for (i, c, r) in cells {
+        at[i] = (
+            PAD + c * (CHILD_W + CHILD_GAP_X),
+            HEADER + r * (CHILD_H + CHILD_GAP_Y),
+        );
     }
-    let rows = columns.iter().map(Vec::len).max().unwrap_or(0) as u32;
-    let ncols = ncols as u32;
     let w = 2 * PAD + ncols * CHILD_W + ncols.saturating_sub(1) * CHILD_GAP_X;
     let h = HEADER + rows * CHILD_H + rows.saturating_sub(1) * CHILD_GAP_Y + PAD;
     Placement { w, h, at }
 }
 
+/// The grid cell `(item, column, row)` of every item of `columns`, each column cut
+/// into sub-columns of at most [`MAX_ROWS`]; also the number of grid columns and of
+/// rows used.
+fn grid(columns: &[Vec<usize>]) -> (Vec<(usize, u32, u32)>, u32, u32) {
+    let mut cells = Vec::new();
+    let (mut base, mut rows) = (0, 0);
+    for column in columns {
+        for (k, &i) in column.iter().enumerate() {
+            let (c, r) = ((base + k / MAX_ROWS) as u32, (k % MAX_ROWS) as u32);
+            cells.push((i, c, r));
+            rows = rows.max(r + 1);
+        }
+        base += column.len().div_ceil(MAX_ROWS);
+    }
+    (cells, base as u32, rows)
+}
+
 /// Reorders each column by the barycentre of its links: a forward sweep over earlier
 /// columns, then a backward sweep over later ones. `band` sorts first (beginner
 /// children ahead of the others); an item with no link to the columns looked at keeps
-/// its current row as its barycentre; `tie` breaks equal barycentres.
+/// its current row as its barycentre; `tie` breaks equal barycentres. Items in no
+/// column (the overview's `shared` boxes) are never neighbours. Rows are positions
+/// in the whole column, before it wraps.
 fn sweeps(
     columns: &mut [Vec<usize>],
     n: usize,
@@ -159,7 +176,8 @@ fn sweeps(
     tie: &dyn Fn(usize, usize) -> Ordering,
     band: &dyn Fn(usize) -> usize,
 ) {
-    let mut column_of = vec![0usize; n];
+    // Items in no column keep `usize::MAX` and are skipped as neighbours.
+    let mut column_of = vec![usize::MAX; n];
     let mut row = vec![0usize; n];
     for (c, column) in columns.iter().enumerate() {
         for (r, &i) in column.iter().enumerate() {
@@ -183,10 +201,10 @@ fn sweeps(
             .map(|&i| {
                 let (mut sum, mut weight) = (0.0, 0.0);
                 for &(j, w) in &adj[i] {
-                    let looked_at = if earlier {
-                        column_of[j] < c
-                    } else {
-                        column_of[j] > c
+                    let looked_at = match column_of[j] {
+                        usize::MAX => false,
+                        cj if earlier => cj < c,
+                        cj => cj > c,
                     };
                     if looked_at {
                         sum += w as f64 * row[j] as f64;
