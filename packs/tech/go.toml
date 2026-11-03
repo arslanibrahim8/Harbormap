@@ -266,9 +266,9 @@ name = "Logrus"
 category = "other"
 go = ["github.com/sirupsen/logrus"]
 en.beginner = "a logger that writes app messages in a structured, readable form."
-en.builder = "a structured logging library for Go with pluggable log levels and formatters."
+en.builder = "a structured logging library for Go with log levels, hooks and formatters."
 tr.beginner = "uygulama mesajlarını düzenli ve okunabilir biçimde yazan bir günlük kütüphanesi."
-tr.builder = "Go için yapılandırılmış günlük kütüphanesi; seviyeleri ve biçimlendiricileri değiştirilebilir."
+tr.builder = "Go için, günlük seviyeleri, kancalar (hook) ve biçimlendiriciler sunan yapılandırılmış bir günlük kütüphanesi."
 
 [[tech]]
 id = "zerolog"
@@ -418,16 +418,16 @@ go = ["github.com/nats-io/nats.go"]
 en.beginner = "a messaging system that passes messages between parts of an app."
 en.builder = "a Go client for NATS, a lightweight publish-subscribe messaging server."
 tr.beginner = "uygulamanın parçaları arasında mesaj gönderen bir mesajlaşma sistemi."
-tr.builder = "NATS için Go istemcisi; hafif bir yayınla-abone-ol mesajlaşma sunucusudur."
+tr.builder = "hafif bir yayın-abonelik (publish-subscribe) mesajlaşma sunucusu olan NATS için Go istemcisi."
 
 [[tech]]
 id = "grpc-gateway"
 name = "grpc-gateway"
 category = "framework"
 go = ["github.com/grpc-ecosystem/grpc-gateway"]
-en.beginner = "a tool that lets a fast internal service also answer normal web (REST) requests."
+en.beginner = "a tool that lets a gRPC service, which programs use to talk to each other, also answer normal web requests."
 en.builder = "a protoc plugin that generates a reverse proxy turning REST/JSON calls into gRPC calls."
-tr.beginner = "hızlı bir iç servisin normal web (REST) isteklerine de cevap vermesini sağlayan bir araç."
+tr.beginner = "programların birbiriyle konuşmak için kullandığı bir gRPC servisinin, normal web isteklerine de cevap vermesini sağlayan bir araç."
 tr.builder = "REST/JSON isteklerini gRPC çağrılarına çeviren ters vekil (reverse proxy) kodu üreten bir protoc eklentisi."
 
 [[tech]]
@@ -444,7 +444,7 @@ tr.builder = "Go kodundaki açıklama satırlarından Swagger/OpenAPI belgeleri 
 id = "bubbletea"
 name = "Bubble Tea"
 category = "ui"
-go = ["github.com/charmbracelet/bubbletea"]
+go = ["github.com/charmbracelet/bubbletea", "charm.land/bubbletea"]
 en.beginner = "a library for building interactive text-based screens in the terminal."
 en.builder = "a Go framework for terminal user interfaces, based on the Elm architecture."
 tr.beginner = "terminalde etkileşimli, yazı tabanlı ekranlar yapmayı sağlayan bir kütüphane."
@@ -454,7 +454,7 @@ tr.builder = "Elm mimarisine dayanan, Go için terminal kullanıcı arayüzü (T
 id = "lipgloss"
 name = "Lip Gloss"
 category = "ui"
-go = ["github.com/charmbracelet/lipgloss"]
+go = ["github.com/charmbracelet/lipgloss", "charm.land/lipgloss"]
 en.beginner = "a helper that adds colors, borders and layout to terminal text."
 en.builder = "a Go styling library for terminal output with colors, borders and layouts."
 tr.beginner = "terminal yazılarına renk, kenarlık ve düzen ekleyen bir yardımcı."
@@ -494,10 +494,10 @@ tr.builder = "Go jenerikleri üzerine kurulu, Lodash tarzı bir yardımcı fonks
 id = "mapstructure"
 name = "mapstructure"
 category = "other"
-go = ["github.com/mitchellh/mapstructure"]
-en.beginner = "a helper that copies data from loose maps into Go struct fields."
+go = ["github.com/mitchellh/mapstructure", "github.com/go-viper/mapstructure"]
+en.beginner = "a helper that copies data from key-value maps into Go struct fields."
 en.builder = "a Go library that decodes generic map values into typed structs."
-tr.beginner = "gevşek veri haritalarındaki değerleri Go yapılarının alanlarına kopyalayan bir yardımcı."
+tr.beginner = "anahtar-değer biçimindeki verileri (map) Go yapılarının alanlarına aktaran bir yardımcı."
 tr.builder = "genel map değerlerini tür tanımlı Go yapılarına çözümleyen bir Go kütüphanesi."
 
 [[tech]]
@@ -525,10 +525,10 @@ id = "go-toml"
 name = "go-toml"
 category = "other"
 go = ["github.com/pelletier/go-toml"]
-en.beginner = "a helper for reading and editing TOML settings files in Go."
-en.builder = "a Go TOML library with a tree-based API for reading, editing and writing TOML documents."
-tr.beginner = "Go'da TOML ayar dosyalarını okuyup düzenleyen bir yardımcı."
-tr.builder = "TOML belgelerini okumak, düzenlemek ve yazmak için ağaç tabanlı bir Go kütüphanesi."
+en.beginner = "a helper for reading and writing TOML settings files in Go."
+en.builder = "a Go library for parsing and writing TOML documents, with marshal and unmarshal support."
+tr.beginner = "Go'da TOML ayar dosyalarını okuyan ve yazan bir yardımcı."
+tr.builder = "TOML belgelerini ayrıştırmak ve yazmak için, yapılara çevirme desteği olan bir Go kütüphanesi."
 
 [[tech]]
 id = "gjson"
@@ -554,7 +554,7 @@ tr.builder = "encoding/json ile uyumlu, yüksek hızlı bir Go JSON kodlayıcı 
 id = "go-resty"
 name = "Resty"
 category = "other"
-go = ["github.com/go-resty/resty"]
+go = ["github.com/go-resty/resty", "resty.dev"]
 en.beginner = "a helper that makes web requests to other services with less code."
 en.builder = "a Go HTTP client library with retries, timeouts and simple request chaining."
 tr.beginner = "diğer servislere web istekleri göndermeyi daha az kodla yapmayı sağlayan bir yardımcı."
@@ -706,7 +706,7 @@ name = "Badger"
 category = "data"
 go = ["github.com/dgraph-io/badger"]
 en.beginner = "a fast database that stores data in files on your computer, written in Go."
-en.builder = "an embedded key-value database for Go, designed for SSD speed, without a separate server."
+en.builder = "an embedded key-value database for Go, optimized for SSDs, that needs no separate server."
 tr.beginner = "verileri bilgisayardaki dosyalarda tutan, Go ile yazılmış hızlı bir veritabanı."
 tr.builder = "ayrı sunucu gerektirmeyen, gömülü bir Go anahtar-değer veritabanı."
 
@@ -718,4 +718,4 @@ go = ["go.etcd.io/bbolt"]
 en.beginner = "a small database that stores data in a single file, written in Go."
 en.builder = "an embedded, transactional key-value store for Go, a maintained fork of Bolt."
 tr.beginner = "verileri tek bir dosyada tutan küçük, Go ile yazılmış bir veritabanı."
-tr.builder = "Bolt'un etcd tarafından sürdürülen bir çatalı; gömülü, işlemli bir Go anahtar-değer deposu."
+tr.builder = "Bolt'un etcd tarafından sürdürülen bir çatalı; gömülü, işlem (transaction) destekli bir Go anahtar-değer deposu."
