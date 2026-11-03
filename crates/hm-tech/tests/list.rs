@@ -514,7 +514,7 @@ fn unknown_languages_are_listed_by_name() {
 #[test]
 fn dev_only_items_rank_after_equal_scores() {
     let mut input = input();
-    input.declared = vec![dep(Ecosystem::Npm, "vitest", true, ""), npm("pkg-01", "")];
+    input.declared = vec![dep(Ecosystem::Npm, "pkg-03", true, ""), npm("pkg-01", "")];
     input.declared.push(dep(Ecosystem::Npm, "pkg-02", true, ""));
     input.declared.push(npm("pkg-02", ""));
     let list = build(&catalog(), &input);
@@ -524,7 +524,24 @@ fn dev_only_items_rank_after_equal_scores() {
         .map(|item| item.name.as_str())
         .collect();
     // pkg-02 is also declared as a runtime dependency, so it is not dev-only.
-    assert_eq!(other, ["Tool 01", "Tool 02", "Vitest"]);
+    assert_eq!(other, ["Tool 01", "Tool 02", "Tool 03"]);
+}
+
+#[test]
+fn ties_rank_by_category_before_dev_flag() {
+    let mut input = input();
+    input.declared = vec![
+        npm("pkg-01", ""),
+        npm("react", ""),
+        dep(Ecosystem::Npm, "typescript", true, ""),
+    ];
+    let list = build(&catalog(), &input);
+    let ranked: Vec<_> = list.roots[0]
+        .items
+        .iter()
+        .map(|item| item.name.as_str())
+        .collect();
+    assert_eq!(ranked, ["TypeScript", "React", "Tool 01"]);
 }
 
 fn shuffle<T>(items: &mut [T], seed: &mut u64) {

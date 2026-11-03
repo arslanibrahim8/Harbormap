@@ -29,7 +29,8 @@ pub struct TechList {
 pub struct RootList {
     /// Repository-relative path, `""` for the repository root.
     pub root: String,
-    /// In rank order.
+    /// In rank order: score (highest first), then category display order, then runtime
+    /// before dev-only, then name.
     pub items: Vec<TechItem>,
 }
 
@@ -157,8 +158,9 @@ impl Ident {
     }
 }
 
-/// An item with its rank key: score (descending), dev-only, lowercase name.
-type Ranked = (Reverse<u32>, bool, String, TechItem);
+/// An item with its rank key: score (descending), category display order, dev-only,
+/// lowercase name.
+type Ranked = (Reverse<u32>, Category, bool, String, TechItem);
 
 /// Everything collected for one item.
 #[derive(Debug)]
@@ -412,6 +414,7 @@ impl<'a> Builder<'a> {
                     .all(|evidence| !matches!(evidence, Evidence::Declared { dev: false, .. }));
             by_root.entry(root).or_default().push((
                 Reverse(item.score),
+                item.category,
                 dev_only,
                 item.name.to_lowercase(),
                 item,
@@ -422,7 +425,7 @@ impl<'a> Builder<'a> {
             .map(|(root, mut items)| {
                 // Stable, so equal keys keep their key order from the map.
                 items.sort_by(|a, b| {
-                    (&a.0, a.1, &a.2, &a.3.name).cmp(&(&b.0, b.1, &b.2, &b.3.name))
+                    (&a.0, a.1, a.2, &a.3, &a.4.name).cmp(&(&b.0, b.1, b.2, &b.3, &b.4.name))
                 });
                 RootList {
                     root,
