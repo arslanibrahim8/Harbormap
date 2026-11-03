@@ -110,7 +110,7 @@ pub struct IndexReport {
     pub symbols: u32,
     /// Edge count by kind.
     pub edges: BTreeMap<String, u32>,
-    /// Ref count by status (`unresolved`, `external`).
+    /// Ref count by status (`unresolved`, `external`, `builtin`, `local`).
     pub refs: BTreeMap<String, u32>,
     /// Route count by entry kind (`page`, `http`, `server_action`, `middleware`, `cli`,
     /// `main`).
@@ -782,11 +782,20 @@ impl Indexer {
             .collect();
         delta.edges_added = edges_added + derived.edges_added;
         delta.edges_removed = edges_removed + derived.edges_removed;
-        delta.routes_added = derived.routes_added;
-        delta.routes_removed = routes_gone;
-        delta.routes_removed.extend(derived.routes_removed);
-        delta.routes_removed.sort();
-        delta.routes_removed.dedup();
+        // A route of a removed file that another file declares too goes with the file's
+        // row and comes back in `sync_derived`: stored before and after, it is in neither
+        // list. Every other id `sync_derived` adds was not stored before, and every id it
+        // removes is not stored after.
+        let gone: BTreeSet<String> = routes_gone.into_iter().collect();
+        let back: BTreeSet<String> = derived.routes_added.into_iter().collect();
+        delta.routes_added = back.difference(&gone).cloned().collect();
+        delta.routes_removed = gone
+            .difference(&back)
+            .cloned()
+            .chain(derived.routes_removed)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
         for list in [
             &mut delta.files_changed,
             &mut delta.files_removed,

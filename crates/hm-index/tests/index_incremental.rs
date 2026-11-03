@@ -717,6 +717,17 @@ fn deleting_a_route_file_drops_its_routes_and_hops() {
     let rel = "app/api/orders/[id]/route.ts";
     let ids = route_ids(&ix, rel);
     assert_eq!(ids.len(), 2, "GET and DELETE /api/orders/{{id}}");
+    // `removeOrder` calls `DELETE /api/orders/{id}`: there is an edge to lose.
+    let into = |ix: &Indexer| {
+        scalar(
+            ix.store(),
+            &format!(
+                "SELECT count(*) FROM edge WHERE kind = 'http_calls' AND dst_id IN ('{}')",
+                ids.join("', '")
+            ),
+        )
+    };
+    assert_ne!(into(&ix), "0");
 
     fs::remove_file(dir.path().join(rel)).unwrap();
     let d = ix.apply(&set([rel])).unwrap();
@@ -749,6 +760,42 @@ fn deleting_a_route_file_drops_its_routes_and_hops() {
     let d = ix.apply(&set([rel])).unwrap();
     assert_eq!(d.routes_added, ids);
     assert!(d.routes_removed.is_empty());
+    assert_ne!(into(&ix), "0");
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn a_route_another_file_also_declares_is_neither_added_nor_removed() {
+    let (mut ix, dir) = indexed("client-hops");
+    // A route group gives `GET /api/orders` again; the first in path order,
+    // `app/(shop)/…`, is kept and the original's is a note.
+    let group = "app/(shop)/api/orders/route.ts";
+    let rel = "app/api/orders/route.ts";
+    let before = route_ids(&ix, rel);
+    assert_eq!(before.len(), 2, "GET and POST /api/orders");
+    fs::create_dir_all(dir.path().join("app/(shop)/api/orders")).unwrap();
+    fs::write(
+        dir.path().join(group),
+        "export async function GET() {\n  return Response.json([])\n}\n",
+    )
+    .unwrap();
+    let d = ix.apply(&set([group])).unwrap();
+    assert!(
+        d.routes_added.is_empty() && d.routes_removed.is_empty(),
+        "{d:?}"
+    );
+    let moved = route_ids(&ix, group);
+    assert_eq!(moved.len(), 1);
+    assert!(before.contains(&moved[0]));
+
+    // Deleting the group's file takes its row along; derive brings `GET /api/orders`
+    // back from the original file with the same id: stored before and after, it is
+    // neither added nor removed.
+    fs::remove_file(dir.path().join(group)).unwrap();
+    let d = ix.apply(&set([group])).unwrap();
+    assert_eq!(route_ids(&ix, rel), before);
+    assert!(d.routes_added.is_empty(), "{:?}", d.routes_added);
+    assert!(d.routes_removed.is_empty(), "{:?}", d.routes_removed);
     assert_cold(&ix, dir.path());
 }
 
@@ -792,6 +839,91 @@ fn breaking_a_route_file_keeps_the_verbs_that_parse() {
     assert!(routes(&ix).contains(&"GET /api/orders".to_string()));
     assert!(routes(&ix).contains(&"POST /api/orders".to_string()));
     assert!(!routes(&ix).iter().any(|r| r.starts_with("PUT ")));
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn deleting_the_lockfile_unpins_the_versions() {
+    let (mut ix, dir) = indexed("client-hops");
+    fs::write(
+        dir.path().join("package-lock.json"),
+        r#"{ "lockfileVersion": 3, "packages": { "node_modules/axios": { "version": "1.7.9" } } }"#,
+    )
+    .unwrap();
+    ix.apply(&set(["package-lock.json"])).unwrap();
+    let axios = |ix: &Indexer| {
+        scalar(
+            ix.store(),
+            "SELECT coalesce(resolved, '-') FROM dependency WHERE name = 'axios'",
+        )
+    };
+    assert_eq!(axios(&ix), "1.7.9");
+    fs::remove_file(dir.path().join("package-lock.json")).unwrap();
+    ix.apply(&set(["package-lock.json"])).unwrap();
+    assert_eq!(axios(&ix), "-");
+    assert_eq!(
+        scalar(ix.store(), "SELECT coalesce(lockfile, '-') FROM manifest"),
+        "-"
+    );
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn a_lockfile_too_large_to_parse_is_read_again_when_it_changes() {
+    // Over the 1 MiB parse limit the walk skips it; only its size and mtime are stored.
+    let lock = |version: &str| {
+        let mut text = format!(
+            "{{ \"lockfileVersion\": 3, \"packages\": {{ \"node_modules/axios\": {{ \"version\": \"{version}\" }} }} }}\n"
+        );
+        text.push_str(&" \n".repeat(600_000));
+        text
+    };
+    let (mut ix, dir) = indexed("client-hops");
+    let path = dir.path().join("package-lock.json");
+    fs::write(&path, lock("1.7.8")).unwrap();
+    ix.apply(&set(["package-lock.json"])).unwrap();
+    let axios = |ix: &Indexer| {
+        scalar(
+            ix.store(),
+            "SELECT coalesce(resolved, '-') FROM dependency WHERE name = 'axios'",
+        )
+    };
+    assert_eq!(axios(&ix), "1.7.8");
+    assert_eq!(
+        scalar(
+            ix.store(),
+            "SELECT parse_status FROM file WHERE path = 'package-lock.json'"
+        ),
+        "too_large"
+    );
+    fs::write(&path, lock("1.7.9")).unwrap();
+    ix.apply(&set(["package-lock.json"])).unwrap();
+    assert_eq!(axios(&ix), "1.7.9");
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn a_package_json_in_a_new_folder_adds_its_manifest_and_entries() {
+    let (mut ix, dir) = indexed("client-hops");
+    fs::create_dir_all(dir.path().join("tools/cli")).unwrap();
+    fs::write(
+        dir.path().join("tools/cli/package.json"),
+        r#"{ "name": "shop-cli", "bin": { "shop": "main.js" } }"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("tools/cli/main.js"),
+        "console.log('shop')\n",
+    )
+    .unwrap();
+    let d = ix.apply(&set(["tools"])).unwrap();
+    assert_eq!(d.routes_added.len(), 1, "{d:?}");
+    assert_eq!(scalar(ix.store(), "SELECT count(*) FROM manifest"), "2");
+    assert!(
+        routes(&ix).contains(&"BIN shop".to_string()),
+        "{:?}",
+        routes(&ix)
+    );
     assert_cold(&ix, dir.path());
 }
 
