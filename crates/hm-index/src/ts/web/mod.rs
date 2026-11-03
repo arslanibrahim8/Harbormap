@@ -70,13 +70,21 @@ pub(crate) fn compile(scm: &str, lang: Lang) -> Option<Query> {
 
 /// The path a client call asks for. `raw` is the literal's text without quotes, with each
 /// `${…}` already replaced by `{}`. Drops `?…` and `#…`, drops a leading `http://host` or
-/// `https://host`, collapses `//` and a trailing `/`, and keeps a leading `{}`.
+/// `https://host` (the scheme in any case), collapses `//` and a trailing `/`, and keeps a
+/// leading `{}`. A protocol-relative `//host/x` keeps its leading `//`, so that it is never
+/// taken for a path of this site.
 pub fn normalize_client_url(raw: &str) -> String {
     let end = raw.find(['?', '#']).unwrap_or(raw.len());
     let mut rest = &raw[..end];
+    let mut had_scheme = false;
     for scheme in ["http://", "https://"] {
-        if let Some(after) = rest.strip_prefix(scheme) {
+        if rest
+            .get(..scheme.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(scheme))
+        {
+            let after = &rest[scheme.len()..];
             rest = after.find('/').map_or("", |i| &after[i..]);
+            had_scheme = true;
             break;
         }
     }
@@ -85,6 +93,9 @@ pub fn normalize_client_url(raw: &str) -> String {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("/");
+    if !had_scheme && rest.starts_with("//") {
+        return format!("//{joined}");
+    }
     // A leading `{}` is a base URL variable, not a path segment: `{}/api` stays as is.
     if rest.starts_with('/') || joined.is_empty() {
         format!("/{joined}")
