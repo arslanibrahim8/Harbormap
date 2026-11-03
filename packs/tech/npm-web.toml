@@ -1,1 +1,891 @@
 # Web and UI packages for npm. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "nextjs"
+name = "Next.js"
+category = "framework"
+npm = ["next"]
+en.beginner = "a framework for building websites and web apps with React."
+en.builder = "a React framework with server rendering, file-based routing and API routes for full-stack apps."
+tr.beginner = "React ile web siteleri ve web uygulamaları geliştirmeye yarayan bir çatı."
+tr.builder = "sunucu tarafı işleme, dosya tabanlı yönlendirme ve API rotaları sunan bir React çatısı."
+
+[[tech]]
+id = "react"
+name = "React"
+category = "ui"
+npm = ["react", "react-dom"]
+en.beginner = "a library for building the parts of a page that people see and click."
+en.builder = "a JavaScript library for building component-based user interfaces, with react-dom rendering them in the browser."
+tr.beginner = "sayfada insanların gördüğü ve tıkladığı parçaları oluşturan bir kütüphane."
+tr.builder = "bileşen tabanlı kullanıcı arayüzleri oluşturan bir JavaScript kütüphanesi; react-dom bunları tarayıcıda gösterir."
+
+[[tech]]
+id = "vue"
+name = "Vue"
+category = "framework"
+npm = ["vue"]
+en.beginner = "a framework for building interactive pages with simple templates."
+en.builder = "a progressive JavaScript framework for component-based user interfaces with reactive state."
+tr.beginner = "basit şablonlarla etkileşimli sayfalar yapmaya yarayan bir çatı."
+tr.builder = "bileşen tabanlı arayüzler için, reaktif durum yönetimi olan aşamalı bir JavaScript çatısı."
+
+[[tech]]
+id = "nuxt"
+name = "Nuxt"
+category = "framework"
+npm = ["nuxt"]
+en.beginner = "a framework that builds full websites and apps on top of Vue."
+en.builder = "a Vue framework with server rendering, file-based routing and server API routes."
+tr.beginner = "Vue üzerinde tam web siteleri ve uygulamaları kuran bir çatı."
+tr.builder = "Vue için; sunucu tarafı işleme, dosya tabanlı yönlendirme ve sunucu API'leri sunan bir çatı."
+
+[[tech]]
+id = "angular"
+name = "Angular"
+category = "framework"
+npm = ["@angular/*"]
+en.beginner = "a large framework from Google for building structured web applications."
+en.builder = "a TypeScript-based framework for single-page apps, with components, dependency injection and a router."
+tr.beginner = "Google'ın, düzenli web uygulamaları yapmak için geliştirdiği büyük bir çatı."
+tr.builder = "TypeScript ile yazılan; bileşen, bağımlılık enjeksiyonu ve yönlendirici içeren tek sayfa uygulama çatısı."
+
+[[tech]]
+id = "svelte"
+name = "Svelte"
+category = "framework"
+npm = ["svelte"]
+en.beginner = "a framework that turns simple component files into fast web pages."
+en.builder = "a component framework that compiles components into efficient plain JavaScript at build time."
+tr.beginner = "basit bileşen dosyalarını hızlı web sayfalarına çeviren bir çatı."
+tr.builder = "bileşenleri derleme sırasında verimli, düz JavaScript koduna çeviren bir bileşen çatısı."
+
+[[tech]]
+id = "sveltekit"
+name = "SvelteKit"
+category = "framework"
+npm = ["@sveltejs/kit"]
+en.beginner = "a framework for building complete websites and apps with Svelte."
+en.builder = "the official Svelte application framework, with routing, server endpoints and rendering options."
+tr.beginner = "Svelte ile tam web siteleri ve uygulamaları kuran bir çatı."
+tr.builder = "resmi Svelte uygulama çatısı; yönlendirme, sunucu uç noktaları ve işleme seçenekleri sunar."
+
+[[tech]]
+id = "astro"
+name = "Astro"
+category = "framework"
+npm = ["astro"]
+en.beginner = "a tool for building fast content sites like blogs and portfolios."
+en.builder = "a web framework that ships mostly static HTML, with islands of interactive components."
+tr.beginner = "blog ve portfolyo gibi hızlı içerik siteleri yapmaya yarayan bir araç."
+tr.builder = "çoğunlukla düz HTML üreten bir web çatısı; etkileşimli bileşenleri yalnızca gerektiğinde yükler."
+
+[[tech]]
+id = "solid-js"
+name = "Solid"
+category = "ui"
+npm = ["solid-js"]
+en.beginner = "a library for building fast, interactive parts of a web page."
+en.builder = "a reactive JavaScript UI library that updates only the changed DOM parts."
+tr.beginner = "bir web sayfasının hızlı ve etkileşimli parçalarını yapmaya yarayan bir kütüphane."
+tr.builder = "yalnızca değişen DOM parçalarını güncelleyen, reaktif bir JavaScript arayüz kütüphanesi."
+
+[[tech]]
+id = "preact"
+name = "Preact"
+category = "ui"
+npm = ["preact"]
+en.beginner = "a small, fast alternative to React for building web interfaces."
+en.builder = "a lightweight React-compatible UI library with a small footprint."
+tr.beginner = "web arayüzleri yapmak için React'a küçük ve hızlı bir alternatif."
+tr.builder = "React ile uyumlu, küçük boyutlu bir kullanıcı arayüzü kütüphanesi."
+
+[[tech]]
+id = "lit"
+name = "Lit"
+category = "ui"
+npm = ["lit"]
+en.beginner = "a small library for building reusable web components."
+en.builder = "a lightweight library for creating standard web components with reactive properties and templates."
+tr.beginner = "yeniden kullanılabilir web bileşenleri yapmak için küçük bir kütüphane."
+tr.builder = "reaktif özellikler ve şablonlar içeren, standart web bileşenleri oluşturan hafif bir kütüphane."
+
+[[tech]]
+id = "alpinejs"
+name = "Alpine.js"
+category = "ui"
+npm = ["alpinejs"]
+en.beginner = "a tiny helper that adds simple interactivity to plain HTML pages."
+en.builder = "a minimal JavaScript framework that adds reactive behavior to HTML through attributes in the markup."
+tr.beginner = "düz HTML sayfalarına basit etkileşim ekleyen küçük bir yardımcı."
+tr.builder = "HTML içindeki öznitelikler üzerinden reaktif davranış ekleyen küçük bir JavaScript çatısı."
+
+[[tech]]
+id = "htmx"
+name = "htmx"
+category = "ui"
+npm = ["htmx.org"]
+en.beginner = "a small helper that lets plain HTML buttons and links update parts of a page."
+en.builder = "a library that lets any HTML element make AJAX requests and swap in server-returned HTML."
+tr.beginner = "düz HTML düğmelerinin ve bağlantılarının sayfanın parçalarını güncellemesini sağlayan küçük bir yardımcı."
+tr.builder = "herhangi bir HTML öğesinin sunucudan istek göndermesini ve dönen HTML'i yerleştirmesini sağlayan bir kütüphane."
+
+[[tech]]
+id = "jquery"
+name = "jQuery"
+category = "ui"
+npm = ["jquery"]
+en.beginner = "an older library that makes it easier to change and animate web pages."
+en.builder = "a widely used library for DOM changes, events and AJAX requests in JavaScript."
+tr.beginner = "web sayfalarını değiştirmeyi ve canlandırmayı kolaylaştıran eski bir kütüphane."
+tr.builder = "JavaScript'te DOM değişiklikleri, olaylar ve AJAX istekleri için yaygın bir kütüphane."
+
+[[tech]]
+id = "gatsby"
+name = "Gatsby"
+category = "framework"
+npm = ["gatsby"]
+en.beginner = "a framework that builds fast websites from pages and content in advance."
+en.builder = "a React framework that generates static sites from content sources at build time."
+tr.beginner = "sayfaları ve içeriği önceden hazırlayarak hızlı siteler üreten bir çatı."
+tr.builder = "içerik kaynaklarından derleme sırasında statik siteler üreten bir React çatısı."
+
+[[tech]]
+id = "remix"
+name = "Remix"
+category = "framework"
+npm = ["@remix-run/*"]
+en.beginner = "a framework for building web apps that load data on the server."
+en.builder = "a React framework focused on web standards, nested routes and server-side data loading."
+tr.beginner = "verileri sunucuda yükleyen web uygulamaları yapmaya yarayan bir çatı."
+tr.builder = "web standartlarına odaklanan; iç içe rotalar ve sunucu tarafı veri yükleme sunan bir React çatısı."
+
+[[tech]]
+id = "react-router"
+name = "React Router"
+category = "framework"
+npm = ["react-router", "react-router-dom"]
+en.beginner = "a library that switches between pages in a React app without reloading."
+en.builder = "a client-side routing library for React that maps URLs to components and supports nested routes."
+tr.beginner = "React uygulamasında sayfayı yenilemeden sayfalar arasında geçiş yapmayı sağlayan kütüphane."
+tr.builder = "URL'leri bileşenlerle eşleştiren, React için istemci tarafı yönlendirme kütüphanesi; iç içe rotaları destekler."
+
+[[tech]]
+id = "tanstack-router"
+name = "TanStack Router"
+category = "framework"
+npm = ["@tanstack/react-router"]
+en.beginner = "a router that keeps React page addresses and their data in sync, with type-safe links."
+en.builder = "a type-safe React router with nested routes, search-param state and built-in data loading."
+tr.beginner = "React sayfa adreslerini ve verilerini birbiriyle uyumlu tutan bir yönlendirici."
+tr.builder = "tür güvenli, React için iç içe rotalar, arama parametresi durumu ve yerleşik veri yükleme sunan yönlendirici."
+
+[[tech]]
+id = "express"
+name = "Express"
+category = "framework"
+npm = ["express"]
+en.beginner = "a popular library for building the server side of a web app."
+en.builder = "a minimal Node.js web framework for routes and request handlers."
+tr.beginner = "web uygulamasının sunucu tarafını yazmak için yaygın bir kütüphane."
+tr.builder = "rotalar ve istek işleyicileri için kullanılan, minimal bir Node.js web çatısı."
+
+[[tech]]
+id = "fastify"
+name = "Fastify"
+category = "framework"
+npm = ["fastify"]
+en.beginner = "a fast library for building the server side of a web app or API."
+en.builder = "a Node.js web framework focused on speed, with schema-based validation and a plugin system."
+tr.beginner = "web uygulamasının veya API'nin sunucu tarafını yapmak için hızlı bir kütüphane."
+tr.builder = "hıza odaklı bir Node.js web çatısı; şema tabanlı doğrulama ve eklenti sistemi sunar."
+
+[[tech]]
+id = "koa"
+name = "Koa"
+category = "framework"
+npm = ["koa", "@koa/router"]
+en.beginner = "a small library for building web servers with Node.js."
+en.builder = "a lightweight Node.js web framework built around async functions, with @koa/router for routes."
+tr.beginner = "Node.js ile web sunucuları yapmaya yarayan küçük bir kütüphane."
+tr.builder = "async fonksiyonlar etrafında kurulmuş hafif bir Node.js web çatısı; rotalar için @koa/router kullanır."
+
+[[tech]]
+id = "nestjs"
+name = "NestJS"
+category = "framework"
+npm = ["@nestjs/*"]
+en.beginner = "a structured framework for building large server-side apps with TypeScript."
+en.builder = "a TypeScript Node.js framework with modules, dependency injection and decorators, built on Express or Fastify."
+tr.beginner = "TypeScript ile büyük sunucu uygulamaları için düzenli bir çatı."
+tr.builder = "modüller, bağımlılık enjeksiyonu ve dekoratörler sunan; Express veya Fastify üzerine kurulu bir TypeScript çatısı."
+
+[[tech]]
+id = "hono"
+name = "Hono"
+category = "framework"
+npm = ["hono"]
+en.beginner = "a small, fast library for building web APIs that run almost anywhere."
+en.builder = "a lightweight web framework built on Web Standard APIs, running on Node, Bun, Deno and Cloudflare Workers."
+tr.beginner = "neredeyse her yerde çalışan, web API'leri için küçük ve hızlı bir kütüphane."
+tr.builder = "Web Standart API'leri üzerine kurulu hafif bir web çatısı; Node, Bun, Deno ve Cloudflare Workers üzerinde çalışır."
+
+[[tech]]
+id = "hapi"
+name = "hapi"
+category = "framework"
+npm = ["@hapi/hapi"]
+en.beginner = "a framework for building configurable web servers with Node.js."
+en.builder = "a Node.js web framework focused on configuration, input validation and plugins."
+tr.beginner = "Node.js ile ayarlanabilir web sunucuları yapmak için bir çatı."
+tr.builder = "yapılandırmaya, girdi doğrulamasına ve eklentilere odaklanan bir Node.js web çatısı."
+
+[[tech]]
+id = "elysia"
+name = "Elysia"
+category = "framework"
+npm = ["elysia"]
+en.beginner = "a fast TypeScript library for building web APIs, mostly used with Bun."
+en.builder = "a TypeScript web framework optimised for Bun, with end-to-end type safety and schema validation."
+tr.beginner = "web API'leri yapmak için, çoğunlukla Bun ile kullanılan hızlı bir TypeScript kütüphanesi."
+tr.builder = "Bun için optimize edilmiş bir TypeScript web çatısı; uçtan uca tür güvenliği ve şema doğrulaması sunar."
+
+[[tech]]
+id = "trpc"
+name = "tRPC"
+category = "framework"
+npm = ["@trpc/*"]
+en.beginner = "a library that lets a web app call its server functions with full type safety."
+en.builder = "a TypeScript RPC layer that shares server procedure types with the client, with no code generation step."
+tr.beginner = "web uygulamasının sunucu fonksiyonlarını tam tür güvenliğiyle çağırmayı sağlayan bir kütüphane."
+tr.builder = "sunucu prosedürlerinin türlerini istemciyle paylaşan, TypeScript ile uzaktan prosedür çağrısı (RPC) katmanı; kod üretme adımı gerektirmez."
+
+[[tech]]
+id = "socket-io"
+name = "Socket.IO"
+category = "other"
+npm = ["socket.io", "socket.io-client"]
+en.beginner = "a library that lets a server and a web page send messages to each other instantly."
+en.builder = "a realtime library for bidirectional event-based messaging over WebSockets, with fallbacks."
+tr.beginner = "sunucu ile web sayfasının birbirine anında mesaj göndermesini sağlayan bir kütüphane."
+tr.builder = "WebSocket üzerinde çift yönlü, olay tabanlı gerçek zamanlı mesajlaşma sağlayan bir kütüphane; yedek yöntemleri de vardır."
+
+[[tech]]
+id = "ws"
+name = "ws"
+category = "other"
+npm = ["ws"]
+en.beginner = "a library for sending live messages between a Node.js server and browsers."
+en.builder = "a fast, standards-compliant WebSocket client and server implementation for Node.js."
+tr.beginner = "Node.js sunucusu ile tarayıcılar arasında canlı mesaj göndermeyi sağlayan bir kütüphane."
+tr.builder = "Node.js için hızlı, standartlara uygun bir WebSocket istemcisi ve sunucusu uygulaması."
+
+[[tech]]
+id = "electron"
+name = "Electron"
+category = "framework"
+npm = ["electron"]
+en.beginner = "a tool for building desktop apps with web technologies like HTML and JavaScript."
+en.builder = "a framework that packages a Chromium browser and Node.js into cross-platform desktop applications."
+tr.beginner = "HTML ve JavaScript gibi web teknolojileriyle masaüstü uygulaması yapmaya yarayan bir araç."
+tr.builder = "Chromium tarayıcısını ve Node.js'i çapraz platform masaüstü uygulamalarına dönüştüren bir çatı."
+
+[[tech]]
+id = "react-native"
+name = "React Native"
+category = "framework"
+npm = ["react-native"]
+en.beginner = "a way to build phone apps for iOS and Android using React."
+en.builder = "a framework for native iOS and Android apps written in React and JavaScript."
+tr.beginner = "React kullanarak iOS ve Android telefon uygulamaları yapmanın bir yolu."
+tr.builder = "React ve JavaScript ile yazılan, yerel iOS ve Android uygulamaları için bir çatı."
+
+[[tech]]
+id = "expo"
+name = "Expo"
+category = "framework"
+npm = ["expo"]
+en.beginner = "a toolkit that makes building and testing React Native phone apps easier."
+en.builder = "a platform and SDK on top of React Native, with build services and a development app."
+tr.beginner = "React Native ile telefon uygulaması yapmayı ve denemeyi kolaylaştıran bir araç takımı."
+tr.builder = "React Native üzerine kurulu; derleme servisleri ve geliştirme uygulaması sunan bir platform ve SDK."
+
+[[tech]]
+id = "qwik"
+name = "Qwik"
+category = "framework"
+npm = ["@builder.io/qwik"]
+en.beginner = "a web framework that loads only the code each visitor actually needs."
+en.builder = "a resumable web framework that ships minimal JavaScript and loads components on demand."
+tr.beginner = "her ziyaretçinin yalnızca gerçekten ihtiyaç duyduğu kodu yükleyen bir web çatısı."
+tr.builder = "minimum JavaScript gönderen ve bileşenleri istek üzerine yükleyen, devam ettirilebilir bir web çatısı."
+
+[[tech]]
+id = "tailwindcss"
+name = "Tailwind CSS"
+category = "ui"
+npm = ["tailwindcss", "@tailwindcss/*"]
+en.beginner = "a styling tool that lets you design pages by adding small class names to HTML."
+en.builder = "a utility-first CSS framework that generates only the classes your project uses."
+tr.beginner = "HTML'e küçük sınıf adları ekleyerek sayfaları biçimlendirmeyi sağlayan bir araç."
+tr.builder = "yalnızca projenin kullandığı sınıfları üreten, yardımcı sınıf tabanlı bir CSS çatısı."
+
+[[tech]]
+id = "daisyui"
+name = "daisyUI"
+category = "ui"
+npm = ["daisyui"]
+en.beginner = "a ready-made set of styled buttons, cards and menus for Tailwind CSS."
+en.builder = "a Tailwind CSS plugin that adds semantic component classes and themes."
+tr.beginner = "Tailwind CSS için hazır düğme, kart ve menü stilleri sunan bir eklenti."
+tr.builder = "anlamsal bileşen sınıfları ve temalar ekleyen bir Tailwind CSS eklentisi."
+
+[[tech]]
+id = "radix-ui"
+name = "Radix UI"
+category = "ui"
+npm = ["@radix-ui/*"]
+en.beginner = "a set of accessible building blocks such as dialogs, menus and tabs for React."
+en.builder = "an unstyled, accessible React component primitive library used for dialogs, menus and popovers."
+tr.beginner = "React için; pencere, menü ve sekme gibi erişilebilir yapı taşları sunan bir koleksiyon."
+tr.builder = "stil içermeyen, erişilebilir React bileşen temelleri kütüphanesi; diyalog, menü ve açılır pencereler için."
+
+[[tech]]
+id = "mui"
+name = "MUI"
+category = "ui"
+npm = ["@mui/*"]
+en.beginner = "a large library of ready-made React components like buttons, tables and forms, in Material Design style."
+en.builder = "the MUI React component library implementing Google's Material Design, with theming and styled components."
+tr.beginner = "düğme, tablo ve form gibi hazır React bileşenleri sunan büyük bir kütüphane."
+tr.builder = "Google'ın Material Design tasarım dilini uygulayan, tema desteği olan bir React bileşen kütüphanesi."
+
+[[tech]]
+id = "chakra-ui"
+name = "Chakra UI"
+category = "ui"
+npm = ["@chakra-ui/*"]
+en.beginner = "a React component library with ready-made buttons, forms and layouts that are easy to style."
+en.builder = "an accessible React component library built on style props and a theme object."
+tr.beginner = "hazır düğme, form ve yerleşim parçaları sunan, stillendirmesi kolay bir React kütüphanesi."
+tr.builder = "stil özellikleri ve tema nesnesi üzerine kurulu, erişilebilir bir React bileşen kütüphanesi."
+
+[[tech]]
+id = "antd"
+name = "Ant Design"
+category = "ui"
+npm = ["antd"]
+en.beginner = "a React component library with ready-made tables, forms and menus for business apps."
+en.builder = "Ant Design's React library: a large set of enterprise components with a theme system."
+tr.beginner = "iş uygulamaları için hazır tablo, form ve menüler sunan bir React kütüphanesi."
+tr.builder = "Ant Design'ın React kütüphanesi; tema sistemi olan büyük bir kurumsal bileşen seti."
+
+[[tech]]
+id = "mantine"
+name = "Mantine"
+category = "ui"
+npm = ["@mantine/*"]
+en.beginner = "a React component library with ready-made inputs, menus and dark mode support."
+en.builder = "a React component library with a theming system, covering forms, navigation and notifications."
+tr.beginner = "hazır giriş alanları, menüler ve karanlık mod desteği sunan bir React kütüphanesi."
+tr.builder = "tema sistemi olan bir React bileşen kütüphanesi; form, gezinme ve bildirim bileşenlerini kapsar."
+
+[[tech]]
+id = "bootstrap"
+name = "Bootstrap"
+category = "ui"
+npm = ["bootstrap"]
+en.beginner = "a popular set of ready-made styles and components for building responsive web pages."
+en.builder = "a widely used CSS framework with a grid system, components and optional JavaScript plugins."
+tr.beginner = "duyarlı web sayfaları yapmak için hazır stiller ve bileşenler sunan yaygın bir paket."
+tr.builder = "ızgara sistemi, bileşenler ve isteğe bağlı JavaScript eklentileri içeren yaygın bir CSS çatısı."
+
+[[tech]]
+id = "react-bootstrap"
+name = "React Bootstrap"
+category = "ui"
+npm = ["react-bootstrap"]
+en.beginner = "React components that look and work like Bootstrap's ready-made parts."
+en.builder = "a React component library that wraps Bootstrap's markup and styles as native React components."
+tr.beginner = "Bootstrap'in hazır parçalarına benzeyen ve onlar gibi çalışan React bileşenleri."
+tr.builder = "Bootstrap'in yapısını ve stillerini yerel React bileşenleri olarak sunan bir React kütüphanesi."
+
+[[tech]]
+id = "styled-components"
+name = "styled-components"
+category = "ui"
+npm = ["styled-components"]
+en.beginner = "a library for writing a page's styles directly inside its JavaScript components."
+en.builder = "a CSS-in-JS library that creates styled React components from tagged template literals."
+tr.beginner = "sayfanın stillerini doğrudan JavaScript bileşenlerinin içinde yazmaya yarayan bir kütüphane."
+tr.builder = "CSS'i JavaScript içinde yazmayı sağlayan, stilli React bileşenleri üreten bir kütüphane."
+
+[[tech]]
+id = "emotion"
+name = "Emotion"
+category = "ui"
+npm = ["@emotion/*"]
+en.beginner = "a library for styling web components with CSS written inside JavaScript code."
+en.builder = "a CSS-in-JS styling library with styled components, a css prop and theming."
+tr.beginner = "web bileşenlerini JavaScript kodunun içine yazılan CSS ile biçimlendiren bir kütüphane."
+tr.builder = "stilli bileşenler, css özelliği ve tema desteği sunan bir CSS-in-JS kütüphanesi."
+
+[[tech]]
+id = "sass"
+name = "Sass"
+category = "ui"
+npm = ["sass"]
+en.beginner = "a tool that lets you write CSS with variables, nesting and reusable blocks."
+en.builder = "the Dart Sass compiler that turns .scss and .sass files into plain CSS."
+tr.beginner = "CSS'i değişkenler, iç içe kurallar ve yeniden kullanılabilir bloklarla yazmanı sağlayan bir araç."
+tr.builder = ".scss ve .sass dosyalarını düz CSS'e çeviren Dart Sass derleyicisi."
+
+[[tech]]
+id = "motion"
+name = "Motion"
+category = "ui"
+npm = ["framer-motion", "motion"]
+en.beginner = "a library that adds smooth animations to React pages, such as fades and slides."
+en.builder = "a React animation library for transitions, gestures and layout animations."
+tr.beginner = "React sayfalarına solma ve kayma gibi yumuşak animasyonlar ekleyen bir kütüphane."
+tr.builder = "geçişler, hareketler ve yerleşim animasyonları için bir React animasyon kütüphanesi."
+
+[[tech]]
+id = "lucide"
+name = "Lucide"
+category = "ui"
+npm = ["lucide-react"]
+en.beginner = "a library of simple, ready-made icons you can use in React pages."
+en.builder = "a React package of the Lucide open-source SVG icon set as components."
+tr.beginner = "React sayfalarında kullanabileceğin, hazır ve sade simgeler kütüphanesi."
+tr.builder = "Lucide açık kaynaklı SVG simge setini React bileşenleri olarak sunan bir paket."
+
+[[tech]]
+id = "react-icons"
+name = "React Icons"
+category = "ui"
+npm = ["react-icons"]
+en.beginner = "a library that gives you thousands of common icons as ready-made React components."
+en.builder = "a React package that bundles icons from many popular icon sets as components."
+tr.beginner = "binlerce yaygın simgeyi hazır React bileşenleri olarak sunan bir kütüphane."
+tr.builder = "birçok popüler simge setini React bileşenleri olarak paketleyen bir kütüphane."
+
+[[tech]]
+id = "heroicons"
+name = "Heroicons"
+category = "ui"
+npm = ["@heroicons/react"]
+en.beginner = "a set of clean, ready-made icons for React, made by the Tailwind team."
+en.builder = "the official React icon package of Heroicons, providing outline and solid SVG icons as components."
+tr.beginner = "React için, Tailwind ekibinin yaptığı temiz ve hazır simge seti."
+tr.builder = "Heroicons'ın resmi React paketi; dış çizgi ve dolu SVG simgelerini bileşen olarak sunar."
+
+[[tech]]
+id = "fontawesome"
+name = "Font Awesome"
+category = "ui"
+npm = ["@fortawesome/*"]
+en.beginner = "a large library of popular icons for buttons, menus and social media links."
+en.builder = "the Font Awesome icon toolkit for JavaScript and React, distributed as SVG icon packages."
+tr.beginner = "düğmeler, menüler ve sosyal medya bağlantıları için büyük bir simge kütüphanesi."
+tr.builder = "JavaScript ve React için Font Awesome simge araç takımı; SVG simge paketleri olarak dağıtılır."
+
+[[tech]]
+id = "cva"
+name = "class-variance-authority"
+category = "ui"
+npm = ["class-variance-authority"]
+en.beginner = "a helper that organises the style variants of a component, such as its sizes and colors."
+en.builder = "a small utility for defining typed style variants of components as class name strings."
+tr.beginner = "bir bileşenin boyut ve renk gibi stil varyantlarını düzenleyen küçük bir yardımcı."
+tr.builder = "bileşen stil varyantlarını sınıf adı metinleri olarak tanımlayan küçük bir yardımcı kütüphane."
+
+[[tech]]
+id = "clsx"
+name = "clsx"
+category = "ui"
+npm = ["clsx"]
+en.beginner = "a tiny helper that joins CSS class names together based on conditions."
+en.builder = "a tiny utility that builds CSS class name strings from strings, objects and arrays."
+tr.beginner = "koşullara göre CSS sınıf adlarını birleştiren küçük bir yardımcı."
+tr.builder = "metinlerden, nesnelerden ve dizilerden CSS sınıf adı metni üreten küçük bir yardımcı."
+
+[[tech]]
+id = "classnames"
+name = "classnames"
+category = "ui"
+npm = ["classnames"]
+en.beginner = "an older helper that joins CSS class names together depending on conditions."
+en.builder = "a small utility that builds CSS class name strings from conditional values, widely used in React projects."
+tr.beginner = "koşullara bağlı olarak CSS sınıf adlarını birleştiren, yaygın kullanılan bir yardımcı."
+tr.builder = "koşullu değerlerden CSS sınıf adı metni üreten küçük bir yardımcı; React projelerinde yaygındır."
+
+[[tech]]
+id = "tailwind-merge"
+name = "tailwind-merge"
+category = "ui"
+npm = ["tailwind-merge"]
+en.beginner = "a helper that removes conflicting Tailwind class names so the last one wins."
+en.builder = "a utility that merges Tailwind CSS class strings and resolves conflicts between utility classes."
+tr.beginner = "çakışan Tailwind sınıf adlarını temizleyen ve sonuncuyu bırakan küçük bir yardımcı."
+tr.builder = "Tailwind CSS sınıf metinlerini birleştiren ve yardımcı sınıflar arasındaki çakışmaları çözen bir araç."
+
+[[tech]]
+id = "headlessui"
+name = "Headless UI"
+category = "ui"
+npm = ["@headlessui/react"]
+en.beginner = "a set of ready-made menus, dialogs and switches with no built-in styling."
+en.builder = "unstyled, accessible React UI components made by Tailwind Labs, to style yourself."
+tr.beginner = "hazır menü, pencere ve açma kapatma bileşenleri sunan, stil içermeyen bir kütüphane."
+tr.builder = "Tailwind Labs ekibinin yaptığı, stil içermeyen ve erişilebilir React bileşenleri; Tailwind CSS ile kullanılır."
+
+[[tech]]
+id = "sonner"
+name = "Sonner"
+category = "ui"
+npm = ["sonner"]
+en.beginner = "a library that shows small pop-up notifications, such as saved messages."
+en.builder = "a React toast notification library with stacking, animations and promise-based status messages."
+tr.beginner = "kaydedildi gibi küçük açılır bildirimler gösteren bir kütüphane."
+tr.builder = "yığınlama, animasyon ve Promise tabanlı durum mesajları içeren bir React bildirim (toast) kütüphanesi."
+
+[[tech]]
+id = "react-hot-toast"
+name = "React Hot Toast"
+category = "ui"
+npm = ["react-hot-toast"]
+en.beginner = "a library that shows small pop-up messages in a React app, such as success alerts."
+en.builder = "a lightweight React toast notification library with custom styles and promise support."
+tr.beginner = "React uygulamasında başarı uyarısı gibi küçük açılır mesajlar gösteren bir kütüphane."
+tr.builder = "özel stiller ve Promise desteği olan, hafif bir React bildirim (toast) kütüphanesi."
+
+[[tech]]
+id = "recharts"
+name = "Recharts"
+category = "ui"
+npm = ["recharts"]
+en.beginner = "a library for drawing charts, such as bar and line charts, in React pages."
+en.builder = "a React chart library built on SVG components, for composable bar, line, pie and area charts."
+tr.beginner = "React sayfalarında çubuk ve çizgi grafikleri çizmeyi sağlayan bir kütüphane."
+tr.builder = "SVG bileşenleri üzerine kurulu, çubuk, çizgi, pasta ve alan grafikleri için bir React kütüphanesi."
+
+[[tech]]
+id = "chartjs"
+name = "Chart.js"
+category = "ui"
+npm = ["chart.js", "react-chartjs-2"]
+en.beginner = "a library for drawing clear, interactive charts on a web page."
+en.builder = "a canvas-based charting library, with react-chartjs-2 as its React wrapper."
+tr.beginner = "web sayfasında net ve etkileşimli grafikler çizmeyi sağlayan bir kütüphane."
+tr.builder = "canvas tabanlı bir grafik kütüphanesi; react-chartjs-2 onun React sarmalayıcısıdır."
+
+[[tech]]
+id = "d3"
+name = "D3.js"
+category = "ui"
+npm = ["d3"]
+en.beginner = "a powerful library for building custom data visualizations in the browser."
+en.builder = "a modular JavaScript library that binds data to the DOM and draws SVG charts and maps."
+tr.beginner = "tarayıcıda özel veri görselleştirmeleri yapmak için güçlü bir kütüphane."
+tr.builder = "verileri DOM'a bağlayan ve SVG grafikleri ile haritaları çizen modüler bir JavaScript kütüphanesi."
+
+[[tech]]
+id = "three"
+name = "Three.js"
+category = "ui"
+npm = ["three"]
+en.beginner = "a library for drawing 3D scenes and objects in a web page."
+en.builder = "a JavaScript 3D graphics library that renders scenes with WebGL in the browser."
+tr.beginner = "web sayfasında 3 boyutlu sahneler ve nesneler çizmeyi sağlayan bir kütüphane."
+tr.builder = "tarayıcıda WebGL ile sahneleri çizen bir JavaScript 3B grafik kütüphanesi."
+
+[[tech]]
+id = "react-three-fiber"
+name = "React Three Fiber"
+category = "ui"
+npm = ["@react-three/*"]
+en.beginner = "a way to build 3D scenes with React components instead of raw Three.js code."
+en.builder = "a React renderer for Three.js, with helper packages such as @react-three/drei."
+tr.beginner = "ham Three.js kodu yerine React bileşenleriyle 3 boyutlu sahneler kurmanın bir yolu."
+tr.builder = "Three.js için bir React çizicisi; @react-three/drei gibi yardımcı paketlerle birlikte gelir."
+
+[[tech]]
+id = "tiptap"
+name = "Tiptap"
+category = "ui"
+npm = ["@tiptap/*"]
+en.beginner = "a library for adding a rich text editor, with bold, lists and links, to a web app."
+en.builder = "a headless rich text editor framework built on ProseMirror, with React and Vue bindings."
+tr.beginner = "web uygulamasına kalın yazı, liste ve bağlantı içeren bir zengin metin editörü ekler."
+tr.builder = "ProseMirror üzerine kurulu, stilsiz bir zengin metin editörü çatısı; React ve Vue bağlantıları vardır."
+
+[[tech]]
+id = "react-markdown"
+name = "react-markdown"
+category = "ui"
+npm = ["react-markdown"]
+en.beginner = "a React component that displays Markdown text as formatted web page content."
+en.builder = "a React component that renders Markdown into React elements, without raw HTML by default."
+tr.beginner = "Markdown metnini biçimlendirilmiş web sayfası içeriği olarak gösteren bir React bileşeni."
+tr.builder = "Markdown'ı React öğelerine çeviren bir bileşen; ham HTML'i varsayılan olarak göstermez."
+
+[[tech]]
+id = "embla"
+name = "Embla Carousel"
+category = "ui"
+npm = ["embla-carousel-react"]
+en.beginner = "a library for sliders and carousels that swipe through images or cards."
+en.builder = "a lightweight React carousel library that handles touch, drag and scroll behavior."
+tr.beginner = "resim ve kartlar arasında kaydırmalı slayt göstermeyi sağlayan bir kütüphane."
+tr.builder = "dokunma, sürükleme ve kaydırma davranışlarını yöneten hafif bir React karusel kütüphanesi."
+
+[[tech]]
+id = "swiper"
+name = "Swiper"
+category = "ui"
+npm = ["swiper"]
+en.beginner = "a touch-friendly library for building sliders and image galleries."
+en.builder = "a modern touch slider library with framework wrappers for React, Vue and Angular."
+tr.beginner = "dokunmatik ekranda çalışan slayt ve resim galerileri yapmayı sağlayan bir kütüphane."
+tr.builder = "React, Vue ve Angular için sarmalayıcıları olan modern bir dokunmatik slayt kütüphanesi."
+
+[[tech]]
+id = "vaul"
+name = "Vaul"
+category = "ui"
+npm = ["vaul"]
+en.beginner = "a React library for drawers that slide up from the bottom of the screen."
+en.builder = "a React drawer component with swipe-to-close gestures for touch screens."
+tr.beginner = "React ile ekranın altından yukarı kayan çekmece menüler yapmayı sağlayan bir kütüphane."
+tr.builder = "dokunmatik ekranlar için kaydırarak kapatma hareketi olan bir React çekmece bileşeni."
+
+[[tech]]
+id = "cmdk"
+name = "cmdk"
+category = "ui"
+npm = ["cmdk"]
+en.beginner = "a library for building a command menu, like the search box that opens with a keyboard shortcut."
+en.builder = "a React command menu component with fuzzy search, keyboard navigation and accessible markup."
+tr.beginner = "klavye kısayoluyla açılan arama kutusu gibi komut menüleri yapmayı sağlayan bir kütüphane."
+tr.builder = "bulanık arama, klavye gezinmesi ve erişilebilir yapı sunan bir React komut menüsü bileşeni."
+
+[[tech]]
+id = "dnd-kit"
+name = "dnd-kit"
+category = "ui"
+npm = ["@dnd-kit/*"]
+en.beginner = "a library that lets users drag and drop items to reorder them in a web app."
+en.builder = "a modular, accessible drag-and-drop toolkit for React, with sensors, collision detection and sortable lists."
+tr.beginner = "kullanıcıların öğeleri sürükleyip bırakarak sıralamasını sağlayan bir kütüphane."
+tr.builder = "React için modüler ve erişilebilir sürükle-bırak araç takımı; sıralanabilir listeleri destekler."
+
+[[tech]]
+id = "react-day-picker"
+name = "React DayPicker"
+category = "ui"
+npm = ["react-day-picker"]
+en.beginner = "a calendar component for picking dates in a React form."
+en.builder = "a React date picker and calendar component with ranges, multiple selection and custom styling."
+tr.beginner = "React formlarında tarih seçmek için bir takvim bileşeni."
+tr.builder = "aralık ve çoklu seçim destekleyen, özelleştirilebilir bir React tarih seçici ve takvim bileşeni."
+
+[[tech]]
+id = "next-themes"
+name = "next-themes"
+category = "ui"
+npm = ["next-themes"]
+en.beginner = "a helper that adds light and dark mode switching to a Next.js site."
+en.builder = "a small library that manages theme state and system preference for Next.js."
+tr.beginner = "bir Next.js sitesine açık ve koyu mod geçişi ekleyen küçük bir yardımcı."
+tr.builder = "Next.js için tema durumunu ve sistem tercihini yöneten küçük bir kütüphane."
+
+[[tech]]
+id = "tanstack-table"
+name = "TanStack Table"
+category = "ui"
+npm = ["@tanstack/react-table"]
+en.beginner = "a library that builds sortable, filterable tables from your data in React."
+en.builder = "a headless React table library for sorting, filtering, pagination and row selection, with you providing the markup."
+tr.beginner = "verilerinizden sıralanabilir ve filtrelenebilir tablolar kuran bir React kütüphanesi."
+tr.builder = "sıralama, filtreleme, sayfalama ve satır seçimi sunan, görünümü size bırakan bir React tablo kütüphanesi."
+
+[[tech]]
+id = "leaflet"
+name = "Leaflet"
+category = "ui"
+npm = ["leaflet", "react-leaflet"]
+en.beginner = "a library for showing interactive maps with markers and shapes on a web page."
+en.builder = "a lightweight JavaScript map library, with react-leaflet providing React components for it."
+tr.beginner = "web sayfasında işaretçi ve şekillerle etkileşimli haritalar göstermeyi sağlayan bir kütüphane."
+tr.builder = "hafif bir JavaScript harita kütüphanesi; react-leaflet bunun için React bileşenleri sunar."
+
+[[tech]]
+id = "floating-ui"
+name = "Floating UI"
+category = "ui"
+npm = ["@floating-ui/*"]
+en.beginner = "a helper that positions tooltips and dropdown menus next to their buttons."
+en.builder = "a library for positioning floating elements such as popovers, tooltips and dropdowns on screen."
+tr.beginner = "ipuçlarını ve açılır menüleri düğmelerinin yanına yerleştiren küçük bir yardımcı."
+tr.builder = "açılır pencere, ipucu ve açılır menü gibi kayan öğeleri ekranda konumlandıran bir kütüphane."
+
+[[tech]]
+id = "vuetify"
+name = "Vuetify"
+category = "ui"
+npm = ["vuetify"]
+en.beginner = "a library of ready-made Material Design components for Vue apps."
+en.builder = "a Vue component framework that implements Material Design, with themes and a grid system."
+tr.beginner = "Vue uygulamaları için hazır Material Design bileşenleri sunan bir kütüphane."
+tr.builder = "Material Design'ı uygulayan, tema ve ızgara sistemi olan bir Vue bileşen çatısı."
+
+[[tech]]
+id = "element-plus"
+name = "Element Plus"
+category = "ui"
+npm = ["element-plus"]
+en.beginner = "a library of ready-made tables, forms and menus for Vue admin pages."
+en.builder = "a Vue 3 UI component library, the successor to Element UI, with theming and many components."
+tr.beginner = "Vue yönetim sayfaları için hazır tablo, form ve menüler sunan bir kütüphane."
+tr.builder = "Vue 3 için bir arayüz bileşen kütüphanesi; Element UI'ın devamı niteliğindedir."
+
+[[tech]]
+id = "heroui"
+name = "HeroUI"
+category = "ui"
+npm = ["@heroui/*"]
+en.beginner = "a React component library with modern, ready-made buttons, cards and inputs."
+en.builder = "a React component library styled with Tailwind CSS, formerly known as NextUI."
+tr.beginner = "modern, hazır düğme, kart ve giriş alanları sunan bir React bileşen kütüphanesi."
+tr.builder = "Tailwind CSS ile stillendirilmiş bir React bileşen kütüphanesi; eski adı NextUI'dır."
+
+[[tech]]
+id = "react-select"
+name = "React Select"
+category = "ui"
+npm = ["react-select"]
+en.beginner = "a dropdown menu with search and multi-select, for picking options in forms."
+en.builder = "a React select component for single and multiple selection with search, grouping and async options."
+tr.beginner = "arama ve çoklu seçim özellikli, formlarda seçenek seçmek için açılır bir menü."
+tr.builder = "tek ve çoklu seçim, arama, gruplama ve asenkron seçenekler sunan bir React seçim bileşeni."
+
+[[tech]]
+id = "zustand"
+name = "Zustand"
+category = "ui"
+npm = ["zustand"]
+en.beginner = "a small library that keeps shared app data in one place that any component can read."
+en.builder = "a small state management library for React, with simple stores and selector-based subscriptions."
+tr.beginner = "uygulamadaki ortak verileri tek bir yerde tutan ve her bileşenin okuyabildiği küçük bir kütüphane."
+tr.builder = "React için küçük bir durum yönetimi kütüphanesi; basit depolar ve seçici tabanlı aboneliklerle çalışır."
+
+[[tech]]
+id = "redux"
+name = "Redux"
+category = "ui"
+npm = ["redux", "@reduxjs/toolkit", "react-redux"]
+en.beginner = "a library that keeps shared app data in one store and changes it in a predictable way."
+en.builder = "a predictable state container for JavaScript apps; Redux Toolkit and react-redux are its standard helpers."
+tr.beginner = "uygulamanın ortak verilerini tek bir depoda tutan ve bunları öngörülebilir biçimde değiştiren kütüphane."
+tr.builder = "JavaScript uygulamaları için öngörülebilir bir durum deposu; Redux Toolkit ve react-redux standart yardımcılarıdır."
+
+[[tech]]
+id = "mobx"
+name = "MobX"
+category = "ui"
+npm = ["mobx"]
+en.beginner = "a library that updates the screen automatically when the data behind it changes."
+en.builder = "a reactive state management library that tracks which observable data each component uses."
+tr.beginner = "arkasındaki veri değiştiğinde ekranı kendiliğinden güncelleyen bir kütüphane."
+tr.builder = "hangi gözlemlenebilir verinin kullanıldığını izleyen reaktif bir durum yönetimi kütüphanesi."
+
+[[tech]]
+id = "jotai"
+name = "Jotai"
+category = "ui"
+npm = ["jotai"]
+en.beginner = "a small library for sharing small pieces of React state between components."
+en.builder = "an atomic React state library where each piece of state is an independent atom."
+tr.beginner = "bileşenler arasında durum parçalarını paylaşmayı sağlayan hafif bir kütüphane."
+tr.builder = "her durum parçasının bağımsız bir atom olduğu, atomik bir React durum kütüphanesi."
+
+[[tech]]
+id = "pinia"
+name = "Pinia"
+category = "ui"
+npm = ["pinia"]
+en.beginner = "the official library for sharing app data between the parts of a Vue app."
+en.builder = "the official Vue state management store, with typed stores and devtools support."
+tr.beginner = "bir Vue uygulamasının parçaları arasında veri paylaşmak için resmi kütüphane."
+tr.builder = "Vue'nun resmi durum deposu; tür desteği ve geliştirici araçları içerir."
+
+[[tech]]
+id = "vuex"
+name = "Vuex"
+category = "ui"
+npm = ["vuex"]
+en.beginner = "an older library for sharing app data between parts of a Vue app."
+en.builder = "the older official Vue state store, now superseded by Pinia for new Vue 3 projects."
+tr.beginner = "Vue uygulamasının parçaları arasında veri paylaşmak için eski bir kütüphane."
+tr.builder = "Vue'nun eski resmi durum deposu; yeni Vue 3 projelerinde yerini Pinia almıştır."
+
+[[tech]]
+id = "vue-router"
+name = "Vue Router"
+category = "framework"
+npm = ["vue-router"]
+en.beginner = "a library that switches between pages in a Vue app without reloading the page."
+en.builder = "the official Vue router, mapping URLs to components with nested routes and navigation guards."
+tr.beginner = "Vue uygulamasında sayfayı yenilemeden sayfalar arasında geçiş yapmayı sağlayan kütüphane."
+tr.builder = "Vue'nun resmi yönlendiricisi; URL'leri bileşenlerle eşleştirir, iç içe rotalar ve geçiş koruyucuları sunar."
+
+[[tech]]
+id = "vueuse"
+name = "VueUse"
+category = "ui"
+npm = ["@vueuse/core"]
+en.beginner = "a collection of ready-made helper functions for common tasks in Vue apps."
+en.builder = "a collection of Vue composable utilities such as storage, mouse and window-size helpers."
+tr.beginner = "Vue uygulamalarındaki sık işler için hazır yardımcı fonksiyonlar koleksiyonu."
+tr.builder = "depolama, fare ve pencere boyutu gibi konularda Vue birleştirilebilir yardımcılar sunan bir koleksiyon."
+
+[[tech]]
+id = "i18next"
+name = "i18next"
+category = "other"
+npm = ["i18next", "react-i18next"]
+en.beginner = "a library that shows your app's text in several languages."
+en.builder = "an internationalization library for translating text, with react-i18next as its React binding."
+tr.beginner = "uygulamanın yazılarını birden çok dilde göstermeyi sağlayan bir kütüphane."
+tr.builder = "metinleri çevirmek için bir uluslararasılaştırma kütüphanesi; react-i18next React bağlantısıdır."
+
+[[tech]]
+id = "next-intl"
+name = "next-intl"
+category = "other"
+npm = ["next-intl"]
+en.beginner = "a library that adds multiple languages and translated text to a Next.js app."
+en.builder = "an internationalization library for Next.js with localized routing, messages and date formatting."
+tr.beginner = "bir Next.js uygulamasına birden çok dil ve çevrilmiş metin ekleyen bir kütüphane."
+tr.builder = "Next.js için yerelleştirilmiş yönlendirme, metin ve tarih biçimlendirmesi sunan bir çeviri kütüphanesi."
+
+[[tech]]
+id = "react-hook-form"
+name = "React Hook Form"
+category = "ui"
+npm = ["react-hook-form"]
+en.beginner = "a library that makes forms in React easier to build and check for errors."
+en.builder = "a performant React form library that manages inputs and validation with minimal re-renders."
+tr.beginner = "React'ta formları daha kolay kuran ve hataları kontrol eden bir kütüphane."
+tr.builder = "girdileri ve doğrulamayı en az yeniden çizimle yöneten, performanslı bir React form kütüphanesi."
+
+[[tech]]
+id = "formik"
+name = "Formik"
+category = "ui"
+npm = ["formik"]
+en.beginner = "a library that helps build React forms and track their values and errors."
+en.builder = "a React form library that handles form state, validation and submission."
+tr.beginner = "React formları kurmaya, değerlerini ve hatalarını takip etmeye yardımcı bir kütüphane."
+tr.builder = "form durumunu, doğrulamayı ve gönderimi yöneten bir React form kütüphanesi."
