@@ -1432,6 +1432,7 @@ dependencies = [
  "serde_json",
  "streaming-iterator",
  "tempfile",
+ "toml",
  "tree-sitter",
  "tree-sitter-javascript",
  "tree-sitter-typescript",
