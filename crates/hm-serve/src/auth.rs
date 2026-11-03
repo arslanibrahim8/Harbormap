@@ -14,8 +14,12 @@ use axum::response::{IntoResponse, Response};
 use crate::Shared;
 use crate::api::ApiError;
 
-/// The cookie that carries the token after the first visit.
-const COOKIE_NAME: &str = "hm_learn";
+/// The cookie that carries the token after the first visit. Cookies ignore the port,
+/// so two panels on 127.0.0.1 would overwrite each other's cookie under one shared
+/// name; each server therefore names its cookie after its own port.
+fn cookie_name(port: u16) -> String {
+    format!("hm_learn_{port}")
+}
 
 /// A new token: 16 random bytes as 32 lowercase hex characters.
 pub(crate) fn new_token() -> io::Result<String> {
@@ -39,15 +43,15 @@ fn query_token(query: Option<&str>) -> Option<&str> {
     query?.split('&').find_map(|pair| pair.strip_prefix("t="))
 }
 
-/// Every `hm_learn` cookie value of the request.
-fn cookie_tokens(req: &Request) -> impl Iterator<Item = &str> {
+/// Every value of the cookie called `name` in the request.
+fn cookie_tokens<'a>(req: &'a Request, name: &'a str) -> impl Iterator<Item = &'a str> {
     req.headers()
         .get_all(COOKIE)
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|v| v.split(';'))
         .filter_map(|pair| pair.trim().split_once('='))
-        .filter(|(name, _)| *name == COOKIE_NAME)
+        .filter(move |(n, _)| *n == name)
         .map(|(_, value)| value)
 }
 
@@ -86,7 +90,8 @@ pub(crate) async fn guard(State(shared): State<Arc<Shared>>, req: Request, next:
         && query_token(req.uri().query()).is_some_and(|t| same(t, &shared.token))
     {
         let cookie = format!(
-            "{COOKIE_NAME}={}; HttpOnly; SameSite=Strict; Path=/",
+            "{}={}; HttpOnly; SameSite=Strict; Path=/",
+            cookie_name(shared.port),
             shared.token
         );
         let mut res = StatusCode::SEE_OTHER.into_response();
@@ -98,7 +103,8 @@ pub(crate) async fn guard(State(shared): State<Arc<Shared>>, req: Request, next:
         return res;
     }
 
-    let allowed = cookie_tokens(&req)
+    let name = cookie_name(shared.port);
+    let allowed = cookie_tokens(&req, &name)
         .chain(bearer_tokens(&req))
         .fold(false, |ok, t| same(t, &shared.token) | ok);
     if !allowed {

@@ -172,7 +172,7 @@ pub fn request(port: u16, token: &str, path: &str, auth: Auth, extra: &[(&str, &
     }
     let mut req = agent.get(&url);
     match auth {
-        Auth::Cookie => req = req.header("Cookie", format!("hm_learn={token}")),
+        Auth::Cookie => req = req.header("Cookie", format!("hm_learn_{port}={token}")),
         Auth::Bearer => req = req.header("Authorization", format!("Bearer {token}")),
         Auth::None | Auth::Query => {}
     }

@@ -32,7 +32,7 @@ async fn a_wrong_token_is_401() {
         &live.token,
         "/api/tech",
         Auth::None,
-        &[("Cookie", &format!("hm_learn={wrong}"))],
+        &[("Cookie", &format!("hm_learn_{}={wrong}", live.port))],
     );
     assert_eq!(cookie.status, 401);
     let bearer = request(
@@ -51,7 +51,10 @@ async fn a_wrong_token_is_401() {
         &live.token,
         "/api/tech",
         Auth::None,
-        &[("Cookie", &format!("hm_learn={}", &live.token[..31]))],
+        &[(
+            "Cookie",
+            &format!("hm_learn_{}={}", live.port, &live.token[..31]),
+        )],
     );
     assert_eq!(short.status, 401);
 }
@@ -65,11 +68,64 @@ async fn the_query_token_sets_a_strict_http_only_cookie_and_redirects() {
     assert_eq!(reply.header("location"), Some("/"));
     assert_eq!(
         reply.header("set-cookie"),
-        Some(format!("hm_learn={}; HttpOnly; SameSite=Strict; Path=/", live.token).as_str())
+        Some(
+            format!(
+                "hm_learn_{}={}; HttpOnly; SameSite=Strict; Path=/",
+                live.port, live.token
+            )
+            .as_str()
+        )
     );
     // The token in the query is only taken on `/`.
     let api = request(live.port, &live.token, "/api/tech", Auth::Query, &[]);
     assert_eq!(api.status, 401);
+}
+
+/// Cookies ignore the port, so two panels on 127.0.0.1 share one jar. Each keeps its
+/// own cookie name; the second panel's link must not log the first one out.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn two_servers_cookies_coexist_in_one_jar() {
+    let dir = project();
+    let a = start(dir.path()).await;
+    let b = start(dir.path()).await;
+    assert_ne!(a.port, b.port);
+    // A browser jar keeps one value per cookie name, whatever the port: a later
+    // `Set-Cookie` with the same name replaces the earlier one.
+    let mut jar = std::collections::BTreeMap::new();
+    for live in [&a, &b] {
+        let reply = request(live.port, &live.token, "/", Auth::Query, &[]);
+        let set = reply.header("set-cookie").expect("a cookie");
+        let (name, value) = set
+            .split(';')
+            .next()
+            .and_then(|pair| pair.split_once('='))
+            .expect("a name=value pair");
+        jar.insert(name.to_string(), value.to_string());
+    }
+    let jar = jar
+        .iter()
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+    for live in [&a, &b] {
+        let reply = request(
+            live.port,
+            &live.token,
+            "/api/tech",
+            Auth::None,
+            &[("Cookie", &jar)],
+        );
+        assert_eq!(reply.status, 200, "port {}", live.port);
+    }
+    // A cookie named for the other server does not open this one.
+    let swapped = request(
+        a.port,
+        &a.token,
+        "/api/tech",
+        Auth::None,
+        &[("Cookie", &format!("hm_learn_{}={}", b.port, a.token))],
+    );
+    assert_eq!(swapped.status, 401);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
