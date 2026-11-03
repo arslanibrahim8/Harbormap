@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use hm_core::ids::file_id;
 
-use super::gomod::{GoModules, GoTarget, is_test, split};
+use super::gomod::{GoModules, GoTarget, is_test, outside_builds, split};
 use crate::facts::{CallFact, FileFacts, SymbolFact, SymbolKind};
 use crate::ts::resolve::{EdgeRow, RefRow, ResolvedFile, symbol_ids};
 
@@ -56,11 +56,15 @@ pub struct MethodIndex {
 }
 
 impl MethodIndex {
-    /// Lists the Method symbols of the `.go` files of `facts`.
+    /// Lists the Method symbols of the `.go` files of `facts` that a build can hold:
+    /// not those under `testdata` or a folder starting with `_` or `.`.
     pub fn build(facts: &BTreeMap<String, FileFacts>) -> MethodIndex {
         let mut by_name: HashMap<String, Vec<(String, usize)>> = HashMap::new();
         let mut declared = HashSet::new();
-        for (rel, f) in facts.iter().filter(|(rel, _)| rel.ends_with(".go")) {
+        for (rel, f) in facts
+            .iter()
+            .filter(|(rel, _)| rel.ends_with(".go") && !outside_builds(rel))
+        {
             let interfaces: HashSet<&str> = f
                 .symbols
                 .iter()
@@ -203,18 +207,19 @@ pub fn resolve_file(p: &GoProject, rel: &str) -> ResolvedFile {
         let target = p.modules.resolve(path);
         let (bound, package_name) = match &target {
             GoTarget::Package(folder) => {
+                // A folder no build holds is no package to import.
                 let files: Vec<&str> = p
                     .modules
                     .files_in(folder)
                     .into_iter()
-                    .filter(|f| !is_test(f) && p.facts.contains_key(*f))
+                    .filter(|f| !is_test(f) && !outside_builds(f) && p.facts.contains_key(*f))
                     .collect();
                 for f in &files {
                     r.edge("imports", r.file.clone(), file_id(f), i.line, "go.import");
                     imports_files.insert(f.to_string());
                 }
-                // The package is the files whose clause matches the first one's.
-                let name = files.first().and_then(|f| p.facts[*f].package.clone());
+                // The package is the files whose clause most of them declare.
+                let name = package_name(&files, folder, p.facts);
                 let members = files
                     .into_iter()
                     .filter(|f| p.facts[*f].package == name)
@@ -284,6 +289,35 @@ pub fn resolve_file(p: &GoProject, rel: &str) -> ResolvedFile {
             .collect(),
         imports_files,
     }
+}
+
+/// The package clause most of `files` (the non-test files of `folder`) declare: of
+/// two as common, the one named like the folder, else the first in path order. A
+/// `//go:build ignore` generator in `package main` does not rename the package.
+fn package_name(
+    files: &[&str],
+    folder: &str,
+    facts: &BTreeMap<String, FileFacts>,
+) -> Option<String> {
+    let mut counts: Vec<(&str, usize)> = Vec::new();
+    for f in files {
+        let Some(name) = facts[*f].package.as_deref() else {
+            continue;
+        };
+        match counts.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, count)) => *count += 1,
+            None => counts.push((name, 1)),
+        }
+    }
+    let most = counts.iter().map(|(_, count)| *count).max()?;
+    let top: Vec<&str> = counts
+        .iter()
+        .filter(|(_, count)| *count == most)
+        .map(|(name, _)| *name)
+        .collect();
+    let base = folder.rsplit('/').next().unwrap_or(folder);
+    let name = top.iter().find(|n| **n == base).unwrap_or(&top[0]);
+    Some(name.to_string())
 }
 
 /// The name an import without an alias binds when its package clause is unknown: the

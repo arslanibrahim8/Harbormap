@@ -484,7 +484,7 @@ pub fn classify(rel: &str, head: &[u8]) -> FileClass {
 
     if segments
         .iter()
-        .any(|s| matches!(*s, "test" | "tests" | "__tests__"))
+        .any(|s| matches!(*s, "test" | "tests" | "__tests__" | "testdata"))
         || name.contains(".test.")
         || name.contains(".spec.")
         || name.ends_with("_test.go")

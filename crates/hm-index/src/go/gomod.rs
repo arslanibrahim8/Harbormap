@@ -141,6 +141,16 @@ pub(crate) fn is_test(rel: &str) -> bool {
     rel.ends_with("_test.go")
 }
 
+/// Whether the `go` tool leaves `rel` out of every build: a folder on its path is
+/// `testdata` or starts with `_` or `.`.
+pub(crate) fn outside_builds(rel: &str) -> bool {
+    let (dir, _) = split(rel);
+    !dir.is_empty()
+        && dir
+            .split('/')
+            .any(|s| s == "testdata" || s.starts_with(['_', '.']))
+}
+
 /// The folder and file name of a relative path; a root file's folder is `""`.
 pub(crate) fn split(rel: &str) -> (&str, &str) {
     rel.rsplit_once('/').unwrap_or(("", rel))

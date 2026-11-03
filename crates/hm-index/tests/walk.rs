@@ -351,3 +351,13 @@ fn unreadable_folders_and_files_are_counted_and_the_walk_goes_on() {
     assert_eq!(secret.class, FileClass::Test);
     assert_eq!(r.files[0].skip, None);
 }
+
+#[test]
+fn files_under_a_testdata_folder_are_tests() {
+    assert_eq!(
+        classify("store/testdata/golden/fake.go", b""),
+        FileClass::Test
+    );
+    assert_eq!(classify("testdata/sample.py", b""), FileClass::Test);
+    assert_eq!(classify("store/testdatax/a.go", b""), FileClass::Source);
+}

@@ -440,3 +440,91 @@ fn an_interface_method_name_decides_inferred_calls_elsewhere() {
     assert!(has_edge(&ix, "calls", test, "store/memory.go#Memory.Save"));
     assert_cold(&ix, dir.path());
 }
+
+#[test]
+fn go_ignores_testdata_and_underscore_and_dot_folders_for_names() {
+    let (mut ix, dir) = indexed("go-basic");
+    // Go builds none of these folders: their methods are no implementations, and
+    // their files are no package to import.
+    for rel in [
+        "store/testdata/golden/fake.go",
+        "_old/fake.go",
+        ".cache/fake.go",
+    ] {
+        let path = dir.path().join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            path,
+            "package fake\n\ntype Fake struct{}\n\nfunc (f Fake) Save(o any) error { return nil }\n\nfunc New() Fake { return Fake{} }\n",
+        )
+        .unwrap();
+    }
+    edit(
+        dir.path(),
+        "cmd/shopd/main.go",
+        "\t\"example.com/shop/store\"\n",
+        "\t\"example.com/shop/store\"\n\told \"example.com/shop/_old\"\n",
+    );
+    edit(
+        dir.path(),
+        "cmd/shopd/main.go",
+        "\tst := store.NewMemory()\n",
+        "\tst := store.NewMemory()\n\told.New()\n",
+    );
+    ix.apply(&set([
+        "store/testdata/golden/fake.go",
+        "_old/fake.go",
+        ".cache/fake.go",
+        "cmd/shopd/main.go",
+    ]))
+    .unwrap();
+    assert_eq!(
+        evidence(&ix, "calls", HANDLE, "store/memory.go#Memory.Save"),
+        ev("go.call.method", "inferred", "probably")
+    );
+    assert!(!has_edge(
+        &ix,
+        "imports",
+        "cmd/shopd/main.go",
+        "_old/fake.go"
+    ));
+    assert!(has_ref(&ix, "cmd/shopd/main.go", "old.New", "unresolved"));
+    // They stay indexed, with their symbols; `testdata` files are tests.
+    let files = section(&ix, "file");
+    let row = files
+        .iter()
+        .find(|f| f.starts_with("store/testdata/golden/fake.go |"))
+        .unwrap_or_else(|| panic!("{files:#?}"));
+    assert!(row.contains(" | test | "), "{row}");
+    assert!(
+        section(&ix, "symbol")
+            .iter()
+            .any(|s| s.starts_with("store/testdata/golden/fake.go#Fake.Save")),
+        "{:#?}",
+        section(&ix, "symbol")
+    );
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn an_import_names_the_package_most_of_its_files_declare() {
+    let (mut ix, dir) = indexed("go-basic");
+    // A generator file sorts first and declares `package main`; `store` stays the
+    // package the import binds.
+    fs::write(
+        dir.path().join("store/agen.go"),
+        "//go:build ignore\n\npackage main\n\nfunc main() {}\n",
+    )
+    .unwrap();
+    ix.apply(&set(["store/agen.go"])).unwrap();
+    assert_eq!(
+        evidence(
+            &ix,
+            "calls",
+            "cmd/shopd/main.go#main",
+            "store/memory.go#NewMemory"
+        ),
+        ev("go.call.package", "parsed", "sure")
+    );
+    assert_cold(&ix, dir.path());
+}
