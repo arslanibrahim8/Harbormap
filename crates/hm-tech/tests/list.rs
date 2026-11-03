@@ -331,6 +331,10 @@ fn builtins_and_aliases_are_not_listed() {
         "./local",
         "../up",
         "@scope",
+        "$app/stores",
+        "$lib/x",
+        "_private",
+        "bun",
     ]
     .iter()
     .map(|package| npm_import(package, "src/a.ts"))
@@ -462,7 +466,11 @@ fn languages_and_configs_join_their_tech() {
         language: language.to_string(),
         files,
     };
-    input.languages = vec![language("typescript", 40), language("tsx", 2)];
+    input.languages = vec![
+        language("typescript", 40),
+        language("tsx", 2),
+        language("python", 0),
+    ];
     input.declared = vec![dep(Ecosystem::Npm, "typescript", true, "")];
     input.configs = vec![
         "tsconfig.json".to_string(),
@@ -471,6 +479,7 @@ fn languages_and_configs_join_their_tech() {
     ];
     let list = build(&catalog(), &input);
     let root = &list.roots[0];
+    // The zero-file language is not listed.
     assert_eq!(root.items.len(), 1, "{root:#?}");
     let typescript = &root.items[0];
     assert_eq!(typescript.name, "TypeScript");

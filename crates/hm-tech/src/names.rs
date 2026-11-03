@@ -95,7 +95,10 @@ pub fn normalize_image(image: &str) -> String {
 pub fn is_builtin(ecosystem: Ecosystem, name: &str) -> bool {
     match ecosystem {
         Ecosystem::Npm => {
-            name.starts_with("node:") || name.starts_with("bun:") || NODE_BUILTINS.contains(&name)
+            name.starts_with("node:")
+                || name.starts_with("bun:")
+                || name == "bun"
+                || NODE_BUILTINS.contains(&name)
         }
         Ecosystem::Go => {
             !name.is_empty()
@@ -108,13 +111,29 @@ pub fn is_builtin(ecosystem: Ecosystem, name: &str) -> bool {
     }
 }
 
+/// The package an npm import specifier names: `lodash/fp` is `lodash`, `@a/b/c` is `@a/b`.
+pub fn npm_package_name(specifier: &str) -> &str {
+    let mut segments = specifier.split('/');
+    let first = segments.next().unwrap_or("");
+    if first.starts_with('@') {
+        match segments.next() {
+            Some(second) => &specifier[..first.len() + 1 + second.len()],
+            None => first,
+        }
+    } else {
+        first
+    }
+}
+
 /// Whether an import string can name a registry package at all (not a relative path,
 /// a path alias or a protocol import).
 pub fn is_package_specifier(ecosystem: Ecosystem, name: &str) -> bool {
     match ecosystem {
         Ecosystem::Npm => {
+            // Package names start with a letter, a digit or `@`; `$lib`, `_x`, `~/` and
+            // `#db` are aliases.
             !(name.is_empty()
-                || name.starts_with(['.', '/', '~', '#'])
+                || !name.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '@')
                 || name.starts_with("@/")
                 || (name.starts_with('@') && !name.contains('/'))
                 || name.contains(':'))

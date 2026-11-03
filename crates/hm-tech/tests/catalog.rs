@@ -1,4 +1,6 @@
-use hm_tech::names::{is_builtin, is_package_specifier, normalize, normalize_image};
+use hm_tech::names::{
+    is_builtin, is_package_specifier, normalize, normalize_image, npm_package_name,
+};
 use hm_tech::{Catalog, Category, Ecosystem, Level, Locale};
 
 const PACK: &str = r#"
@@ -320,6 +322,7 @@ fn builtins_and_specifiers() {
     assert!(is_builtin(Ecosystem::Npm, "fs"));
     assert!(is_builtin(Ecosystem::Npm, "node:test"));
     assert!(is_builtin(Ecosystem::Npm, "bun:sqlite"));
+    assert!(is_builtin(Ecosystem::Npm, "bun"));
     assert!(!is_builtin(Ecosystem::Npm, "react"));
     assert!(is_builtin(Ecosystem::Go, "net/http"));
     assert!(!is_builtin(Ecosystem::Go, "github.com/x/y"));
@@ -333,6 +336,9 @@ fn builtins_and_specifiers() {
         "../a",
         "/abs",
         "@scope",
+        "$app/stores",
+        "$lib/x",
+        "_private",
         "",
     ] {
         assert!(
@@ -411,6 +417,30 @@ fn broken_entries_are_skipped_with_a_reason() {
         catalog.tech("dup-key").unwrap().keys(Ecosystem::Npm),
         ["dup-key"]
     );
+}
+
+#[test]
+fn capital_articles_are_warned_about() {
+    let pack = tech("capital", r#"npm = ["capital"]"#)
+        .replace("a package that", "A package that")
+        .replace("does something", "The thing does something");
+    let catalog = Catalog::load(&[("a.toml", &pack)]);
+    let warnings = catalog.warnings();
+    assert_eq!(warnings.len(), 2, "{warnings:#?}");
+    assert!(
+        warnings
+            .iter()
+            .all(|w| w.contains("starts with a capital article"))
+    );
+    assert!(catalog.tech("capital").is_some());
+}
+
+#[test]
+fn npm_package_names_drop_subpaths() {
+    assert_eq!(npm_package_name("lodash/fp"), "lodash");
+    assert_eq!(npm_package_name("react"), "react");
+    assert_eq!(npm_package_name("@a/b/c"), "@a/b");
+    assert_eq!(npm_package_name("@a"), "@a");
 }
 
 #[test]

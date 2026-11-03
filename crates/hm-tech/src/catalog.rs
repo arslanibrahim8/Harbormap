@@ -363,11 +363,25 @@ impl Catalog {
         Ok(())
     }
 
-    /// Adds a valid tech to the indexes. A key or language that is already taken is dropped
+    /// Adds a valid tech to the indexes. A line that starts with a capital article is a
+    /// warning. A key or language that is already taken is dropped
     /// from the tech, with a warning.
     fn register(&mut self, file: &str, number: usize, mut tech: Tech) {
         let index = self.techs.len();
         let id = tech.id.clone();
+        for (label, line) in [
+            ("en.beginner", &tech.en.beginner),
+            ("en.builder", &tech.en.builder),
+        ] {
+            if ["A ", "An ", "The "]
+                .iter()
+                .any(|article| line.starts_with(article))
+            {
+                self.warnings.push(format!(
+                    "{file}: tech #{number} ({id}): {label} starts with a capital article"
+                ));
+            }
+        }
         for ecosystem in Ecosystem::ALL {
             let keys = &mut self.packages[ecosystem as usize];
             let list = key_list(&mut tech, ecosystem);

@@ -12,7 +12,9 @@ use serde::Serialize;
 use crate::catalog::Catalog;
 use crate::input::{DeclaredDep, TechInput};
 use crate::model::{Category, Ecosystem, Level, Tech};
-use crate::names::{is_builtin, is_package_specifier, normalize, normalize_image};
+use crate::names::{
+    is_builtin, is_package_specifier, normalize, normalize_image, npm_package_name,
+};
 
 /// How many items the beginner level shows before folding the rest into "more".
 pub const BEGINNER_LIMIT: usize = 12;
@@ -172,7 +174,6 @@ struct Acc {
     importers: BTreeSet<String>,
     language_files: u32,
     declared: BTreeSet<Evidence>,
-    declared_dev: usize,
     declared_measured: bool,
     not_declared: BTreeSet<String>,
     configs: BTreeSet<String>,
@@ -278,7 +279,6 @@ impl<'a> Builder<'a> {
                 importers: BTreeSet::new(),
                 language_files: 0,
                 declared: BTreeSet::new(),
-                declared_dev: 0,
                 declared_measured: false,
                 not_declared: BTreeSet::new(),
                 configs: BTreeSet::new(),
@@ -299,7 +299,6 @@ impl<'a> Builder<'a> {
             let measured = input.import_coverage.contains(&dep.ecosystem);
             let acc = self.acc(&dep.root, &ident, true);
             acc.declared.insert(declared_evidence(dep));
-            acc.declared_dev += usize::from(dep.dev);
             acc.declared_measured |= measured;
             self.index
                 .entry((dep.root.as_str(), dep.ecosystem))
@@ -352,7 +351,7 @@ impl<'a> Builder<'a> {
 
     fn add_languages(&mut self) {
         let input = self.input;
-        for count in &input.languages {
+        for count in input.languages.iter().filter(|count| count.files > 0) {
             let ident = match self.catalog.language(&count.language) {
                 Some(tech) => Ident::known(tech),
                 None => Ident::unknown(
@@ -491,20 +490,6 @@ fn declared_evidence(dep: &DeclaredDep) -> Evidence {
         declared: dep.declared.clone(),
         resolved: dep.resolved.clone(),
         dev: dep.dev,
-    }
-}
-
-/// The package an npm import specifier names: `lodash/fp` is `lodash`, `@a/b/c` is `@a/b`.
-fn npm_package_name(specifier: &str) -> &str {
-    let mut segments = specifier.split('/');
-    let first = segments.next().unwrap_or("");
-    if first.starts_with('@') {
-        match segments.next() {
-            Some(second) => &specifier[..first.len() + 1 + second.len()],
-            None => first,
-        }
-    } else {
-        first
     }
 }
 
