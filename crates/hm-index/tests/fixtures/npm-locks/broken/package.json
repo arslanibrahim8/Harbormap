@@ -1,0 +1,8 @@
+{
+  // A comment, and a trailing comma below.
+  "name": "shop-broken",
+  "bin": 5,
+  "dependencies": {
+    "left-pad": "^1.3.0",
+  },
+}
