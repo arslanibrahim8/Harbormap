@@ -18,3 +18,7 @@ test("the live label says how long ago, or that the connection is down", () => {
   assert.equal(liveLabel(true, 0, 160_000), "Live");
   assert.equal(liveLabel(false, 100_000, 160_000), "Offline — reconnecting");
 });
+
+test("before the first connection attempt settles the bar says Connecting, not Offline", () => {
+  assert.equal(liveLabel(false, 0, 160_000, true), "Connecting…");
+});

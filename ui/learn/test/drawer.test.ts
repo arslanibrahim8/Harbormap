@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fileCardRows, lineRange, symbolCardRows } from "../src/drawer.ts";
-import type { FileCard, SymbolCard } from "../src/types.ts";
+import { createCardLoader, fileCardRows, goneNotice, lineRange, symbolCardRows } from "../src/drawer.ts";
+import type { CardDeps, Target } from "../src/drawer.ts";
+import { ApiError } from "../src/api.ts";
+import type { CardPayload, FileCard, SymbolCard } from "../src/types.ts";
 
 function fileCard(over: Partial<FileCard> = {}): FileCard {
   return {
@@ -149,4 +151,114 @@ test("a function card lists callers, callees, calls it cannot follow, and its pl
   assert.equal(rows.to, 40);
   assert.equal(symbolCardRows(symbolCard(), "beginner").callersSummary, "Called from 2 places");
   assert.equal(rows.callersSummary, "2 callers");
+});
+
+// ---- The card loader ----------------------------------------------------------
+
+const T: Target = { path: "src/orders/checkout.ts", symbol: null, view: "overview" };
+
+function payloadAt(seq: number): CardPayload {
+  return { v: 1, seq, kind: "file", card: fileCard(), links: null };
+}
+
+const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+
+/** Stand-in collaborators: `answers` are returned in turn (an Error is thrown). */
+function harness(answers: (CardPayload | Error)[], stateSeq: number) {
+  const log: string[] = [];
+  const shown: number[] = [];
+  let calls = 0;
+  const deps: CardDeps = {
+    fetchCard: () => {
+      const a = answers[Math.min(calls, answers.length - 1)] as CardPayload | Error;
+      calls += 1;
+      return a instanceof Error ? Promise.reject(a) : Promise.resolve(a);
+    },
+    seq: () => stateSeq,
+    loading: () => log.push("loading"),
+    show: (p) => {
+      log.push("show");
+      shown.push(p.seq);
+    },
+    gone: () => log.push("gone"),
+    failed: () => log.push("failed"),
+  };
+  return { loader: createCardLoader(deps), log, shown, calls: () => calls };
+}
+
+test("a card for a file the server no longer knows (404) is reported gone, and no stale card is shown", async () => {
+  const x = harness([new ApiError(404, "/api/card")], 3);
+  await x.loader.load(T, false);
+  assert.deepEqual(x.log, ["loading", "gone"]);
+  assert.equal(goneNotice(T), "This file is gone from the project.");
+  assert.equal(goneNotice({ ...T, symbol: "Checkout.placeOrder" }), "This function is gone from the project.");
+});
+
+test("a live refresh that gets a 404 also reports gone, but another failure is silent", async () => {
+  const gone = harness([new ApiError(404, "/api/card")], 3);
+  await gone.loader.load(T, true);
+  assert.deepEqual(gone.log, ["gone"]);
+  const down = harness([new ApiError(500, "/api/card")], 3);
+  await down.loader.load(T, true);
+  assert.deepEqual(down.log, []);
+  const asked = harness([new ApiError(500, "/api/card")], 3);
+  await asked.loader.load(T, false);
+  assert.deepEqual(asked.log, ["loading", "failed"]);
+});
+
+test("an answer older than the overview is asked for again, also on a live refresh", async () => {
+  const x = harness([payloadAt(4), payloadAt(5)], 5);
+  await x.loader.load(T, true);
+  assert.equal(x.calls(), 2);
+  assert.deepEqual(x.shown, [5]);
+});
+
+test("a card that stays older than the overview is shown after the last attempt", async () => {
+  const x = harness([payloadAt(1)], 9);
+  await x.loader.load(T, false);
+  assert.equal(x.calls(), 3);
+  assert.deepEqual(x.shown, [1]);
+});
+
+test("a fresh answer is shown at once, and an equal seq is not stale", async () => {
+  const x = harness([payloadAt(5)], 5);
+  await x.loader.load(T, false);
+  assert.equal(x.calls(), 1);
+  assert.deepEqual(x.log, ["loading", "show"]);
+});
+
+test("the newest request wins, and close() drops what is still on its way", async () => {
+  const resolvers: ((p: CardPayload) => void)[] = [];
+  const shown: number[] = [];
+  const loader = createCardLoader({
+    fetchCard: () => new Promise((r) => resolvers.push(r)),
+    seq: () => 0,
+    loading: () => {},
+    show: (p) => shown.push(p.seq),
+    gone: () => {},
+    failed: () => {},
+  });
+  const first = loader.load(T, false);
+  const second = loader.load({ ...T, path: "other.ts" }, false);
+  (resolvers[1] as (p: CardPayload) => void)(payloadAt(2));
+  (resolvers[0] as (p: CardPayload) => void)(payloadAt(1));
+  await Promise.all([first, second]);
+  assert.deepEqual(shown, [2]);
+  const third = loader.load(T, false);
+  loader.close();
+  (resolvers[2] as (p: CardPayload) => void)(payloadAt(3));
+  await third;
+  assert.deepEqual(shown, [2]);
+  assert.equal(loader.target(), null);
+});
+
+test("refresh refetches the open target and does nothing when nothing is open", async () => {
+  const x = harness([payloadAt(5)], 5);
+  await x.loader.refresh();
+  assert.equal(x.calls(), 0);
+  await x.loader.load(T, false);
+  await x.loader.refresh();
+  assert.equal(x.calls(), 2);
+  assert.deepEqual(x.log, ["loading", "show", "show"]);
+  await tick();
 });

@@ -16,6 +16,9 @@ export interface State {
   updatedMs: number;
   /** False while the live stream is down. */
   live: boolean;
+  /** True until the stream has either opened or failed once; the bar then says
+   * "Connecting…" instead of claiming an outage. */
+  connecting: boolean;
   overview: Overview | null;
   /** Ids of the expanded groups, outermost first. */
   expanded: string[];
@@ -30,6 +33,7 @@ let state: State = {
   seq: 0,
   updatedMs: 0,
   live: false,
+  connecting: true,
   overview: null,
   expanded: [],
   selected: null,

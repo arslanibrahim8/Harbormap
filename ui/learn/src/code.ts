@@ -42,8 +42,11 @@ function empty(text: string, problem = false): void {
   el.append(h("p", { class: problem ? "empty problem" : "empty" }, problem ? `⚠ ${text}` : text));
 }
 
-function paint(): void {
+/** Draw the file. `reveal` scrolls the marked range into view; a refresh after
+ * the file changed passes false and keeps the scroll position instead. */
+function paint(reveal: boolean): void {
   const el = pane();
+  const top = el.scrollTop;
   const code = getState().code;
   if (code === null || loaded === null || loaded.path !== code.path) {
     empty("Pick a file on the map or search with /");
@@ -70,17 +73,18 @@ function paint(): void {
     );
   }
   el.append(body);
-  body.querySelector(".cl.hit")?.scrollIntoView({ block: "center" });
+  if (reveal) body.querySelector(".cl.hit")?.scrollIntoView({ block: "center" });
+  else el.scrollTop = top;
 }
 
 /** Fetch `path` and draw it; the newest request wins. */
-async function load(path: string): Promise<void> {
+async function load(path: string, reveal: boolean): Promise<void> {
   const mine = ++request;
   try {
     const f = await fetchFile(path);
     if (mine !== request) return;
     loaded = f;
-    paint();
+    paint(reveal);
   } catch (e) {
     if (mine !== request) return;
     loaded = null;
@@ -98,20 +102,22 @@ export async function showCode(path: string, from?: number, to?: number): Promis
   const start = from ?? 0;
   setState({ tab: "code", code: { path, from: start, to: to ?? start } });
   if (loaded !== null && loaded.path === path) {
-    paint();
+    // Nothing to fetch, but an older load still on its way must not paint over this.
+    request += 1;
+    paint(true);
     return;
   }
   empty("Loading…");
-  await load(path);
+  await load(path, true);
 }
 
 /** Fetch the file in the Code tab again, after it changed on disk. */
 export async function reloadCode(): Promise<void> {
   const code = getState().code;
-  if (code !== null) await load(code.path);
+  if (code !== null) await load(code.path, false);
 }
 
 /** Draw the empty state; the tab itself is switched by tabs.ts. */
 export function initCode(): void {
-  paint();
+  paint(false);
 }

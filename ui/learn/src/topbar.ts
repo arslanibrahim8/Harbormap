@@ -17,7 +17,8 @@ export function repoChip(repo: Repo): string {
 }
 
 /** The words next to the green dot. */
-export function liveLabel(live: boolean, updatedMs: number, now: number): string {
+export function liveLabel(live: boolean, updatedMs: number, now: number, connecting = false): string {
+  if (connecting) return "Connecting…";
   if (!live) return "Offline — reconnecting";
   return updatedMs === 0 ? "Live" : `Live · updated ${ago(updatedMs, now)}`;
 }
@@ -48,8 +49,11 @@ export function initTopbar(): void {
   const name = h("span", { class: "project" });
   const chip = h("span", { class: "chip mono" });
   const dot = h("i", { class: "dot", "aria-hidden": "true" });
-  const label = h("span", { role: "status" });
-  const live = h("div", { class: "live" }, dot, label);
+  const label = h("span");
+  // The visible label changes every second; this one changes only when the
+  // connection does, so a screen reader is not interrupted by a clock.
+  const announce = h("span", { class: "sr-only", role: "status" });
+  const live = h("div", { class: "live" }, dot, label, announce);
   const seg = h("div", { class: "seg", role: "group", "aria-label": "Level" });
   const buttons = new Map<Level, HTMLElement>();
   for (const [level, text] of [["beginner", "Beginner"], ["builder", "Builder"]] as const) {
@@ -71,8 +75,10 @@ export function initTopbar(): void {
     name.textContent = s.overview?.repo.name ?? "";
     chip.textContent = s.overview ? repoChip(s.overview.repo) : "";
     chip.hidden = s.overview === null;
-    label.textContent = liveLabel(s.live, s.updatedMs, Date.now());
+    label.textContent = liveLabel(s.live, s.updatedMs, Date.now(), s.connecting);
     dot.className = s.live ? "dot" : "dot off";
+    const said = s.connecting ? "" : s.live ? "Live" : "Offline — reconnecting";
+    if (announce.textContent !== said) announce.textContent = said;
     for (const [level, b] of buttons) b.setAttribute("aria-pressed", String(s.level === level));
   };
   onChange(draw);

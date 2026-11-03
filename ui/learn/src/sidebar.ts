@@ -1,7 +1,7 @@
 // The left column: search, what the map leaves out, and the journeys note.
 
 import { search as fetchSearch } from "./api.ts";
-import { byId, clear, h } from "./dom.ts";
+import { byId, clear, h, isTyping } from "./dom.ts";
 import { plural } from "./format.ts";
 import { openFile, openSymbol } from "./drawer.ts";
 import { currentView, getState, onChange } from "./state.ts";
@@ -87,9 +87,7 @@ export function initSidebar(): void {
     }
   });
   document.addEventListener("keydown", (e) => {
-    const t = e.target;
-    const typing = t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
-    if (e.key === "/" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (e.key === "/" && !isTyping(e.target) && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       input.focus();
     }

@@ -1,51 +1,69 @@
 // Keeps the state current: the first overview, and the server-sent events that say
-// the facts changed.
+// the facts changed. `createLive` takes its collaborators as arguments so the rules
+// run under `node --test`; the exports at the bottom wire the real ones.
 
 import { overview as fetchOverview, subscribe } from "./api.ts";
 import { reloadCode } from "./code.ts";
-import { drawerPath, refreshDrawer } from "./drawer.ts";
+import { refreshDrawer } from "./drawer.ts";
 import { getState, setState } from "./state.ts";
-import type { FactsDelta } from "./types.ts";
+import type { FactsDelta, Overview } from "./types.ts";
 
-let request = 0;
-
-/** Fetch the overview into the state. A response older than the one on screen, or
- * overtaken by a newer request, is dropped. Rejects when the server cannot be
- * reached. */
-export async function loadOverview(): Promise<void> {
-  const mine = ++request;
-  const o = await fetchOverview();
-  if (mine !== request || o.seq < getState().seq) return;
-  setState({ overview: o, seq: o.seq, updatedMs: o.updated_ms });
+export interface LiveDeps {
+  fetchOverview(): Promise<Overview>;
+  subscribe: typeof subscribe;
+  refreshDrawer(): Promise<void>;
+  reloadCode(): Promise<void>;
 }
 
-function quietly(p: Promise<void>): void {
-  p.catch(() => {
-    // the next event retries; the panel keeps what it shows
-  });
-}
+export function createLive(deps: LiveDeps) {
+  let request = 0;
 
-/** Open the event stream. Returns a function that closes it. */
-export function startLive(): () => void {
-  return subscribe(
-    (seq) => {
-      // A reconnect that finds newer facts missed some deltas: refresh everything
-      // that is on screen, since there is no list of what changed.
-      if (seq > getState().seq) {
+  /** Fetch the overview into the state. A response older than the one on screen, or
+   * overtaken by a newer request, is dropped. Rejects when the server cannot be
+   * reached. */
+  async function loadOverview(): Promise<void> {
+    const mine = ++request;
+    const o = await deps.fetchOverview();
+    if (mine !== request || o.seq < getState().seq) return;
+    setState({ overview: o, seq: o.seq, updatedMs: o.updated_ms });
+  }
+
+  function quietly(p: Promise<void>): void {
+    p.catch(() => {
+      // the next event retries; the panel keeps what it shows
+    });
+  }
+
+  /** Open the event stream. Returns a function that closes it. */
+  function start(): () => void {
+    return deps.subscribe(
+      (seq) => {
+        // A reconnect that finds newer facts missed some deltas: refresh everything
+        // that is on screen, since there is no list of what changed.
+        if (seq > getState().seq) {
+          quietly(loadOverview());
+          quietly(deps.refreshDrawer());
+          quietly(deps.reloadCode());
+        }
+      },
+      (d: FactsDelta) => {
+        setState({ updatedMs: d.at_ms });
         quietly(loadOverview());
-        quietly(refreshDrawer());
-        quietly(reloadCode());
-      }
-    },
-    (d: FactsDelta) => {
-      setState({ updatedMs: d.at_ms });
-      quietly(loadOverview());
-      const changed = new Set([...d.files_changed, ...d.files_removed]);
-      const open = drawerPath();
-      if (open !== null && changed.has(open)) quietly(refreshDrawer());
-      const code = getState().code;
-      if (code !== null && changed.has(code.path)) quietly(reloadCode());
-    },
-    (live) => setState({ live }),
-  );
+        // Any file's change can alter the open card ("Who uses it", the callers),
+        // so it is fetched on every delta; the Code tab only when its own file moved.
+        quietly(deps.refreshDrawer());
+        const code = getState().code;
+        if (code !== null && (d.files_changed.includes(code.path) || d.files_removed.includes(code.path))) {
+          quietly(deps.reloadCode());
+        }
+      },
+      (live) => setState({ live, connecting: false }),
+    );
+  }
+
+  return { loadOverview, start };
 }
+
+const live = createLive({ fetchOverview, subscribe, refreshDrawer, reloadCode });
+export const loadOverview = live.loadOverview;
+export const startLive = live.start;

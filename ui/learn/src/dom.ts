@@ -27,6 +27,14 @@ export function clear(el: HTMLElement): void {
   el.replaceChildren();
 }
 
+/** True when a key press came from a place where the user is typing text. */
+export function isTyping(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+  );
+}
+
 let noticeTimer: number | undefined;
 
 /** Show a one-line notice above the tabs for a few seconds. */

@@ -43,6 +43,7 @@ body {
 /* Extra tokens: text on a red background, and the colours of source code. */
 :root {
   --redtx: #ffb3ba;
+  --glow: rgba(244, 63, 78, 0.07);
   --tk-kw: var(--work);
   --tk-str: var(--outside);
   --tk-com: var(--dim);
@@ -119,7 +120,7 @@ summary:focus-visible {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: radial-gradient(1200px 600px at 70% -10%, rgba(244, 63, 78, 0.07), transparent 60%), var(--bg);
+  background: radial-gradient(1200px 600px at 70% -10%, var(--glow), transparent 60%), var(--bg);
 }
 
 #drawer {
@@ -639,4 +640,14 @@ button.item:hover {
   background: var(--line);
   border-radius: 10px;
   border: 3px solid var(--bg2);
+}
+
+/* Read by screen readers only: announces the connection when it changes. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
