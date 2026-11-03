@@ -197,8 +197,20 @@ fn role_labels_read_plainly() {
         "Page · /orders/{id}"
     );
     assert_eq!(
-        role_label("server_action", "ACTION", "placeOrder"),
+        role_label("server_action", "ACTION", "app/lib/actions.ts#placeOrder"),
         "Server action · placeOrder"
+    );
+    assert_eq!(
+        role_label("server_action", "ACTION", "app/ui/inline.tsx#Inline›save"),
+        "Server action · Inline›save"
+    );
+    assert_eq!(
+        role_label(
+            "server_action",
+            "ACTION",
+            "app/ui/inline.tsx#Inline›anonymous#2"
+        ),
+        "Server action · Inline›anonymous#2"
     );
     assert_eq!(
         role_label("middleware", "ANY", "/account/:path*"),

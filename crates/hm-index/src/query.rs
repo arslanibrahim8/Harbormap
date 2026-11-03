@@ -341,14 +341,20 @@ fn middleware_is_unevaluated(entry_kind: &str, detail: Option<&str>) -> bool {
 
 /// What a route is called in plain words: `API · POST /api/auth/login`,
 /// `Page · /orders/{id}`, `Server action · placeOrder`, `Runs before /account/:path*`,
-/// `Command · shop`, `Start script · npm start`, `Entry · index.js`. A middleware
+/// `Command · shop`, `Start script · npm start`, `Entry · index.js`. A server action's
+/// pattern is `file#name` (or `file#Owner›inner`, `file#Owner›anonymous#2`); its label
+/// keeps what follows the first `#`. A
+/// middleware
 /// without a path of its own (`/*`) runs before many routes. A middleware with several
 /// matchers is named by the first one, which is its route pattern.
 pub fn role_label(entry_kind: &str, method: &str, pattern: &str) -> String {
     match (entry_kind, method) {
         ("http", _) => format!("API · {method} {pattern}"),
         ("page", _) => format!("Page · {pattern}"),
-        ("server_action", _) => format!("Server action · {pattern}"),
+        ("server_action", _) => {
+            let name = pattern.split_once('#').map_or(pattern, |(_, name)| name);
+            format!("Server action · {name}")
+        }
         ("middleware", _) if matches!(pattern, "" | "*" | "/*") => {
             "Runs before many routes".to_string()
         }

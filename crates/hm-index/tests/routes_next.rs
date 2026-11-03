@@ -599,3 +599,42 @@ fn src_trees_are_ignored_when_the_root_has_app_or_pages() {
     let d = derive_tree(dir.path());
     assert!(d.routes.is_empty(), "{:#?}", d.routes);
 }
+
+#[test]
+fn two_anonymous_inline_actions_in_one_component_are_both_kept() {
+    // https://nextjs.org/docs/app/api-reference/directives/use-server (inline actions)
+    let dir = tree(&[
+        (
+            "package.json",
+            "{\"dependencies\": {\"next\": \"16.0.0\"}}\n",
+        ),
+        (
+            "app/ui/nav.tsx",
+            "export function Nav() {\n\
+             \x20 return (\n\
+             \x20   <div>\n\
+             \x20     <form action={async () => { 'use server'; await signOut() }}><button /></form>\n\
+             \x20     <form action={async () => { 'use server'; await refresh() }}><button /></form>\n\
+             \x20   </div>\n\
+             \x20 )\n\
+             }\n",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    let actions: Vec<_> = d
+        .routes
+        .iter()
+        .filter(|r| r.entry_kind == "server_action")
+        .map(|r| (r.pattern.as_str(), r.line))
+        .collect();
+    assert_eq!(
+        actions,
+        [
+            ("app/ui/nav.tsx#Nav›anonymous", 4),
+            ("app/ui/nav.tsx#Nav›anonymous#2", 5),
+        ],
+        "{:#?}",
+        d.routes
+    );
+    assert!(d.notes.is_empty(), "{:#?}", d.notes);
+}

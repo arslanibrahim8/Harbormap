@@ -320,7 +320,9 @@ fn pages_route(
 }
 
 /// The server actions of `rel`: with a file-level `use server`, every exported function;
-/// with a function-level one, that function, named after the symbol that holds it.
+/// with a function-level one, that function, named after the symbol that holds it. The
+/// second anonymous one in the same symbol is `Owner›anonymous#2`, and so on, in source
+/// order.
 /// See <https://nextjs.org/docs/app/api-reference/directives/use-server>.
 fn server_actions(project: &Project, ids: &mut Ids, root: &str, rel: &str, out: &mut Derived) {
     let Some(facts) = project.facts.get(rel) else {
@@ -366,12 +368,9 @@ fn server_actions(project: &Project, ids: &mut Ids, root: &str, rel: &str, out: 
         let Some(function) = d.function.as_deref().filter(|_| use_server(&d.text)) else {
             continue;
         };
-        let function = if function.is_empty() {
-            "anonymous"
-        } else {
-            function
-        };
-        let pattern = match &d.owner {
+        let anonymous = function.is_empty();
+        let function = if anonymous { "anonymous" } else { function };
+        let mut pattern = match &d.owner {
             None => format!("{rel}#{function}"),
             Some((class, name)) => {
                 let owner = if class.is_empty() {
@@ -386,6 +385,13 @@ fn server_actions(project: &Project, ids: &mut Ids, root: &str, rel: &str, out: 
                 }
             }
         };
+        if anonymous && seen.contains(&pattern) {
+            let base = pattern.clone();
+            pattern = (2..)
+                .map(|n| format!("{base}#{n}"))
+                .find(|p| !seen.contains(p))
+                .unwrap_or(base);
+        }
         if !seen.insert(pattern.clone()) {
             continue;
         }
