@@ -16,9 +16,9 @@ name = "Vite"
 category = "build"
 npm = ["vite", "@vitejs/*"]
 en.beginner = "a tool that starts your web project quickly and builds it for release."
-en.builder = "a frontend build tool and dev server that serves code as native ES modules and bundles it with Rollup for production."
+en.builder = "a frontend build tool and dev server that serves code as native ES modules and bundles it for production."
 tr.beginner = "web projenizi hızla başlatan ve yayın için derleyen bir araç."
-tr.builder = "geliştirme sunucusu ve derleme aracı; kodu tarayıcıya ES modülleri olarak sunar, üretimde Rollup ile paketler."
+tr.builder = "geliştirme sunucusu ve derleme aracı; kodu tarayıcıya ES modülleri olarak sunar, yayın için paketler."
 
 [[tech]]
 id = "webpack"
@@ -68,7 +68,7 @@ npm = ["parcel"]
 en.beginner = "a zero-setup tool that bundles a web project without needing a config file."
 en.builder = "a web application bundler that works out its build setup on its own, with no configuration file required."
 tr.beginner = "yapılandırma dosyası gerektirmeden web projesini paketleyen bir araç."
-tr.builder = "Yapılandırma olmadan çalışan bir web uygulaması paketleyicisi; derleme ayarlarını kendisi belirler."
+tr.builder = "yapılandırma olmadan çalışan bir web uygulaması paketleyicisi; derleme ayarlarını kendisi belirler."
 
 [[tech]]
 id = "turbo"
@@ -76,9 +76,9 @@ name = "Turborepo"
 category = "build"
 npm = ["turbo"]
 en.beginner = "a tool that runs build and test steps across many packages, skipping parts that did not change."
-en.builder = "Turborepo's task runner for monorepos: it caches task results and runs tasks in dependency order."
+en.builder = "a task runner and build system for JavaScript and TypeScript monorepos that caches task results and runs tasks in dependency order."
 tr.beginner = "birçok paket arasında derleme ve test adımlarını çalıştıran, değişmeyen kısımları atlayan bir araç."
-tr.builder = "tek depoda birden çok paketi yöneten Turborepo görev çalıştırıcısı; sonuçları önbelleğe alır ve görevleri bağımlılık sırasıyla çalıştırır."
+tr.builder = "tek depoda birden çok paketi olan projeler için görev çalıştırıcısı ve derleme sistemi; sonuçları önbelleğe alır ve görevleri bağımlılık sırasıyla çalıştırır."
 
 [[tech]]
 id = "nx"
@@ -88,7 +88,7 @@ npm = ["nx"]
 en.beginner = "a tool that manages a large project with many apps and libraries, running only what changed."
 en.builder = "a monorepo build system with a dependency graph, caching and a task runner, extensible through plugins."
 tr.beginner = "çok uygulamalı büyük projeleri yöneten, yalnızca değişen parçaları çalıştıran bir araç."
-tr.builder = "Bağımlılık grafiği, önbellekleme ve görev çalıştırıcısı olan, eklentilerle genişleyen bir monorepo derleme sistemi."
+tr.builder = "bağımlılık grafiği, önbellekleme ve görev çalıştırıcısı olan, eklentilerle genişleyen bir monorepo derleme sistemi."
 
 [[tech]]
 id = "lerna"
@@ -218,7 +218,7 @@ npm = ["autoprefixer"]
 en.beginner = "a helper that adds browser-specific prefixes to CSS so styles work in more browsers."
 en.builder = "a PostCSS plugin that adds vendor prefixes to CSS rules based on the browsers you target."
 tr.beginner = "CSS kurallarına tarayıcılara özel önekler ekleyen bir yardımcı; stiller daha çok tarayıcıda çalışır."
-tr.builder = "hedeflenen tarayıcılara göre CSS'e satıcı önekleri ekleyen bir PostCSS eklentisi."
+tr.builder = "hedeflenen tarayıcılara göre CSS'e tarayıcı önekleri ekleyen bir PostCSS eklentisi."
 
 [[tech]]
 id = "rimraf"
@@ -338,7 +338,7 @@ npm = ["chai"]
 en.beginner = "a helper library that lets tests state expected results in plain readable sentences."
 en.builder = "an assertion library usually paired with Mocha, offering expect, should and assert styles."
 tr.beginner = "testlerin beklenen sonuçları okunabilir cümlelerle yazmasını sağlayan bir kütüphane."
-tr.builder = "test beklentilerini yazmak için doğrulama kütüphanesi; genellikle mocha ile kullanılır ve expect, should, assert biçimleri sunar."
+tr.builder = "test beklentilerini yazmak için doğrulama kütüphanesi; genellikle Mocha ile kullanılır ve expect, should, assert biçimleri sunar."
 
 [[tech]]
 id = "sinon"
@@ -348,7 +348,7 @@ npm = ["sinon"]
 en.beginner = "a library that fakes functions and timers in tests, so you can check how code calls them."
 en.builder = "a standalone test helper providing spies, stubs, mocks and fake timers for JavaScript tests."
 tr.beginner = "testlerde fonksiyonları ve zamanlayıcıları taklit eden, kodun onları nasıl çağırdığını denetlemenizi sağlayan bir kütüphane."
-tr.builder = "JavaScript testleri için gözcü (spy), sahte (stub) ve sahte zamanlayıcı sunan bağımsız bir yardımcı kütüphane."
+tr.builder = "JavaScript testleri için spy, stub, mock ve sahte zamanlayıcılar sunan bağımsız bir yardımcı kütüphane."
 
 [[tech]]
 id = "ava"
@@ -397,7 +397,7 @@ category = "testing"
 npm = ["puppeteer"]
 en.beginner = "a library that controls a Chrome browser from code, for scraping pages or taking screenshots."
 en.builder = "a Node.js library that drives Chrome or Chromium over the DevTools protocol for automation and testing."
-tr.beginner = "koddan Chrome tarayıcısını yöneten; sayfa kazımak veya ekran görüntüsü almak için kullanılan bir kütüphane."
+tr.beginner = "koddan Chrome tarayıcısını yöneten; sayfalardan veri toplamak veya ekran görüntüsü almak için kullanılan bir kütüphane."
 tr.builder = "Chrome veya Chromium'u DevTools protokolü üzerinden süren, otomasyon ve testler için bir Node.js kütüphanesi."
 
 [[tech]]
@@ -485,10 +485,10 @@ id = "nyc"
 name = "nyc"
 category = "testing"
 npm = ["nyc"]
-en.beginner = "an older tool that measures how much of your code is covered by tests."
-en.builder = "a code coverage command for Node.js built on Istanbul instrumentation."
-tr.beginner = "kodunuzun ne kadarının testlerle kapsandığını ölçen eski bir araç."
-tr.builder = "Node.js için, Istanbul altyapısını kullanan eski bir kapsam aracı."
+en.beginner = "a tool that measures how much of your code is covered by tests."
+en.builder = "the command-line interface for Istanbul, a code coverage tool for JavaScript and Node.js."
+tr.beginner = "kodunuzun ne kadarının testlerle kapsandığını ölçen bir araç."
+tr.builder = "JavaScript ve Node.js için kapsam aracı Istanbul'un komut satırı arayüzü."
 
 [[tech]]
 id = "vercel"
@@ -545,10 +545,10 @@ id = "sst"
 name = "SST"
 category = "deploy"
 npm = ["sst"]
-en.beginner = "a framework that builds and deploys full web apps with their backend to AWS in TypeScript."
-en.builder = "an infrastructure-as-code framework for building and deploying serverless and full-stack apps on AWS."
-tr.beginner = "tam web uygulamasını ve arka ucunu TypeScript ile AWS'ye kuran ve yayınlayan bir çatı."
-tr.builder = "sunucusuz ve tam yığın uygulamaları AWS'de tanımlamak ve yayınlamak için altyapı kodu çatısı."
+en.beginner = "a framework that sets up your web app's backend and hosting in the cloud, mostly AWS, using TypeScript."
+en.builder = "an infrastructure-as-code framework for building and deploying full-stack apps on your own cloud accounts, mostly AWS."
+tr.beginner = "web uygulamanızın arka ucunu ve barındırmasını bulutta (çoğunlukla AWS) TypeScript ile kuran bir çatı."
+tr.builder = "uçtan uca uygulamaları kendi bulut hesaplarınızda (çoğunlukla AWS), altyapıyı kod olarak yazarak kurmak ve yayınlamak için bir çatı."
 
 [[tech]]
 id = "cloudflare-workers"
