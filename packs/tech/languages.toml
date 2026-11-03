@@ -6,9 +6,9 @@ name = "TypeScript"
 category = "language"
 languages = ["typescript", "tsx"]
 npm = ["typescript"]
-en.beginner = "a language that adds types to javascript, so many mistakes are caught early."
-en.builder = "a typed superset of javascript that compiles to plain javascript, with a type checker and the tsc compiler."
-tr.beginner = "javascript'e tür ekleyen bir dil; hataları daha erken yakalar."
+en.beginner = "a language that adds types to JavaScript, so many mistakes are caught early."
+en.builder = "a typed superset of JavaScript that compiles to plain JavaScript, with a type checker and the tsc compiler."
+tr.beginner = "JavaScript'e tür ekleyen bir dil; hataları daha erken yakalar."
 tr.builder = "JavaScript'in tür denetimli üst kümesi; düz JavaScript'e derlenir ve tür denetimini tsc yapar."
 
 [[tech]]
@@ -77,7 +77,7 @@ name = "Node.js"
 category = "language"
 en.beginner = "the engine that runs JavaScript outside the browser, on your computer or a server."
 en.builder = "a JavaScript runtime built on Chrome's V8 engine, with an event loop and the npm package manager."
-tr.beginner = "JavaScript'i tarayıcı dışında, bilgisayarında ya da bir sunucuda çalıştıran motor."
+tr.beginner = "JavaScript'i tarayıcı dışında, bilgisayarınızda ya da bir sunucuda çalıştıran motor."
 tr.builder = "Chrome'un V8 motoru üzerine kurulu bir JavaScript çalışma ortamı; olay döngüsü ve npm paket yöneticisi vardır."
 
 [[tech]]
@@ -87,7 +87,7 @@ category = "language"
 en.beginner = "a fast all-in-one tool that runs JavaScript and TypeScript and installs packages."
 en.builder = "a JavaScript and TypeScript runtime and toolkit with a bundler, test runner and npm-compatible package manager."
 tr.beginner = "JavaScript ve TypeScript kodunu çalıştıran, paket kurabilen hepsi bir arada hızlı bir araç."
-tr.builder = "JavaScript ve TypeScript için çalışma ortamı ve araç seti; paketleyici, test koşucusu ve npm uyumlu paket yöneticisi içerir."
+tr.builder = "JavaScript ve TypeScript için çalışma ortamı ve araç seti; paketleyici, test çalıştırıcı ve npm uyumlu paket yöneticisi içerir."
 
 [[tech]]
 id = "deno"

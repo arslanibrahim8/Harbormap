@@ -58,7 +58,7 @@ crates = ["mongodb"]
 en.beginner = "a database that stores flexible records as documents instead of fixed tables."
 en.builder = "a document-oriented NoSQL database server that stores BSON documents, with a query language and aggregation pipelines."
 tr.beginner = "verileri sabit tablolar yerine esnek belgeler halinde saklayan bir veritabanı."
-tr.builder = "BSON belgeleri saklayan, belge yönelimli NoSQL veritabanı sunucusu; sorgu dili ve toplama hatları sunar."
+tr.builder = "BSON belgeleri saklayan, belge yönelimli NoSQL veritabanı sunucusu; sorgu dili ve çok adımlı veri işleme hatları sunar."
 
 [[tech]]
 id = "redis"
@@ -118,7 +118,7 @@ crates = ["rdkafka"]
 en.beginner = "a message system that passes events between parts of your app and keeps them for a while."
 en.builder = "a distributed event streaming platform that stores ordered topics in partitioned logs, with consumer groups."
 tr.beginner = "uygulamanın parçaları arasında mesaj ileten ve bu mesajları bir süre saklayan bir sistem."
-tr.builder = "bölümlere ayrılmış kayıt günlüklerinde sıralı konular tutan, dağıtık bir olay akışı platformu; tüketici grupları destekler."
+tr.builder = "olayları bölümlere ayrılmış, sıralı kayıt günlüklerinde konular halinde saklayan dağıtık bir olay akışı platformu; tüketici grupları destekler."
 
 [[tech]]
 id = "rabbitmq"
@@ -133,7 +133,7 @@ crates = ["lapin"]
 en.beginner = "a message system that delivers tasks and messages from one part of your app to another."
 en.builder = "an open-source message broker supporting AMQP queues, exchanges and routing, with acknowledgements."
 tr.beginner = "uygulamanın bir parçasından diğerine görev ve mesaj ileten bir mesaj sistemi."
-tr.builder = "AMQP kuyrukları, değişim noktaları ve yönlendirme sunan, açık kaynaklı bir mesaj aracısı; onay mekanizması vardır."
+tr.builder = "AMQP protokolüyle kuyruk ve yönlendirme sunan, mesaj teslim onayı olan açık kaynaklı bir mesaj aracısı."
 
 [[tech]]
 id = "graphql"
@@ -146,7 +146,7 @@ maven = ["com.graphql-java:graphql-java"]
 en.beginner = "a way for an app to ask for exactly the data it needs in one request."
 en.builder = "a query language and runtime for APIs, with a typed schema that clients query over a single HTTP endpoint."
 tr.beginner = "bir uygulamanın tam olarak ihtiyaç duyduğu veriyi tek istekte isteyebilmesini sağlayan yöntem."
-tr.builder = "API'ler için sorgu dili; tür tanımlı şema tanımlanır ve istemciler tek bir HTTP uç noktasından sorgular."
+tr.builder = "API'ler için sorgu dili; tür tanımlı bir şemaya dayanır; istemciler genellikle tek bir HTTP uç noktasından sorgular."
 
 [[tech]]
 id = "grpc"
@@ -175,7 +175,7 @@ nuget = ["Google.Protobuf"]
 crates = ["prost"]
 en.beginner = "a compact format for describing data so programs can share it reliably."
 en.builder = "Google's binary serialization format and IDL, with a .proto schema compiled into code for many languages."
-tr.beginner = "programların verileri güvenle paylaşabilmesi için veriyi kompakt biçimde tanımlayan bir biçim."
+tr.beginner = "programların verileri güvenle paylaşabilmesi için veriyi küçük boyutlu bir biçimde tanımlayan bir yöntem."
 tr.builder = "Google'ın ikili serileştirme biçimi; .proto şemalarından birçok dil için kod üretir."
 
 [[tech]]
@@ -191,7 +191,7 @@ crates = ["opentelemetry", "opentelemetry-*"]
 en.beginner = "a set of tools that record how your app runs, to find slow or broken parts."
 en.builder = "a vendor-neutral observability framework with APIs and SDKs for traces, metrics and logs, and an OTLP protocol."
 tr.beginner = "uygulamanın nasıl çalıştığını kaydeden ve yavaş ya da bozuk yerleri bulmanızı sağlayan araçlar."
-tr.builder = "izleme, ölçüm ve günlük verileri için satıcıdan bağımsız API'ler ve SDK'lar sunan bir gözlemlenebilirlik çatısı."
+tr.builder = "izleme, ölçüm ve günlük verileri için üreticiden bağımsız API'ler ve SDK'lar sunan bir gözlemlenebilirlik çatısı."
 
 [[tech]]
 id = "sentry"
@@ -248,10 +248,10 @@ go = ["github.com/aws/aws-sdk-go-v2", "github.com/aws/aws-sdk-go"]
 maven = ["software.amazon.awssdk:*", "com.amazonaws:*"]
 nuget = ["AWSSDK.*"]
 crates = ["aws-sdk-*", "aws-config"]
-en.beginner = "the official libraries your code uses to work with Amazon Web Services, like file storage and databases."
-en.builder = "Amazon's official SDKs for calling AWS services from JavaScript, Python, Go, Java, .NET and Rust."
-tr.beginner = "kodunuzun Amazon Web Services dosya depolama ve veritabanı gibi hizmetleri kullanmasını sağlayan kütüphaneler."
-tr.builder = "Amazon'un AWS hizmetlerini JavaScript, Python, Go, Java, .NET ve Rust'tan çağırmak için resmi SDK'ları."
+en.beginner = "the libraries your code uses to work with Amazon Web Services, like file storage and databases."
+en.builder = "Amazon's SDKs for calling AWS services from JavaScript, Python, Go, Java, .NET and Rust."
+tr.beginner = "kodunuzun Amazon Web Services'in dosya depolama ve veritabanı gibi hizmetlerini kullanmasını sağlayan kütüphaneler."
+tr.builder = "Amazon'un AWS hizmetlerini JavaScript, Python, Go, Java, .NET ve Rust'tan çağırmak için SDK'ları."
 
 [[tech]]
 id = "google-cloud"
@@ -264,7 +264,7 @@ maven = ["com.google.cloud:*"]
 nuget = ["Google.Cloud.*"]
 en.beginner = "the official libraries your code uses to work with Google Cloud services, like storage and databases."
 en.builder = "Google's official client libraries for Google Cloud APIs such as Storage, BigQuery, Pub/Sub and Firestore."
-tr.beginner = "kodunuzun Google Cloud depolama, veritabanı gibi hizmetlerini kullanmasını sağlayan resmi kütüphaneler."
+tr.beginner = "kodunuzun Google Cloud'un depolama, veritabanı gibi hizmetlerini kullanmasını sağlayan resmi kütüphaneler."
 tr.builder = "Google'ın Storage, BigQuery, Pub/Sub ve Firestore gibi Google Cloud API'leri için resmi istemci kütüphaneleri."
 
 [[tech]]
@@ -278,7 +278,7 @@ maven = ["com.azure:*"]
 nuget = ["Azure.*"]
 en.beginner = "the official libraries your code uses to work with Microsoft Azure services, like storage and identity."
 en.builder = "Microsoft's official client libraries for Azure services, in JavaScript, Python, Go, Java and .NET."
-tr.beginner = "kodunuzun Microsoft Azure depolama, kimlik doğrulama gibi hizmetleriyle çalışmasını sağlayan resmi kütüphaneler."
+tr.beginner = "kodunuzun Microsoft Azure'ın depolama, kimlik doğrulama gibi hizmetleriyle çalışmasını sağlayan resmi kütüphaneler."
 tr.builder = "Microsoft'un JavaScript, Python, Go, Java ve .NET için Azure hizmetlerine erişen resmi istemci kütüphaneleri."
 
 [[tech]]
@@ -317,9 +317,9 @@ maven = ["com.openai:openai-java"]
 nuget = ["OpenAI"]
 crates = ["async-openai"]
 en.beginner = "a library that lets your code talk to OpenAI's AI models, such as for chat and images."
-en.builder = "the OpenAI API client libraries for JavaScript, Python, Go, Java and .NET, used to call GPT and other models."
+en.builder = "client libraries for the OpenAI API, used to call GPT and other models from JavaScript, Python, Go, Java, .NET and Rust."
 tr.beginner = "kodunuzun OpenAI'nin yapay zekâ modelleriyle konuşmasını sağlayan bir kütüphane."
-tr.builder = "GPT ve diğer modelleri çağırmak için JavaScript, Python, Go, Java ve .NET'te OpenAI API istemcileri."
+tr.builder = "GPT ve diğer modelleri çağırmak için JavaScript, Python, Go, Java, .NET ve Rust'ta OpenAI API istemci kütüphaneleri."
 
 [[tech]]
 id = "anthropic"
@@ -386,4 +386,4 @@ crates = ["bollard"]
 en.beginner = "a container tool that packs your app and its needs so it runs the same anywhere."
 en.builder = "a container platform and CLI, with a daemon that builds images from Dockerfiles and runs containers."
 tr.beginner = "uygulamanızı ve ihtiyaçlarını bir konteynerde paketleyen, her yerde aynı çalışan bir araç."
-tr.builder = "Dockerfile'lardan imaj oluşturan ve konteynerleri çalıştıran bir daemon, CLI ve konteyner platformu."
+tr.builder = "Dockerfile'lardan imaj oluşturan ve konteynerleri çalıştıran konteyner platformu; arka planda çalışan bir hizmet ve komut satırı aracı içerir."
