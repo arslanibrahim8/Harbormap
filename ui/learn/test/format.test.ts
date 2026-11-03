@@ -85,6 +85,17 @@ test("childrenFor keeps only flagged boxes for Beginner", () => {
   assert.equal(childrenFor("builder", boxes).length, 3);
 });
 
+test("childrenFor keeps the selected file in Beginner even when the server did not flag it", () => {
+  const file = { ...box("f", false), kind: "file" as const, path: "src/a/f.ts" };
+  const other = { ...box("g", false), kind: "file" as const, path: "src/a/g.ts" };
+  const boxes = [box("a", true), file, other, box("c", true)];
+  const ids = (list: Box[]): string[] => list.map((b) => b.id);
+  assert.deepEqual(ids(childrenFor("beginner", boxes, "src/a/f.ts")), ["a", "f", "c"], "in the server's order");
+  assert.deepEqual(ids(childrenFor("beginner", boxes, "src/none.ts")), ["a", "c"]);
+  assert.deepEqual(ids(childrenFor("beginner", boxes, null)), ["a", "c"]);
+  assert.deepEqual(ids(childrenFor("builder", boxes, "src/a/f.ts")), ["a", "f", "g", "c"]);
+});
+
 test("fileName and dirName split on the last slash", () => {
   assert.equal(fileName("src/orders/cart.ts"), "cart.ts");
   assert.equal(dirName("src/orders/cart.ts"), "src/orders");

@@ -178,6 +178,20 @@ summary:focus-visible {
   background: var(--dim);
 }
 
+/* A problem has an icon and words, and red. */
+.live.ended {
+  color: var(--redtx);
+}
+
+.live.ended .dot {
+  width: auto;
+  height: auto;
+  background: none;
+  color: var(--red);
+  font-size: 13px;
+  line-height: 1;
+}
+
 .seg {
   display: flex;
   padding: 3px;

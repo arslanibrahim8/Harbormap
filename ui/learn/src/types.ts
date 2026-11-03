@@ -163,7 +163,7 @@ export interface SearchResult {
   label: string;
 }
 
-/** GET /api/search?q=Q: at most 20 results, files before symbols, then by label. */
+/** GET /api/search?q=Q: at most 20 results: files, then symbols, each in search rank order. */
 export interface Search {
   v: 1;
   results: SearchResult[];

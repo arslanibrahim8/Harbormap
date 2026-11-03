@@ -18,6 +18,7 @@ export interface LiveDeps {
 export function createLive(deps: LiveDeps) {
   let request = 0;
   const factListeners: ((d: FactsDelta) => void)[] = [];
+  const resyncListeners: (() => void)[] = [];
 
   /** Fetch the overview into the state. A response older than the one on screen, or
    * overtaken by a newer request, is dropped. Rejects when the server cannot be
@@ -45,6 +46,8 @@ export function createLive(deps: LiveDeps) {
           quietly(loadOverview());
           quietly(deps.refreshDrawer());
           quietly(deps.reloadCode());
+          // The map holds groups of its own, and the missed deltas named none of them.
+          for (const fn of resyncListeners) fn();
         }
       },
       (d: FactsDelta) => {
@@ -68,10 +71,18 @@ export function createLive(deps: LiveDeps) {
     factListeners.push(fn);
   }
 
-  return { loadOverview, start, onFacts };
+  /** Call `fn` when a reconnect finds newer facts than the screen shows: deltas were
+   * missed, so nothing the map holds can be trusted (it refetches the expanded
+   * groups). */
+  function onResync(fn: () => void): void {
+    resyncListeners.push(fn);
+  }
+
+  return { loadOverview, start, onFacts, onResync };
 }
 
 const live = createLive({ fetchOverview, subscribe, refreshDrawer, reloadCode });
 export const loadOverview = live.loadOverview;
 export const startLive = live.start;
 export const onFacts = live.onFacts;
+export const onResync = live.onResync;

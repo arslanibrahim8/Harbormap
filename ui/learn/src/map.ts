@@ -31,7 +31,7 @@ import {
 } from "./geometry.ts";
 import type { Pt, Rect } from "./geometry.ts";
 import { createGroupCache } from "./groupcache.ts";
-import { onFacts } from "./live.ts";
+import { onFacts, onResync } from "./live.ts";
 import { GROW_MS, animate, reducedMotion } from "./motion.ts";
 import { currentView, getState, onChange, setState } from "./state.ts";
 import { defs, s, text, title } from "./svg.ts";
@@ -199,7 +199,7 @@ export function renderMap(root: HTMLElement): void {
         origin: { x: parent.origin.x + box.x, y: parent.origin.y + box.y },
         group: g,
         all: g.children,
-        shown: childrenFor(level, g.children),
+        shown: childrenFor(level, g.children, getState().selected?.path ?? null),
         arrows: g.arrows,
         hiddenArrows: g.hidden_arrows,
         expandedId: expanded[i + 1] ?? null,
@@ -643,6 +643,13 @@ export function renderMap(root: HTMLElement): void {
     const ids = getState().expanded;
     cache.invalidate(d, ids);
     if (retryNext || d.regrouped || ids.some((id) => d.groups_changed.includes(id))) void refetchGroups();
+  });
+  // A reconnect that found newer facts missed deltas, and none of them says which
+  // groups changed: treat it as a regroup. The expanded groups are fetched again (a 404
+  // collapses them) and the rest of the cache goes.
+  onResync(() => {
+    cache.invalidate({ regrouped: true, groups_changed: [] }, getState().expanded);
+    void refetchGroups();
   });
 
   if (typeof ResizeObserver === "function") {

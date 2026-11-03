@@ -33,8 +33,9 @@ export function createGroupCache() {
       return version;
     },
     /** True when `id` must be fetched before it is shown: it is not held, or what is
-     * held is older than the overview (`seq`), which also covers a delta that was
-     * missed while the stream was down. */
+     * held is older than the overview (`seq`). This is asked when a group is opened;
+     * the groups already open are refreshed by the facts deltas and, after a
+     * reconnect that missed some, by the map's resync. */
     needsFetch(id: string, seq: number): boolean {
       const g = entries.get(id);
       return g === undefined || g.seq < seq;

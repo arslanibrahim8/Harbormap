@@ -19,6 +19,8 @@ export interface State {
   /** True until the stream has either opened or failed once; the bar then says
    * "Connecting…" instead of claiming an outage. */
   connecting: boolean;
+  /** True once the server answered 401: the page's session is over. */
+  sessionEnded: boolean;
   overview: Overview | null;
   /** Ids of the expanded groups, outermost first. */
   expanded: string[];
@@ -34,6 +36,7 @@ let state: State = {
   updatedMs: 0,
   live: false,
   connecting: true,
+  sessionEnded: false,
   overview: null,
   expanded: [],
   selected: null,

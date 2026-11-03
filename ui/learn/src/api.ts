@@ -24,11 +24,31 @@ export class ApiError extends Error {
   }
 }
 
+const unauthorizedListeners: (() => void)[] = [];
+
+/** Call `fn` whenever the server answers 401: the cookie is gone or belongs to
+ * another run, so nothing on this page will load again until the user opens the
+ * link that `harbormap learn` printed. */
+export function onUnauthorized(fn: () => void): void {
+  unauthorizedListeners.push(fn);
+}
+
 /** GET `path` on the page's own origin and parse the JSON body. */
 export async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(path, { credentials: "same-origin" });
+  if (res.status === 401) for (const fn of unauthorizedListeners) fn();
   if (!res.ok) throw new ApiError(res.status, path);
   return (await res.json()) as T;
+}
+
+/** `JSON.parse` of an event's data, or `null` when it is not JSON, so one bad event
+ * cannot break the handling of the ones after it. */
+function parseEvent<T>(e: Event): T | null {
+  try {
+    return JSON.parse((e as MessageEvent<string>).data) as T;
+  } catch {
+    return null;
+  }
 }
 
 export function overview(): Promise<Overview> {
@@ -74,13 +94,20 @@ export function subscribe(
 ): () => void {
   const es = new EventSource("/api/events");
   es.addEventListener("open", () => onState(true));
-  es.addEventListener("error", () => onState(false));
+  es.addEventListener("error", () => {
+    onState(false);
+    // A browser retries a dropped stream but gives up (CLOSED) on a refusal such as
+    // a 401, and an event stream does not say which status it saw. Ask with a plain
+    // request, which does: a 401 reaches the `onUnauthorized` listeners.
+    if (es.readyState === 2) getJSON("/api/journeys").catch(() => {});
+  });
   es.addEventListener("hello", (e) => {
-    const data = JSON.parse((e as MessageEvent<string>).data) as { seq: number };
-    onHello(data.seq);
+    const data = parseEvent<{ seq: number }>(e);
+    if (data !== null) onHello(data.seq);
   });
   es.addEventListener("facts", (e) => {
-    onFacts(JSON.parse((e as MessageEvent<string>).data) as FactsDelta);
+    const data = parseEvent<FactsDelta>(e);
+    if (data !== null) onFacts(data);
   });
   return () => es.close();
 }

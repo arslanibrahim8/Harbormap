@@ -124,6 +124,21 @@ test("a hello with a newer seq refetches everything on screen; an equal one does
   reset();
 });
 
+test("a newer hello refetches the expanded groups; an equal one does not", async () => {
+  reset();
+  setState({ seq: 5 });
+  const x = setup([8]);
+  let resyncs = 0;
+  x.live.onResync(() => (resyncs += 1));
+  x.fire.hello(5);
+  await tick();
+  assert.equal(resyncs, 0, "nothing was missed");
+  x.fire.hello(9);
+  await tick();
+  assert.equal(resyncs, 1, "deltas were missed, so the map must refetch what it shows");
+  reset();
+});
+
 test("the stream's state updates live and ends the Connecting state, on open or on a first failure", () => {
   reset();
   const x = setup([1]);

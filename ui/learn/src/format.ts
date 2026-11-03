@@ -43,9 +43,12 @@ export function arrowsFor(level: Level, arrows: Arrow[]): Arrow[] {
   return arrows.slice(0, level === "beginner" ? BEGINNER_ARROWS : BUILDER_ARROWS);
 }
 
-/** The boxes to draw: Beginner keeps only the ones the server flagged. */
-export function childrenFor(level: Level, boxes: Box[]): Box[] {
-  return level === "beginner" ? boxes.filter((b) => b.beginner) : boxes;
+/** The boxes to draw: Beginner keeps only the ones the server flagged, plus the file
+ * at `keepPath` (the selected one), so a file the user found by search is never
+ * hidden inside a group that has more than twelve children. */
+export function childrenFor(level: Level, boxes: Box[], keepPath: string | null = null): Box[] {
+  if (level !== "beginner") return boxes;
+  return boxes.filter((b) => b.beginner || (keepPath !== null && b.kind === "file" && b.path === keepPath));
 }
 
 /** The last part of a `/`-separated path. */
