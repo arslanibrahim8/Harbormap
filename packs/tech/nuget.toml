@@ -6,9 +6,9 @@ name = "ASP.NET Core"
 category = "framework"
 nuget = ["Microsoft.AspNetCore.*"]
 en.beginner = "the framework for building websites and web servers in C#."
-en.builder = "Microsoft's cross-platform web framework for C#, covering hosting, routing, request middleware, Razor pages and Web APIs."
+en.builder = "Microsoft's cross-platform web framework for .NET, covering hosting, routing, request middleware, Razor pages and Web APIs."
 tr.beginner = "C# ile web siteleri ve web sunucuları yapmaya yarayan bir çerçeve."
-tr.builder = "Microsoft'un C# için çapraz platform web çerçevesi; sunucu kurulumu, yönlendirme, istek ara katmanları ve Web API'leri sağlar."
+tr.builder = "Microsoft'un .NET için çapraz platform web çerçevesi; sunucu kurulumu, yönlendirme, istek ara katmanları, Razor sayfaları ve Web API'leri sağlar."
 
 [[tech]]
 id = "aspnetcore-jwt-bearer"
@@ -16,9 +16,9 @@ name = "ASP.NET Core JWT Bearer"
 category = "auth"
 nuget = ["Microsoft.AspNetCore.Authentication.JwtBearer"]
 en.beginner = "a tool that checks the login passes users send, so only signed-in users can open protected pages."
-en.builder = "ASP.NET Core authentication handler that validates JSON Web Tokens (JWT) bearer tokens on incoming HTTP requests."
+en.builder = "ASP.NET Core authentication handler that validates JWT (JSON Web Token) bearer tokens on incoming HTTP requests."
 tr.beginner = "giriş belirteçlerini denetleyerek yalnızca oturum açmış kişilerin erişmesini sağlayan bir araç."
-tr.builder = "ASP.NET Core'un, gelen HTTP isteklerindeki JWT taşıyıcı belirteçlerini doğrulayan kimlik doğrulama bileşeni."
+tr.builder = "ASP.NET Core'un, gelen HTTP isteklerindeki JWT (JSON Web Token) taşıyıcı belirteçlerini doğrulayan kimlik doğrulama bileşeni."
 
 [[tech]]
 id = "aspnetcore-identity"
@@ -43,7 +43,7 @@ tr.builder = "Microsoft'un bileşen tabanlı, etkileşimli web arayüzü çerçe
 [[tech]]
 id = "signalr-dotnet"
 name = "SignalR"
-category = "framework"
+category = "other"
 nuget = ["Microsoft.AspNetCore.SignalR.*"]
 en.beginner = "a way for the server to push live updates, such as chat messages, to users' browsers."
 en.builder = "ASP.NET Core real-time messaging library that keeps a connection open so the server and client can send messages both ways."
@@ -133,7 +133,7 @@ tr.builder = ".NET için nesneden nesneye eşleme kütüphanesi; özellikleri is
 [[tech]]
 id = "mediatr"
 name = "MediatR"
-category = "framework"
+category = "other"
 nuget = ["MediatR"]
 en.beginner = "a helper that passes requests to the right handler, keeping the parts of your app loosely connected."
 en.builder = "An in-process mediator library for .NET that implements request/response and notification messaging patterns."
@@ -146,9 +146,9 @@ name = "FluentValidation"
 category = "validation"
 nuget = ["FluentValidation", "FluentValidation.*"]
 en.beginner = "a library for writing clear rules that check that user input is valid before the app uses it."
-en.builder = "A .NET validation library that defines rules in strongly typed classes, with ASP.NET Core integration."
+en.builder = "A .NET validation library that uses a fluent interface to define rules in strongly typed classes."
 tr.beginner = "kullanıcı girişlerinin geçerli olduğunu denetleyen net kurallar yazmayı sağlayan kütüphane."
-tr.builder = ".NET için, kuralları güçlü tipli sınıflarda tanımlayan doğrulama kütüphanesi; ASP.NET Core ile birlikte çalışır."
+tr.builder = ".NET için, kuralları akıcı bir arayüzle güçlü tipli sınıflarda tanımlayan doğrulama kütüphanesi."
 
 [[tech]]
 id = "swashbuckle"
@@ -256,9 +256,9 @@ name = ".NET Test SDK"
 category = "testing"
 nuget = ["Microsoft.NET.Test.Sdk"]
 en.beginner = "the base package that lets a .NET test project run its tests with the dotnet test command."
-en.builder = "Microsoft.NET.Test.Sdk, the test host and build settings every .NET test project references to run under dotnet test."
+en.builder = "Microsoft.NET.Test.Sdk, the MSBuild targets and properties every .NET test project references so its tests can run under dotnet test."
 tr.beginner = "bir .NET test projesinin testleri dotnet test komutuyla çalıştırmasını sağlayan temel paket."
-tr.builder = "Microsoft.NET.Test.Sdk; test projelerine dotnet test altında çalışmak için gereken ana bilgisayar ve derleme ayarlarını ekler."
+tr.builder = "Microsoft.NET.Test.Sdk; test projelerinin dotnet test altında çalışması için gereken MSBuild hedeflerini ve ayarlarını ekler."
 
 [[tech]]
 id = "bogus-dotnet"
@@ -316,9 +316,9 @@ name = "Refit"
 category = "other"
 nuget = ["Refit"]
 en.beginner = "a helper that lets C# code call a web API by describing it as a simple interface."
-en.builder = "A type-safe REST client library for .NET that generates implementations of annotated interfaces at runtime."
+en.builder = "A type-safe REST client library for .NET that generates the implementations of annotated interfaces automatically."
 tr.beginner = "bir web API'sini basit bir arayüz olarak tanımlayıp C# kodundan kolayca çağırmanızı sağlayan yardımcı."
-tr.builder = ".NET için tip güvenli REST istemci kütüphanesi; işaretlenmiş arayüzlerin uygulamasını çalışma zamanında üretir."
+tr.builder = ".NET için tip güvenli REST istemci kütüphanesi; işaretlenmiş arayüzlerin uygulamasını otomatik olarak üretir."
 
 [[tech]]
 id = "restsharp"
@@ -447,7 +447,7 @@ category = "other"
 nuget = ["Spectre.Console"]
 en.beginner = "a helper that makes command-line programs show colors, tables, progress bars and menus."
 en.builder = "A .NET library for building rich, styled console applications with colors, tables, trees, charts and prompts."
-tr.beginner = "komut satırı programlarının renkli tablolar, ilerleme çubukları ve menüler göstermesini sağlayan bir yardımcı."
+tr.beginner = "komut satırı programlarının renkler, tablolar, ilerleme çubukları ve menüler göstermesini sağlayan bir yardımcı."
 tr.builder = ".NET için zengin ve renkli konsol uygulamaları yapan kütüphane; tablo, ağaç, grafik ve soru istemleri sunar."
 
 [[tech]]
