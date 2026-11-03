@@ -692,6 +692,8 @@
 
 Found by the eval and fixed: the middleware matcher was stored as its source spelling (`.*\\.png`); it is now the string's value (`.*\.png`), as Next.js reads it (`ts/web/next.rs`, test `matcher_strings_are_their_values_not_their_source_spelling`). The fifth server action is the inline `'use server'` sign-out form in `app/ui/dashboard/sidenav.tsx` (owned by `SideNav`), a server action by the Next.js rules. The generated SDK's `(options.client ?? client).post({ url: … })` is already read as a request helper: a receiver that is not a plain name falls through to the `url:` rule.
 
+After the final branch review (same day) the rules changed where the scope decisions above now say so: middleware matchers are matched against the whole path; a client call looks among its own app's routes first; programmatic clients reach `http` routes only and forms reach pages too; axios instances join a literal `baseURL`; a form `method` that is not a literal is `ANY`; a form `action` without a path is a self form; lockfile values that are not versions (aliases, git or tarball URLs) are unresolved; `harbormap index` counts parsed `calls` and `inferred links` apart. The eval numbers above are unchanged: next-learn's matcher is a regex, so it stays unevaluated (every page and route still gets a middleware edge), and every fastapi-template client call targets the Python backend.
+
 **Latency** (`cargo run --release -p hm-index --example latency -- --files 1000 --saves 200 --seed 7 --max-p95-body-ms 300 --max-p95-sig-ms 500 --max-cold-ms 2000 --branch-switch 300`, Apple M4, three runs, all exit 0):
 
 | Run | cold | body p50 | body p95 | sig p50 | sig p95 | branch switch |
