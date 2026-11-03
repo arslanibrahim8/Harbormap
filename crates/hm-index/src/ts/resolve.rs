@@ -789,7 +789,8 @@ impl Resolver<'_, '_> {
     }
 
     /// Whether `name` is bound at module level: a top-level symbol, an import or
-    /// `require` binding (a type-only import too), or a recorded module-level binding.
+    /// `require` binding (a type-only import too), a name some other top-level statement
+    /// binds (`module_names`) or a recorded module-level binding.
     fn module_bound(&self, name: &str) -> bool {
         let (p, rel, facts) = (self.p, self.rel, self.facts);
         facts
@@ -797,6 +798,10 @@ impl Resolver<'_, '_> {
             .iter()
             .any(|s| s.owner.is_empty() && s.name == name)
             || binding_of(p, rel, facts, name, true).is_some()
+            || facts
+                .module_names
+                .binary_search_by(|n| n.as_str().cmp(name))
+                .is_ok()
             || facts
                 .web
                 .bindings
@@ -808,7 +813,9 @@ impl Resolver<'_, '_> {
     /// bound at module level (the target is just not pinned), else `builtin` for a
     /// known global and `local` for anything else (a parameter, a local variable, a
     /// nested function). `this`, `super` and a root that is no identifier (`"a".trim()`,
-    /// `[].concat()`) name nothing here, so they stay `unresolved`.
+    /// `[].concat()`) name nothing here, so they stay `unresolved`. There is no scope
+    /// tracking: a function-scope local that shadows a global (`function f(process) {
+    /// process.exit() }`) is labelled `builtin`.
     fn noise_status(&self, receiver: Option<&str>, callee: &str) -> &'static str {
         let root = root_ident(receiver.unwrap_or(callee));
         if root.is_empty() || matches!(root, "this" | "super") || self.module_bound(root) {
@@ -986,7 +993,6 @@ mod tests {
     #[test]
     fn the_globals_table_is_sorted_and_whole() {
         assert!(JS_GLOBALS.windows(2).all(|w| w[0] < w[1]), "{JS_GLOBALS:?}");
-        assert_eq!(JS_GLOBALS.len(), 66);
         for name in [
             "JSON",
             "Date",

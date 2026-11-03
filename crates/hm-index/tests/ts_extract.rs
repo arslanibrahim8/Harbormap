@@ -312,3 +312,60 @@ fn implements_alone_is_not_heritage() {
     assert_eq!(js.heritage.len(), 1);
     assert_eq!(js.heritage[0].extends, "B");
 }
+
+#[test]
+fn module_names_hold_the_top_level_bindings_that_are_not_symbols() {
+    let f = extract(
+        "const { a, b: [c, ...d], e = 1, ...rest } = make();\n\
+         let [x, , y = 2] = make();\n\
+         var legacy = make();\n\
+         const prisma = new PrismaClient(), schema = z.object({});\n\
+         const fn1 = () => 1;\n\
+         export const exported = make();\n\
+         export const { fromExport } = make();\n\
+         enum Color { Red }\n\
+         declare enum Dec { A }\n\
+         namespace N { export const hidden = 1; }\n\
+         declare namespace Amb { const hidden2: number; }\n\
+         module Old {}\n\
+         import fs = require('fs');\n\
+         declare const ambient: any;\n\
+         declare function amb(): void;\n\
+         function make(): any { return {}; }\n\
+         function inner() { const nested = 1; }\n\
+         class K { m() { const alsoNested = 1; } }\n",
+        Lang::TypeScript,
+    );
+    assert_eq!(
+        f.module_names,
+        [
+            "Amb",
+            "Color",
+            "Dec",
+            "N",
+            "Old",
+            "a",
+            "amb",
+            "ambient",
+            "c",
+            "d",
+            "e",
+            "fromExport",
+            "fs",
+            "legacy",
+            "prisma",
+            "rest",
+            "schema",
+            "x",
+            "y"
+        ]
+    );
+    // A file with no such names keeps the field out of its JSON.
+    let plain = extract("export function f() {}\n", Lang::TypeScript);
+    assert!(plain.module_names.is_empty());
+    assert!(
+        !serde_json::to_string(&plain)
+            .unwrap()
+            .contains("module_names")
+    );
+}

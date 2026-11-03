@@ -279,6 +279,12 @@ pub struct FileFacts {
     pub exports: Vec<ExportFact>,
     pub calls: Vec<CallFact>,
     pub heritage: Vec<HeritageFact>,
+    /// Every name a top-level statement binds that is not a top-level symbol: `const`,
+    /// `let` and `var` names (every name of a destructuring pattern), `enum`,
+    /// `namespace`, `import x = require()` and `declare` names. Sorted, without
+    /// duplicates; absent from the JSON when empty, as in L1.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub module_names: Vec<String>,
     /// Absent from the JSON of a file without web facts, as in L1.
     #[serde(default, skip_serializing_if = "WebFacts::is_empty")]
     pub web: WebFacts,
@@ -294,6 +300,7 @@ impl FileFacts {
             exports: Vec::new(),
             calls: Vec::new(),
             heritage: Vec::new(),
+            module_names: Vec::new(),
             web: WebFacts::default(),
         }
     }

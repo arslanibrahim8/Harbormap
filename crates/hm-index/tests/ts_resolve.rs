@@ -731,7 +731,7 @@ fn resolution_is_sorted_and_deduplicated() {
 }
 
 #[test]
-fn an_unresolved_extends_is_an_extends_ref() {
+fn an_unbound_extends_is_a_local_extends_ref() {
     let (edges, refs) = resolved(&[("a.ts", "class A extends Missing {}\n")], "a.ts");
     assert!(edges.is_empty(), "{edges:?}");
     assert_eq!(refs, [reference("extends", "Missing", "local")]);
@@ -904,7 +904,7 @@ fn module_level_names_that_do_not_resolve_stay_unresolved() {
         "a.ts",
         "import { a } from './missing';\n\
          import def, * as ns from './missing';\n\
-         export const db = make();\n\
+         const db = make();\n\
          function make() { return { insert() {} }; }\n\
          export function go() {\n\
          \x20 a();\n\
@@ -953,4 +953,86 @@ fn a_binding_shadows_a_global_name() {
     assert!(refs.contains(&reference("call", "fetch", "unresolved")));
     assert!(refs.contains(&reference("call", "console.log", "unresolved")));
     assert!(refs.contains(&reference("call", "JSON.parse", "builtin")));
+}
+
+#[test]
+fn names_bound_by_other_top_level_statements_stay_unresolved() {
+    let files = [(
+        "a.ts",
+        "const { a, b: [c, ...d], e = 1, ...rest } = make();\n\
+         let [x, , y = 2] = make();\n\
+         var legacy = make();\n\
+         const prisma = new PrismaClient();\n\
+         const schema = z.object({});\n\
+         enum Color { Red }\n\
+         namespace N { export function inner() {} }\n\
+         import fs = require('fs');\n\
+         declare const ambient: any;\n\
+         declare function amb(): void;\n\
+         export const { exp } = make();\n\
+         function make(): any { return {}; }\n\
+         export function go(local: any) {\n\
+         \x20 a(); c(); d(); e(); rest.f(); x(); y(); legacy.g(); prisma.h();\n\
+         \x20 schema.parse(1); Color.Red.toString(); N.inner(); fs.readFile();\n\
+         \x20 ambient.k(); amb(); exp.m(); local.n(); other();\n\
+         }\n",
+    )];
+    let (_, refs) = resolved(&files, "a.ts");
+    let status = |callee: &str| {
+        refs.iter()
+            .find(|r| r.0 == "call" && r.1 == callee)
+            .map(|r| r.2.clone())
+            .unwrap_or_else(|| panic!("no ref {callee} in {refs:?}"))
+    };
+    for callee in [
+        "a",
+        "c",
+        "d",
+        "e",
+        "rest.f",
+        "x",
+        "y",
+        "legacy.g",
+        "prisma.h",
+        "schema.parse",
+        "Color.Red.toString",
+        "fs.readFile",
+        "ambient.k",
+        "amb",
+        "exp.m",
+    ] {
+        assert_eq!(status(callee), "unresolved", "{callee}");
+    }
+    // `N.inner` may resolve to an edge; it is never `local`.
+    assert!(
+        !refs.iter().any(|r| r.1 == "N.inner" && r.2 == "local"),
+        "{refs:?}"
+    );
+    // Not bound at module level.
+    assert_eq!(status("local.n"), "local");
+    assert_eq!(status("other"), "local");
+}
+
+#[test]
+fn a_module_name_shadows_a_global() {
+    let files = [(
+        "a.ts",
+        "const { process } = make();\n\
+         enum Date { A }\n\
+         function make(): any { return {}; }\n\
+         export function go() { process.exit(1); Date.A.toString(); JSON.parse('1'); }\n",
+    )];
+    let (_, refs) = resolved(&files, "a.ts");
+    assert!(
+        refs.contains(&reference("call", "process.exit", "unresolved")),
+        "{refs:?}"
+    );
+    assert!(
+        refs.contains(&reference("call", "Date.A.toString", "unresolved")),
+        "{refs:?}"
+    );
+    assert!(
+        refs.contains(&reference("call", "JSON.parse", "builtin")),
+        "{refs:?}"
+    );
 }
