@@ -18,6 +18,8 @@ use crate::facts::{
 use crate::hash::{body_hash, empty_body_hash, hash_parts};
 use crate::lang::Lang;
 
+use super::web;
+
 const SYMBOLS_SCM: &str = include_str!("queries/symbols.scm");
 const IMPORTS_SCM: &str = include_str!("queries/imports.scm");
 const CALLS_SCM: &str = include_str!("queries/calls.scm");
@@ -40,7 +42,7 @@ struct Queries {
 }
 
 /// The part of a query file that applies to `lang`; see the `;;@` markers in the files.
-fn query_source(scm: &str, lang: Lang) -> String {
+pub(crate) fn query_source(scm: &str, lang: Lang) -> String {
     let ts = matches!(lang, Lang::TypeScript | Lang::Tsx);
     let jsx = matches!(lang, Lang::Tsx | Lang::JavaScript);
     let mut on = true;
@@ -121,9 +123,21 @@ pub fn extract(src: &str, lang: Lang) -> FileFacts {
         symbols: Vec::new(),
     };
     let heritage = ex.collect_symbols(q, root);
+    ex.push_callbacks(web::route_callbacks(root, bytes, lang));
     let (imports, mut exports) = ex.collect_imports(q, root);
     ex.mark_locally_exported(&exports);
     let calls = ex.collect_calls(q, root);
+    let spans: Vec<web::Span> = ex
+        .symbols
+        .iter()
+        .map(|s| web::Span {
+            start: s.start,
+            end: s.end,
+            owner: s.fact.owner.clone(),
+            name: s.fact.name.clone(),
+        })
+        .collect();
+    let web = web::extract_web(root, bytes, lang, &spans);
     exports.sort_by_key(|(start, _)| *start);
 
     FileFacts {
@@ -137,6 +151,7 @@ pub fn extract(src: &str, lang: Lang) -> FileFacts {
         exports: exports.into_iter().map(|(_, e)| e).collect(),
         calls,
         heritage,
+        web,
     }
 }
 
@@ -321,6 +336,16 @@ impl<'s> Extractor<'s> {
             .collect();
         heritage.sort_by_key(|h| h.line);
         heritage
+    }
+
+    /// Adds the inline route handlers as symbols, so a call inside one has it as owner.
+    fn push_callbacks(&mut self, callbacks: Vec<web::Callback>) {
+        self.symbols.extend(callbacks.into_iter().map(|c| Sym {
+            fact: c.fact,
+            start: c.start,
+            end: c.end,
+        }));
+        self.symbols.sort_by_key(|s| s.start);
     }
 
     /// The statement-level wrapper of a declaration: `(export_statement, exported,

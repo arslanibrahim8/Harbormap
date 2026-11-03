@@ -400,6 +400,89 @@ fn binding_of(
         })
 }
 
+/// The index of the symbol that holds a fact at `line` with enclosing `owner`. The fact
+/// gives `(owner, name)` only, so of several symbols with that pair (a getter and a
+/// setter, a merged `interface` and `class`) the one that can hold calls and spans the
+/// line is the one. Of two such, the smaller; when the smallest span is shared (a
+/// one-line getter and setter) nothing says which one holds the fact, so it goes to
+/// the file rather than to a guess.
+fn holder(facts: &FileFacts, owner: Option<&(String, String)>, line: u32) -> Option<usize> {
+    let (owner, name) = owner?;
+    let holders: Vec<(usize, u32)> = facts
+        .symbols
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| {
+            s.owner == *owner
+                && s.name == *name
+                && matches!(
+                    s.kind,
+                    SymbolKind::Function | SymbolKind::Method | SymbolKind::Class
+                )
+                && s.l0 <= line
+                && line <= s.l1
+        })
+        .map(|(i, s)| (i, s.l1 - s.l0))
+        .collect();
+    let smallest = holders.iter().map(|&(_, span)| span).min();
+    let mut tightest = holders.iter().filter(|&&(_, span)| Some(span) == smallest);
+    match (tightest.next(), tightest.next()) {
+        (Some(&(i, _)), None) => Some(i),
+        _ => None,
+    }
+}
+
+/// The id of the symbol that holds a fact of `facts` (a call, a route call, a client
+/// call) at `line` with enclosing `owner`, or the file id at top level and when no one
+/// symbol can be named. This is the one place that decides it.
+pub fn source_id(
+    rel: &str,
+    facts: &FileFacts,
+    owner: Option<&(String, String)>,
+    line: u32,
+) -> String {
+    match holder(facts, owner, line) {
+        Some(i) => symbol_ids(rel, facts).swap_remove(i),
+        None => file_id(rel),
+    }
+}
+
+/// The symbol that `receiver.callee` (or `callee`) names as seen from `rel`, outside any
+/// symbol: `Some((file, index into its symbols))` only when the name resolves to exactly
+/// one symbol. A member receiver such as `UsersService` finds a static method.
+pub fn resolve_callee(
+    p: &Project,
+    rel: &str,
+    receiver: Option<&str>,
+    callee: &str,
+) -> Option<(String, usize)> {
+    let facts = p.facts.get(rel)?;
+    let mut r = Resolver {
+        p,
+        rel,
+        facts,
+        file: file_id(rel),
+        ids: HashMap::new(),
+        edges: BTreeMap::new(),
+        refs: BTreeSet::new(),
+    };
+    match r.resolve_name(receiver, callee, false, None, false) {
+        Outcome::Edge { file, symbol, .. } => Some((file, symbol)),
+        Outcome::Ref { .. } => None,
+    }
+}
+
+/// `(package, imported name)` when `local` is bound in `rel` by an import (or `require`)
+/// of an external package; `imported` is `"default"`, `"*"` or the exported name.
+pub fn binding_package(p: &Project, rel: &str, local: &str) -> Option<(String, String)> {
+    let facts = p.facts.get(rel)?;
+    let binding = binding_of(p, rel, facts, local, false)?;
+    match binding.target {
+        ModuleTarget::External(package) => Some((package, binding.imported)),
+        _ => None,
+    }
+}
+
 /// What a call or `extends` resolved to.
 enum Outcome {
     Edge {
@@ -587,38 +670,12 @@ impl Resolver<'_, '_> {
         self.ids[rel][index].clone()
     }
 
-    /// The id of the symbol that holds a call, or the file id at top level. The call
-    /// fact gives `(owner, name)` only, so of several symbols with that pair (a getter
-    /// and a setter, a merged `interface` and `class`) the one that can hold calls and
-    /// spans the line is the one. Of two such, the smaller; when the smallest span is
-    /// shared (a one-line getter and setter) nothing says which one holds the call, so
-    /// it goes to the file rather than to a guess.
+    /// The id of the symbol that holds a call, or the file id at top level; see
+    /// `source_id`.
     fn call_source(&mut self, c: &CallFact) -> String {
-        let Some((owner, name)) = &c.owner else {
-            return self.file.clone();
-        };
-        let holders: Vec<(usize, u32)> = self
-            .facts
-            .symbols
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| {
-                s.owner == *owner
-                    && s.name == *name
-                    && matches!(
-                        s.kind,
-                        SymbolKind::Function | SymbolKind::Method | SymbolKind::Class
-                    )
-                    && s.l0 <= c.line
-                    && c.line <= s.l1
-            })
-            .map(|(i, s)| (i, s.l1 - s.l0))
-            .collect();
-        let smallest = holders.iter().map(|&(_, span)| span).min();
-        let mut tightest = holders.iter().filter(|&&(_, span)| Some(span) == smallest);
-        match (tightest.next(), tightest.next()) {
-            (Some(&(i, _)), None) => self.symbol_id_of(self.rel, i),
-            _ => self.file.clone(),
+        match holder(self.facts, c.owner.as_ref(), c.line) {
+            Some(i) => self.symbol_id_of(self.rel, i),
+            None => self.file.clone(),
         }
     }
 
