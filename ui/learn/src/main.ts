@@ -1,16 +1,23 @@
-// Boot stub: proves the bundle loads and the server answers. The real shell
-// (map, drawer, search) replaces this body in the next task.
+// Boots the panel: builds the shell, fetches the first overview and follows the
+// live stream. The map itself is drawn into #map by a later module.
 
-import { overview } from "./api.ts";
+import { byId } from "./dom.ts";
+import { initCode } from "./code.ts";
+import { initDrawer } from "./drawer.ts";
+import { loadOverview, startLive } from "./live.ts";
+import { initSidebar } from "./sidebar.ts";
+import { initTabs } from "./tabs.ts";
+import { initTopbar } from "./topbar.ts";
 
-async function boot(app: HTMLElement): Promise<void> {
-  try {
-    const o = await overview();
-    app.textContent = o.repo.name;
-  } catch (e) {
-    app.textContent = e instanceof Error ? e.message : "Could not reach the server";
-  }
-}
+initTopbar();
+initTabs();
+initSidebar();
+initDrawer();
+initCode();
 
-const app = document.getElementById("app");
-if (app !== null) void boot(app);
+loadOverview().catch((e: unknown) => {
+  const msg = e instanceof Error ? e.message : "Could not reach the server";
+  byId("map").textContent = `⚠ ${msg}`;
+});
+// The stream reconnects by itself, so it starts even when the first fetch failed.
+startLive();
