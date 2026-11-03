@@ -277,12 +277,20 @@ fn client_urls_keep_what_never_matches_distinct() {
     }
 }
 
+// A form action with no path (`""`, `#…`, `?…`) submits to the current page, like no
+// action at all: on a page it is that page's own pattern, never `/`; outside a page it is
+// unknown. A `fetch` without a path is no client call.
+// https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/form#action
 #[test]
-fn a_url_without_a_path_is_no_client_call_and_never_the_home_page() {
+fn a_url_without_a_path_is_the_current_page_never_the_home_page() {
     let dir = app(&[
         (
             "app/page.tsx",
-            "export default function Home() { return <form action=\"#\"><input /></form> }\n",
+            "export default function Home() { return null }\n",
+        ),
+        (
+            "app/orders/page.tsx",
+            "export default function Orders() {\n  return <div><form action=\"#\" /><form action=\"?page=2\" method=\"post\" /><form action=\"\" onSubmit={() => 1} /></div>\n}\n",
         ),
         (
             "app/ui/f.tsx",
@@ -297,10 +305,44 @@ fn a_url_without_a_path_is_no_client_call_and_never_the_home_page() {
     let rows: Vec<_> = d
         .client_calls
         .iter()
-        .map(|c| (c.file.as_str(), c.url.as_str()))
+        .map(|c| {
+            (
+                c.file.as_str(),
+                c.method.as_str(),
+                c.url.as_str(),
+                c.rule.as_str(),
+            )
+        })
         .collect();
-    assert_eq!(rows, [("app/ui/f.tsx", "/real")], "{:#?}", d.client_calls);
-    assert!(edges(&d, &names, "http_calls").is_empty(), "{:#?}", d.edges);
+    assert_eq!(
+        rows,
+        [
+            (
+                "app/orders/page.tsx",
+                "GET",
+                "/orders",
+                "ts.client.form_self"
+            ),
+            (
+                "app/orders/page.tsx",
+                "POST",
+                "/orders",
+                "ts.client.form_self"
+            ),
+            ("app/ui/f.tsx", "GET", "/real", "ts.client.form"),
+        ],
+        "{:#?}",
+        d.client_calls
+    );
+    // Only the `GET` self form reaches the page; nothing reaches `/`.
+    assert_eq!(
+        edges(&d, &names, "http_calls"),
+        BTreeSet::from([edge(
+            "app/orders/page.tsx#Orders",
+            "GET /orders",
+            "ts.client.form_self"
+        )])
+    );
 }
 
 #[test]
@@ -416,12 +458,12 @@ fn matching_prefers_literals_and_accepts_catch_alls_and_any_routes() {
             "export async function GET() { return new Response() }\n",
         ),
         (
-            "app/docs/[...slug]/page.tsx",
-            "export default function D() { return null }\n",
+            "app/docs/[...slug]/route.ts",
+            "export async function GET() { return new Response() }\n",
         ),
         (
-            "app/help/[[...topic]]/page.tsx",
-            "export default function H() { return null }\n",
+            "app/help/[[...topic]]/route.ts",
+            "export async function GET() { return new Response() }\n",
         ),
         ("pages/api/any.ts", "export default function handler() {}\n"),
         (
@@ -827,12 +869,12 @@ fn routes_of_equal_specificity_give_no_edge() {
     // Next.js would pick `[id]`. `/docs/a/b` fits only the catch-all.
     let dir = app(&[
         (
-            "app/docs/[id]/page.tsx",
-            "export default function One() { return null }\n",
+            "app/docs/[id]/route.ts",
+            "export async function GET() { return new Response() }\n",
         ),
         (
-            "app/docs/[...slug]/page.tsx",
-            "export default function Many() { return null }\n",
+            "app/docs/[...slug]/route.ts",
+            "export async function GET() { return new Response() }\n",
         ),
         (
             "lib/c.ts",
@@ -849,15 +891,18 @@ fn routes_of_equal_specificity_give_no_edge() {
     );
 }
 
-#[test]
-fn the_same_route_in_two_apps_gives_no_edge() {
+/// A monorepo with `apps/web`, `apps/admin` and `apps/<third>`, each a Next.js app; web
+/// and admin both have `GET /api/health`.
+fn two_apps_with_one_route(third: &str, caller: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
-    for app in ["web", "admin"] {
+    for app in ["web", "admin", third] {
         write(
             dir.path(),
             &format!("apps/{app}/package.json"),
             r#"{ "name": "x", "dependencies": { "next": "15.2.0" } }"#,
         );
+    }
+    for app in ["web", "admin"] {
         write(
             dir.path(),
             &format!("apps/{app}/app/api/health/route.ts"),
@@ -866,20 +911,181 @@ fn the_same_route_in_two_apps_gives_no_edge() {
     }
     write(
         dir.path(),
-        "apps/web/lib/c.ts",
+        caller,
         "export function health() { return fetch('/api/health') }\n",
     );
+    dir
+}
+
+#[test]
+fn a_call_to_a_route_of_its_own_app_wins_over_the_same_route_elsewhere() {
+    let dir = two_apps_with_one_route("docs", "apps/web/lib/c.ts");
+    let d = derive_tree(dir.path());
+    let names = labels(dir.path(), &d);
+    let health: Vec<_> = d
+        .routes
+        .iter()
+        .filter(|r| r.pattern == "/api/health")
+        .collect();
+    assert_eq!(health.len(), 2, "{:#?}", d.routes);
+    let own = health.iter().find(|r| r.root == "apps/web").expect("web's");
+    let edge = d
+        .edges
+        .iter()
+        .find(|e| e.kind == "http_calls")
+        .expect("one edge");
+    assert_eq!(edge.dst_id, own.id);
+    assert_eq!(
+        calls_from(&d, &names, "apps/web/lib/c.ts#health"),
+        BTreeSet::from([pair("GET /api/health", "ts.client.fetch")])
+    );
+}
+
+#[test]
+fn the_same_route_in_two_other_apps_gives_no_edge() {
+    // The caller's own app has no such route: among every root, two fit equally.
+    let dir = two_apps_with_one_route("docs", "apps/docs/lib/c.ts");
+    let d = derive_tree(dir.path());
+    let names = labels(dir.path(), &d);
+    assert!(calls_from(&d, &names, "apps/docs/lib/c.ts#health").is_empty());
+    assert_eq!(d.client_calls.len(), 1);
+}
+
+// Programmatic clients reach `http` routes only: a page is HTML for a browser to navigate
+// to. A form reaches pages and `http` routes.
+#[test]
+fn programmatic_clients_reach_http_routes_and_forms_reach_pages_too() {
+    let dir = app(&[
+        (
+            "app/orders/page.tsx",
+            "export default function Orders() { return null }\n",
+        ),
+        (
+            "app/api/orders/route.ts",
+            "export async function GET() { return new Response() }\n",
+        ),
+        (
+            "lib/c.ts",
+            "import axios from 'axios'\n\
+             export function page() { return fetch('/orders') }\n\
+             export function pageByAxios() { return axios.get('/orders') }\n\
+             export function api() { return fetch('/api/orders') }\n",
+        ),
+        (
+            "app/ui/f.tsx",
+            "export function F() { return <form action=\"/orders\" /> }\n\
+             export function G() { return <form action=\"/api/orders\" /> }\n",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    let names = labels(dir.path(), &d);
+    let one = |src: &str| calls_from(&d, &names, src);
+    assert!(one("lib/c.ts#page").is_empty());
+    assert!(one("lib/c.ts#pageByAxios").is_empty());
+    assert_eq!(
+        one("lib/c.ts#api"),
+        BTreeSet::from([pair("GET /api/orders", "ts.client.fetch")])
+    );
+    assert_eq!(
+        one("app/ui/f.tsx#F"),
+        BTreeSet::from([pair("GET /orders", "ts.client.form")])
+    );
+    assert_eq!(
+        one("app/ui/f.tsx#G"),
+        BTreeSet::from([pair("GET /api/orders", "ts.client.form")])
+    );
+}
+
+// A `method` that is not a string literal is unknown (`ANY`), never the default `GET`.
+#[test]
+fn a_form_method_that_is_not_a_literal_is_any() {
+    let form = "export function F({ m }: { m: string }) {\n  return <form action=\"/api/users\" method={m} />\n}\n";
+    let post = "export async function POST() { return new Response() }\n";
+    let both = "export async function GET() { return new Response() }\n\
+                export async function POST() { return new Response() }\n";
+
+    // `ANY` fits `GET` and `POST` on the same path equally: no edge.
+    let dir = app(&[("app/api/users/route.ts", both), ("app/ui/f.tsx", form)]);
+    let d = derive_tree(dir.path());
+    let names = labels(dir.path(), &d);
+    assert_eq!(d.client_calls.len(), 1, "{:#?}", d.client_calls);
+    assert_eq!(d.client_calls[0].method, "ANY");
+    assert!(calls_from(&d, &names, "app/ui/f.tsx#F").is_empty());
+
+    // With only `POST`, the form reaches it.
+    let dir = app(&[("app/api/users/route.ts", post), ("app/ui/f.tsx", form)]);
     let d = derive_tree(dir.path());
     let names = labels(dir.path(), &d);
     assert_eq!(
-        d.routes
-            .iter()
-            .filter(|r| r.pattern == "/api/health")
-            .count(),
-        2,
-        "{:#?}",
-        d.routes
+        calls_from(&d, &names, "app/ui/f.tsx#F"),
+        BTreeSet::from([pair("POST /api/users", "ts.client.form")])
     );
-    assert!(calls_from(&d, &names, "apps/web/lib/c.ts#health").is_empty());
-    assert_eq!(d.client_calls.len(), 1);
+}
+
+// An axios instance joins its `baseURL` before a relative URL; an absolute URL ignores it.
+// https://axios-http.com/docs/instance, https://axios-http.com/docs/req_config
+#[test]
+fn axios_instances_join_their_base_url() {
+    let dir = app(&[
+        (
+            "app/users/page.tsx",
+            "export default function Users() { return null }\n",
+        ),
+        (
+            "app/api/users/route.ts",
+            "export async function GET() { return new Response() }\n",
+        ),
+        (
+            "lib/http.ts",
+            "import axios from 'axios'\n\
+             export const api = axios.create({ baseURL: '/api' })\n\
+             const local = axios.create({ baseURL: 'http://localhost:3000/api/' })\n\
+             const hidden = axios.create({ baseURL: process.env.API_URL })\n\
+             const plain = axios.create()\n\
+             export function same() { return api.get('/users') }\n\
+             export function viaLocal() { return local.get('users') }\n\
+             export function viaHidden() { return hidden.get('/users') }\n\
+             export function viaPlain() { return plain.get('/api/users') }\n\
+             export function absolute() { return api.get('http://localhost/api/users') }\n\
+             export function bare() { return axios.get('/api/users') }\n",
+        ),
+        (
+            "lib/users.ts",
+            "import { api } from './http'\n\
+             export function imported() { return api.get('/users') }\n",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    let names = labels(dir.path(), &d);
+    let users = BTreeSet::from([pair("GET /api/users", "ts.client.axios")]);
+    for src in [
+        "lib/http.ts#same",
+        "lib/http.ts#viaLocal",
+        "lib/http.ts#viaPlain",
+        "lib/http.ts#absolute",
+        "lib/http.ts#bare",
+        "lib/users.ts#imported",
+    ] {
+        assert_eq!(calls_from(&d, &names, src), users, "{src}");
+    }
+    // A `baseURL` that is not a literal: the URL starts with `{}` and never matches, not
+    // even the page `/users`.
+    assert!(calls_from(&d, &names, "lib/http.ts#viaHidden").is_empty());
+    let urls: BTreeSet<_> = d
+        .client_calls
+        .iter()
+        .map(|c| (c.file.as_str(), c.line, c.url.as_str()))
+        .collect();
+    assert_eq!(
+        urls,
+        BTreeSet::from([
+            ("lib/http.ts", 6, "/api/users"),
+            ("lib/http.ts", 7, "/api/users"),
+            ("lib/http.ts", 8, "{}/users"),
+            ("lib/http.ts", 9, "/api/users"),
+            ("lib/http.ts", 10, "/api/users"),
+            ("lib/http.ts", 11, "/api/users"),
+            ("lib/users.ts", 2, "/api/users"),
+        ])
+    );
 }

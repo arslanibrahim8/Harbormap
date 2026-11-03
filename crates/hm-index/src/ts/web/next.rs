@@ -330,10 +330,13 @@ fn form(element: Node, src: &[u8], spans: &[Span]) -> Option<FormFact> {
                 has_action = true;
                 action = value.map(|v| attribute_action(v, src));
             }
+            // A method that is not a string literal is unknown, never the default `GET`.
             n if n == method_attr => {
-                method = value
-                    .and_then(|v| attribute_string(v, src))
-                    .map(|s| s.to_uppercase());
+                method = Some(
+                    value
+                        .and_then(|v| attribute_string(v, src))
+                        .map_or_else(|| "ANY".to_string(), |s| s.to_uppercase()),
+                );
             }
             "onSubmit" => on_submit = true,
             _ => {}

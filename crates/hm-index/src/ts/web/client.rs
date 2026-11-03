@@ -1,6 +1,11 @@
 //! Client call and data-hook facts: `fetch`, axios, request helpers and SWR keys become
-//! `UrlCallFact`s; the functions handed to React Query and SWR become `HookFact`s.
+//! `UrlCallFact`s; the functions handed to React Query and SWR become `HookFact`s;
+//! module-level `axios.create({ baseURL })` instances become `AxiosFact`s.
 //! The query finds every call; the code here decides which ones are of interest.
+//!
+//! An axios instance joins its `baseURL` before a relative request URL, and an absolute one
+//! (a scheme or `//`) ignores it: https://axios-http.com/docs/instance,
+//! https://axios-http.com/docs/req_config
 
 use std::sync::OnceLock;
 
@@ -8,7 +13,7 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Node, Query, QueryCursor};
 
 use super::{Span, compile, normalize_client_url, owner_at};
-use crate::facts::{ArgFact, HookFact, UrlCallFact, WebFacts};
+use crate::facts::{ArgFact, AxiosFact, HookFact, UrlCallFact, WebFacts};
 use crate::lang::Lang;
 
 const CLIENT_SCM: &str = include_str!("queries/client.scm");
@@ -45,7 +50,12 @@ pub(crate) fn extract(root: Node, src: &[u8], lang: Lang, spans: &[Span], out: &
         return;
     };
     let names = q.capture_names();
-    let reader = Reader { src, spans };
+    let mut reader = Reader {
+        src,
+        spans,
+        instances: Vec::new(),
+    };
+    reader.instances = reader.axios_instances(root);
     let mut found: Vec<(usize, Found)> = Vec::new();
     let mut cursor = QueryCursor::new();
     let mut matches = cursor.matches(q, root, src);
@@ -78,6 +88,21 @@ pub(crate) fn extract(root: Node, src: &[u8], lang: Lang, spans: &[Span], out: &
         out.url_calls.extend(facts.urls);
         out.hooks.extend(facts.hooks);
     }
+    out.axios_instances = reader.instances;
+}
+
+/// True when axios would not join a `baseURL` before `raw`: it has a scheme or starts with
+/// `//`.
+fn is_absolute_url(raw: &str) -> bool {
+    if raw.starts_with("//") {
+        return true;
+    }
+    let Some((scheme, _)) = raw.split_once("://") else {
+        return false;
+    };
+    let mut chars = scheme.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+        && chars.all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
 }
 
 /// One call expression: the callee name, its receiver (for `a.b.name(…)`) and its arguments
@@ -98,6 +123,8 @@ struct Found {
 struct Reader<'s> {
     src: &'s [u8],
     spans: &'s [Span],
+    /// The module-level axios instances of the file.
+    instances: Vec<AxiosFact>,
 }
 
 fn named_children(node: Node) -> Vec<Node> {
@@ -149,7 +176,9 @@ impl<'s> Reader<'s> {
                 };
                 let axios_like = {
                     let lower = root.to_ascii_lowercase();
-                    lower == "axios" || ["api", "client", "http"].iter().any(|s| lower.ends_with(s))
+                    lower == "axios"
+                        || ["api", "client", "http"].iter().any(|s| lower.ends_with(s))
+                        || self.instances.iter().any(|a| a.name == root)
                 };
                 let first_is_object = site.args.first().is_some_and(|a| a.kind() == "object");
                 if is_verb(site.name) && axios_like && !first_is_object {
@@ -180,13 +209,83 @@ impl<'s> Reader<'s> {
         url: &str,
         out: &mut Found,
     ) {
+        // The name an axios instance may be bound to; `axios` itself has no `baseURL`.
+        let receiver = site
+            .receiver
+            .filter(|r| client == "axios" && r.kind() == "identifier" && !is_absolute_url(url))
+            .map(|r| self.text(r).to_string())
+            .filter(|name| name != "axios");
         out.urls.push(UrlCallFact {
             owner: owner_at(self.spans, site.call.start_byte()),
             client: client.into(),
             method,
             url: normalize_client_url(url),
             line: line_of(site.call),
+            receiver,
         });
+    }
+
+    /// Every module-level `const name = axios.create(config?)`, exported or not.
+    fn axios_instances(&self, root: Node) -> Vec<AxiosFact> {
+        let mut out = Vec::new();
+        for stmt in named_children(root) {
+            let decl = match stmt.kind() {
+                "export_statement" => stmt.child_by_field_name("declaration"),
+                _ => Some(stmt),
+            };
+            let Some(decl) =
+                decl.filter(|d| matches!(d.kind(), "lexical_declaration" | "variable_declaration"))
+            else {
+                continue;
+            };
+            for d in named_children(decl) {
+                let (Some(name), Some(value)) = (
+                    d.child_by_field_name("name")
+                        .filter(|n| n.kind() == "identifier"),
+                    d.child_by_field_name("value")
+                        .filter(|v| v.kind() == "call_expression"),
+                ) else {
+                    continue;
+                };
+                let is_create = value
+                    .child_by_field_name("function")
+                    .is_some_and(|f| self.text(f) == "axios.create");
+                let Some(args) = value.child_by_field_name("arguments").filter(|_| is_create)
+                else {
+                    continue;
+                };
+                out.push(AxiosFact {
+                    name: self.text(name).to_string(),
+                    base_url: self.base_url(named_children(args).first().copied()),
+                    line: line_of(d),
+                });
+            }
+        }
+        out
+    }
+
+    /// The `baseURL` of an `axios.create` config, normalised; `""` without one and `{}`
+    /// when it cannot be read.
+    fn base_url(&self, config: Option<Node>) -> String {
+        let Some(config) = config else {
+            return String::new();
+        };
+        if config.kind() != "object" {
+            return "{}".to_string();
+        }
+        match self.property(config, "baseURL") {
+            Some(value) if self.string_value(value).is_some_and(|v| v.is_empty()) => String::new(),
+            Some(value) => self
+                .url_text(value)
+                .map_or_else(|| "{}".to_string(), |u| normalize_client_url(&u)),
+            None if named_children(config)
+                .iter()
+                .any(|c| c.kind() == "spread_element") =>
+            {
+                "{}".to_string()
+            }
+            None => String::new(),
+        }
     }
 
     /// `fetch(url, init?)`; the method is `GET` unless `init` says otherwise.

@@ -152,6 +152,21 @@ pub struct UrlCallFact {
     /// As `normalize_client_url` spells it.
     pub url: String,
     pub line: u32,
+    /// The plain name an axios call is made on (`api` in `api.get('/x')`), when it is not
+    /// `axios` itself and the URL is relative, so that the `baseURL` of an
+    /// `axios.create({…})` bound to that name applies. Absent from the JSON otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receiver: Option<String>,
+}
+
+/// A module-level `name = axios.create({…})`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AxiosFact {
+    pub name: String,
+    /// The `baseURL` as `normalize_client_url` spells it: `""` without one, `{}` when it is
+    /// not a literal (or may be hidden by a spread or a config held in a variable).
+    pub base_url: String,
+    pub line: u32,
 }
 
 /// A call on a receiver that may be a router or an app, with its arguments.
@@ -198,6 +213,8 @@ pub struct FormFact {
     pub owner: Owner,
     pub element: String,
     pub action: Option<ArgFact>,
+    /// Upper-case; `ANY` when the attribute is there but not a string literal; `None`
+    /// without the attribute.
     pub method: Option<String>,
     pub on_submit: bool,
     pub line: u32,
@@ -262,6 +279,9 @@ pub struct WebFacts {
     pub matcher: Option<MatcherFact>,
     pub gaps: Vec<GapFact>,
     pub env: Vec<EnvFact>,
+    /// Absent from the JSON when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub axios_instances: Vec<AxiosFact>,
 }
 
 impl WebFacts {

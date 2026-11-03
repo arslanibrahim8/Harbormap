@@ -252,3 +252,52 @@ fn javascript_files_are_read_too() {
         vec![call("load", "fetch", Some("GET"), "/api/x")]
     );
 }
+
+// https://axios-http.com/docs/instance: `axios.create(config)` makes an instance whose
+// `baseURL` is joined before relative request URLs.
+#[test]
+fn axios_instances_and_their_receivers_are_recorded() {
+    let src = "import axios from 'axios'\n\
+               export const api = axios.create({ baseURL: 'https://Shop.Example/v1/' })\n\
+               const a = axios.create({ ...defaults }), b = axios.create(config)\n\
+               let c = axios.create({ baseURL: `${host}/api` })\n\
+               var d = axios.create({ timeout: 5 })\n\
+               const e = axios.create({ baseURL: '' })\n\
+               function make() { const inner = axios.create({ baseURL: '/x' }); return inner }\n\
+               export function f() { a.get('/one'); api.get('//cdn/x'); api.post('https://x/y'); return axios.get('/two') }\n";
+    let f = inline(src, Lang::TypeScript);
+    let instances: Vec<_> = f
+        .web
+        .axios_instances
+        .iter()
+        .map(|a| (a.name.as_str(), a.base_url.as_str(), a.line))
+        .collect();
+    assert_eq!(
+        instances,
+        [
+            ("api", "//shop.example/v1", 2),
+            ("a", "{}", 3),
+            ("b", "{}", 3),
+            ("c", "{}/api", 4),
+            ("d", "", 5),
+            ("e", "", 6),
+        ]
+    );
+    // `a` is an instance of this file although its name says nothing; only a relative URL
+    // on a name other than `axios` keeps its receiver.
+    let receivers: Vec<_> = f
+        .web
+        .url_calls
+        .iter()
+        .map(|c| (c.url.as_str(), c.receiver.as_deref()))
+        .collect();
+    assert_eq!(
+        receivers,
+        [
+            ("/one", Some("a")),
+            ("//cdn/x", None),
+            ("//x/y", None),
+            ("/two", None),
+        ]
+    );
+}

@@ -9,7 +9,13 @@
 //!
 //! Matching is segment by segment. Of the routes that fit, the one with the most literal
 //! segments wins (not Next.js's left-to-right precedence of static over dynamic over
-//! catch-all), and two routes with the same count, in any root, give no edge: no guessing.
+//! catch-all), and two routes with the same count give no edge: no guessing. A call looks
+//! first among the routes of its own app (the manifest root that governs its file); only
+//! when none of them fits does it look among the routes of every root. Programmatic
+//! clients (`fetch`, axios, request helpers, SWR) reach `http` routes only; a form reaches
+//! pages and `http` routes. An axios call on an instance from `axios.create({ baseURL })`,
+//! bound at module level in the same file or imported from the file that binds and exports
+//! it, has the `baseURL` joined before a relative URL.
 //!
 //! Rules checked against the official docs while building:
 //! - `useMutation` and `useQuery` take `mutationFn` / `queryFn` and the callbacks
@@ -28,8 +34,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use hm_core::ids::file_id;
 
 use super::{ClientCall, Derived, Ids, InferredEdge, Inputs, Route};
-use crate::facts::{AliasFact, ArgFact, FileFacts, FormFact, Owner};
-use crate::ts::resolve::{Project, resolve_callee};
+use crate::facts::{AliasFact, ArgFact, FileFacts, FormFact, ImportKind, Owner, UrlCallFact};
+use crate::ts::resolve::{ModuleTarget, Project, resolve_callee};
 use crate::ts::web::normalize_client_url;
 
 /// How many aliases a name is followed through (`bind`, `useActionState`, `bind`, …).
@@ -57,10 +63,10 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
                     src_id: source(&mut ids, rel, &c.owner, c.line),
                     line: c.line,
                     method: c.method.clone().unwrap_or_else(|| "ANY".to_string()),
-                    url: c.url.clone(),
+                    url: with_base_url(project, rel, facts, c),
                     rule: format!("ts.client.{}", c.client),
                 },
-                Target::ByUrl,
+                Target::ByUrl { pages: false },
             ));
         }
         for form in &facts.web.forms {
@@ -79,43 +85,44 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
                 url,
                 rule: rule.to_string(),
             };
-            match &form.action {
-                // `action="#"` or `action="?page=2"` has no path: the current page, not `/`.
-                Some(ArgFact::Str(u)) => {
-                    let url = normalize_client_url(u);
-                    if !url.is_empty() {
-                        let src_id = source(&mut ids, rel, &form.owner, form.line);
-                        calls.insert((call(url, "ts.client.form", src_id), Target::ByUrl));
-                    }
-                }
+            // `action=""`, `action="#"` or `action="?page=2"` has no path: like no action,
+            // the current page, never `/`.
+            let url = match &form.action {
+                Some(ArgFact::Str(u)) => Some(normalize_client_url(u)),
+                _ => None,
+            };
+            let to_self = url.as_ref().map_or(form.action.is_none(), String::is_empty);
+            if let Some(url) = url.filter(|u| !u.is_empty()) {
+                let src_id = source(&mut ids, rel, &form.owner, form.line);
+                calls.insert((
+                    call(url, "ts.client.form", src_id),
+                    Target::ByUrl { pages: true },
+                ));
+            } else if to_self && is_self_form(form) {
                 // A form that submits to the page it is in: the page's own pattern.
-                None if is_self_form(form) => {
-                    let mut pages = routes
-                        .iter()
-                        .filter(|r| r.entry_kind == "page" && r.file == *rel);
-                    if let (Some(page), None) = (pages.next(), pages.next()) {
-                        let src_id = source(&mut ids, rel, &form.owner, form.line);
-                        calls.insert((
-                            call(page.pattern.clone(), "ts.client.form_self", src_id),
-                            Target::Page(page.id.clone()),
-                        ));
-                    }
+                let mut pages = routes
+                    .iter()
+                    .filter(|r| r.entry_kind == "page" && r.file == *rel);
+                if let (Some(page), None) = (pages.next(), pages.next()) {
+                    let src_id = source(&mut ids, rel, &form.owner, form.line);
+                    calls.insert((
+                        call(page.pattern.clone(), "ts.client.form_self", src_id),
+                        Target::Page(page.id.clone()),
+                    ));
                 }
-                Some(ArgFact::Name(name)) => {
-                    let found =
-                        action_target(project, &mut ids, &handlers, rel, facts, &form.owner, name);
-                    if let Some(dst) = found {
-                        let src_id = source(&mut ids, rel, &form.owner, form.line);
-                        edges.insert(calls_edge(
-                            rel,
-                            src_id,
-                            dst,
-                            form.line,
-                            "ts.next.action.form",
-                        ));
-                    }
+            } else if let Some(ArgFact::Name(name)) = &form.action {
+                let found =
+                    action_target(project, &mut ids, &handlers, rel, facts, &form.owner, name);
+                if let Some(dst) = found {
+                    let src_id = source(&mut ids, rel, &form.owner, form.line);
+                    edges.insert(calls_edge(
+                        rel,
+                        src_id,
+                        dst,
+                        form.line,
+                        "ts.next.action.form",
+                    ));
                 }
-                _ => {}
             }
         }
         for h in &facts.web.hooks {
@@ -152,16 +159,22 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
     }
 
     let matcher = Matcher::new(&routes);
-    let mut found: HashMap<(&str, &str), Option<&Route>> = HashMap::new();
+    let mut found: HashMap<(&str, &str, &str, bool), Option<&Route>> = HashMap::new();
     for (call, target) in &calls {
         let dst = match target {
             Target::Page(id) => routes
                 .iter()
                 .find(|r| r.id == *id)
                 .filter(|r| methods_agree(&r.method, &call.method)),
-            Target::ByUrl => *found
-                .entry((call.method.as_str(), call.url.as_str()))
-                .or_insert_with(|| matcher.find(&call.method, &call.url)),
+            Target::ByUrl { pages } => {
+                let root = inputs
+                    .manifests
+                    .root_of(&call.file)
+                    .map_or("", |m| m.root.as_str());
+                *found
+                    .entry((root, call.method.as_str(), call.url.as_str(), *pages))
+                    .or_insert_with(|| matcher.find(root, &call.method, &call.url, *pages))
+            }
         };
         if let Some(route) = dst {
             edges.insert(InferredEdge {
@@ -183,8 +196,9 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
 /// Where a client call looks for its route.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Target {
-    /// Matched by method and URL against every route.
-    ByUrl,
+    /// Matched by method and URL against the `http` routes, and the pages too when `pages`
+    /// (a form).
+    ByUrl { pages: bool },
     /// A form without action: the page it is in, by id.
     Page(String),
 }
@@ -193,6 +207,65 @@ enum Target {
 fn source(ids: &mut Ids, rel: &str, owner: &Owner, line: u32) -> String {
     ids.holder(rel, owner.as_ref(), line)
         .unwrap_or_else(|| file_id(rel))
+}
+
+/// The URL of an axios call with the `baseURL` of its instance joined before it. A URL
+/// that starts with `{}` may be absolute at run time and stays as it is.
+fn with_base_url(project: &Project, rel: &str, facts: &FileFacts, call: &UrlCallFact) -> String {
+    let base = call
+        .receiver
+        .as_deref()
+        .filter(|_| !call.url.starts_with("{}"))
+        .and_then(|name| axios_base(project, rel, facts, name));
+    match base {
+        Some(base) if !base.is_empty() => {
+            let head = base.trim_end_matches('/');
+            match call.url.trim_start_matches('/') {
+                "" if head.is_empty() => "/".to_string(),
+                "" => head.to_string(),
+                tail => format!("{head}/{tail}"),
+            }
+        }
+        _ => call.url.clone(),
+    }
+}
+
+/// The `baseURL` of the axios instance `name` stands for at the top level of `rel`: one
+/// bound there, or one imported from the file that binds and exports it.
+fn axios_base<'p>(
+    project: &'p Project,
+    rel: &str,
+    facts: &'p FileFacts,
+    name: &str,
+) -> Option<&'p str> {
+    let local = |facts: &'p FileFacts, name: &str| {
+        facts
+            .web
+            .axios_instances
+            .iter()
+            .find(|a| a.name == name)
+            .map(|a| a.base_url.as_str())
+    };
+    if let Some(base) = local(facts, name) {
+        return Some(base);
+    }
+    let (specifier, imported) = facts
+        .imports
+        .iter()
+        .filter(|i| i.kind != ImportKind::ReExport && !i.type_only)
+        .find_map(|i| {
+            let n = i.names.iter().find(|n| n.local == name)?;
+            Some((i.specifier.as_str(), n.imported.as_str()))
+        })?;
+    let ModuleTarget::File(target) = project.modules.resolve(rel, specifier) else {
+        return None;
+    };
+    let target_facts = project.facts.get(&target)?;
+    let export = target_facts
+        .exports
+        .iter()
+        .find(|e| !e.star && e.from.is_none() && e.name == imported)?;
+    local(target_facts, export.local.as_deref().unwrap_or(imported))
 }
 
 /// A `<form>` with no `action` and no `onSubmit`.
@@ -307,40 +380,39 @@ impl<'r> Matcher<'r> {
         Matcher { candidates }
     }
 
-    /// The route with the most literal segments among those that fit; `None` for no match
-    /// and for a tie (no guessing).
-    fn find(&self, method: &str, url: &str) -> Option<&'r Route> {
+    /// The route a call from a file under manifest root `root` reaches: the one with the
+    /// most literal segments among the routes of `root` that fit, else among those of every
+    /// root; `None` for no match and for a tie (no guessing). Pages count only when `pages`.
+    fn find(&self, root: &str, method: &str, url: &str, pages: bool) -> Option<&'r Route> {
         // A path from the root of this site: not `api/x`, not `{}/x` (a base URL held in a
         // variable), not `//host/x` (another host, whatever the scheme).
         if !url.starts_with('/') || url.starts_with("//") {
             return None;
         }
         let parts: Vec<&str> = segments(url).collect();
-        let mut best: Option<&Candidate> = None;
-        let mut tied = false;
-        for c in &self.candidates {
-            if !methods_agree(&c.route.method, method) || !fits(&c.segs, &parts) {
-                continue;
-            }
-            match best {
-                Some(b) if b.literals > c.literals => {}
-                Some(b) if b.literals == c.literals => tied = true,
-                _ => {
-                    best = Some(c);
-                    tied = false;
-                }
-            }
-        }
-        best.filter(|_| !tied).map(|c| c.route)
+        let fitting: Vec<&Candidate> = self
+            .candidates
+            .iter()
+            .filter(|c| pages || c.route.entry_kind == "http")
+            .filter(|c| methods_agree(&c.route.method, method) && fits(&c.segs, &parts))
+            .collect();
+        let own: Vec<&Candidate> = fitting
+            .iter()
+            .copied()
+            .filter(|c| c.route.root == root)
+            .collect();
+        most_specific(if own.is_empty() { &fitting } else { &own })
     }
 }
 
-/// The route that a client call to `url` with `method` reaches, among `routes`; see
-/// [`Matcher`]. `derive` builds one `Matcher` for all its calls; this is the one-off form for
-/// callers that match a single URL.
-#[allow(dead_code)]
-pub fn match_route<'r>(routes: &'r [Route], method: &str, url: &str) -> Option<&'r Route> {
-    Matcher::new(routes).find(method, url)
+/// The candidate with the most literal segments; `None` when there is none or a tie.
+fn most_specific<'r>(fitting: &[&Candidate<'r>]) -> Option<&'r Route> {
+    let most = fitting.iter().map(|c| c.literals).max()?;
+    let mut top = fitting.iter().filter(|c| c.literals == most);
+    match (top.next(), top.next()) {
+        (Some(c), None) => Some(c.route),
+        _ => None,
+    }
 }
 
 /// The non-empty `/`-separated parts of a path or pattern.
