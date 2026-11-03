@@ -6,7 +6,7 @@
 //! name is bound to the package by an import is read from the file's imports alone: no
 //! types, no flow. A name that an import binds to another package is never a match.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::OnceLock;
 
 use hm_core::ids::file_id;
@@ -84,6 +84,8 @@ struct Rule {
     receiver: Receiver,
     #[serde(default)]
     receiver_depth: usize,
+    #[serde(default)]
+    min_args: u32,
     #[serde(default)]
     receiver_names: Vec<String>,
     term: String,
@@ -224,13 +226,19 @@ impl<'a> FileCtx<'a> {
     }
 
     /// The confidence of `rule` on a call or decorator, or `None` when it does not apply.
-    fn confidence(&self, rule: &Rule, receiver: Option<&str>, name: &str) -> Option<&'static str> {
+    fn confidence(
+        &self,
+        rule: &Rule,
+        receiver: Option<&str>,
+        name: &str,
+        args: u32,
+    ) -> Option<&'static str> {
         if let Scope::Global = rule.scope {
             let on = receiver.is_some_and(|r| rule.receiver_names.iter().any(|n| n == r));
             return on.then_some("sure");
         }
         let depth = receiver.map_or(0, |r| r.split('.').count());
-        if depth < rule.receiver_depth {
+        if depth < rule.receiver_depth || args < rule.min_args {
             return None;
         }
         let in_scope = match rule.scope {
@@ -302,12 +310,18 @@ fn root_ident(expr: &str) -> &str {
     &expr[..end]
 }
 
+/// Orders confidences: "sure" beats "probably".
+fn rank(conf: &str) -> u8 {
+    u8::from(conf == "sure")
+}
+
 /// The patterns and gaps of every file.
 pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
     let pack = pack();
     let mut ids = Ids::new(inputs.project);
     // One row per primary key; of two rules that differ only in confidence, the surer.
     let mut found: BTreeMap<(String, String, String, u32, String), Pattern> = BTreeMap::new();
+    let mut gaps: BTreeMap<(String, String, u32), String> = BTreeMap::new();
     let mut add = |p: Pattern| {
         let key = (
             p.file.clone(),
@@ -317,7 +331,7 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
             p.rule.clone(),
         );
         match found.get(&key) {
-            Some(old) if old.conf >= p.conf => {}
+            Some(old) if rank(&old.conf) >= rank(&p.conf) => {}
             _ => {
                 found.insert(key, p);
             }
@@ -341,7 +355,7 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
             let receiver = call.receiver.as_deref();
             for i in ctx.candidates(&pack.by_callee, receiver, &call.callee) {
                 let rule = &pack.rules[i];
-                if let Some(conf) = ctx.confidence(rule, receiver, &call.callee) {
+                if let Some(conf) = ctx.confidence(rule, receiver, &call.callee, call.args) {
                     let subject = ids
                         .holder(rel, call.owner.as_ref(), call.line)
                         .unwrap_or_else(|| file_id(rel));
@@ -353,26 +367,33 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
         for dec in &facts.web.decorators {
             for i in ctx.candidates(&pack.by_decorator, None, &dec.name) {
                 let rule = &pack.rules[i];
-                if let Some(conf) = ctx.confidence(rule, None, &dec.name) {
+                if let Some(conf) = ctx.confidence(rule, None, &dec.name, dec.args.len() as u32) {
                     let subject = ctx.decorated(&mut ids, &dec.target);
                     add(pattern(rule, subject, dec.line, conf));
                 }
             }
         }
 
+        // One row per (subject, line): its detail names every variable read there.
+        let mut env: BTreeMap<(String, u32), BTreeSet<&str>> = BTreeMap::new();
         for read in &facts.web.env {
             let subject = ids
                 .holder(rel, read.owner.as_ref(), read.line)
                 .unwrap_or_else(|| file_id(rel));
+            env.entry((subject, read.line))
+                .or_default()
+                .insert(&read.name);
+        }
+        for ((subject, line), names) in env {
             add(Pattern {
                 file: rel.clone(),
                 subject_id: subject,
                 kind: "env_read".to_string(),
-                line: read.line,
+                line,
                 rule: "ts.pattern.env".to_string(),
                 conf: "sure".to_string(),
                 term: Some("env_var".to_string()),
-                detail: Some(read.name.clone()),
+                detail: Some(names.into_iter().collect::<Vec<_>>().join(",")),
             });
         }
 
@@ -380,13 +401,37 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
             let subject = ids
                 .holder(rel, gap.owner.as_ref(), gap.line)
                 .unwrap_or_else(|| file_id(rel));
-            out.gaps.push(Gap {
-                file: rel.clone(),
-                subject_id: subject,
-                kind: gap.kind.clone(),
-                line: gap.line,
-            });
+            // The table's key is (file, kind, line); of two subjects the smaller id stays.
+            let slot = gaps
+                .entry((rel.clone(), gap.kind.clone(), gap.line))
+                .or_insert_with(|| subject.clone());
+            if subject < *slot {
+                *slot = subject;
+            }
         }
     }
+    out.gaps.extend(
+        gaps.into_iter()
+            .map(|((file, kind, line), subject_id)| Gap {
+                file,
+                subject_id,
+                kind,
+                line,
+            }),
+    );
     out.patterns.extend(found.into_values());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_embedded_pack_deserializes_into_every_rule() {
+        let table: toml::Table = toml::from_str(PACK).expect("valid TOML");
+        let rows = table["rule"].as_array().expect("[[rule]] entries").len();
+        let parsed: PackFile = toml::from_str(PACK).expect("every row fits `Rule`");
+        assert_eq!(parsed.rule.len(), rows);
+        assert_eq!(pack().rules.len(), rows, "the pack the indexer uses");
+    }
 }

@@ -104,7 +104,8 @@ fn pack_parses_and_every_kind_is_known() {
                     "decorators",
                     "term",
                     "receiver_names",
-                    "receiver_depth"
+                    "receiver_depth",
+                    "min_args"
                 ]
                 .contains(&key.as_str()),
                 "{id}: unknown key {key}"
@@ -190,8 +191,20 @@ fn builtins_and_other_libraries_do_not_match() {
             "line {line}: {orders:?}"
         );
     }
-    // A `sql` tag from drizzle-orm and a `sign` from node:crypto are other libraries'.
-    assert_eq!(found(&d, "src/report.ts"), BTreeSet::new());
+    // report.ts imports jsonwebtoken, so the rule is in scope: only `jwt.sign` (line 7) is
+    // its; the bare `sign` of node:crypto (line 6) and the `sql` tag of drizzle-orm (line 8)
+    // are bound to other packages.
+    assert_eq!(
+        found(&d, "src/report.ts"),
+        [row(
+            7,
+            "token_session",
+            "ts.pattern.jsonwebtoken.token",
+            "sure"
+        )]
+        .into_iter()
+        .collect()
+    );
 }
 
 #[test]
@@ -366,4 +379,53 @@ fn aliases_and_default_imports_match_by_the_imported_name() {
     .into_iter()
     .collect();
     assert_eq!(found(&d, "src/alias.ts"), want);
+}
+
+#[test]
+fn generic_drizzle_names_need_a_receiver_and_an_argument() {
+    let d = derive_tree(&fixture("patterns-ts"));
+    // Line 8: a bare local `select([])`; line 9: a zero-argument `searchParams.delete()`.
+    // Lines 10 and 11 are `db.select()` and `db.delete(users)`.
+    assert_eq!(
+        found(&d, "src/queries.ts"),
+        [
+            row(10, "orm_read", "ts.pattern.drizzle.read", "probably"),
+            row(11, "orm_write", "ts.pattern.drizzle.write", "probably"),
+        ]
+        .into_iter()
+        .collect()
+    );
+}
+
+#[test]
+fn two_gaps_of_one_kind_on_one_line_are_one_row() {
+    let dir = copy_fixture("patterns-ts");
+    fs::write(
+        dir.path().join("src/twice.ts"),
+        "export function run(a: string, b: string) {\n  eval(a); eval(b);\n}\n",
+    )
+    .unwrap();
+    let d = derive_tree(dir.path());
+    let gaps: Vec<_> = d.gaps.iter().filter(|g| g.file == "src/twice.ts").collect();
+    assert_eq!(gaps.len(), 1, "{gaps:?}");
+    assert_eq!((gaps[0].kind.as_str(), gaps[0].line), ("eval", 2));
+}
+
+#[test]
+fn env_reads_on_one_line_are_one_row_with_every_name() {
+    let dir = copy_fixture("patterns-ts");
+    fs::write(
+        dir.path().join("src/keys.ts"),
+        "export const keys = [process.env.B_KEY, process.env.A_KEY, process.env.B_KEY];\n",
+    )
+    .unwrap();
+    let d = derive_tree(dir.path());
+    let env: Vec<_> = d
+        .patterns
+        .iter()
+        .filter(|p| p.file == "src/keys.ts")
+        .collect();
+    assert_eq!(env.len(), 1, "{env:?}");
+    assert_eq!(env[0].detail.as_deref(), Some("A_KEY,B_KEY"));
+    assert_eq!(env[0].line, 1);
 }

@@ -18,12 +18,26 @@
 #                   import of it); "none": a bare call.
 #   receiver_depth  the receiver must have at least this many dotted parts (`db.order` is
 #                   two); keeps `params.delete()` from being an ORM write.
+#   min_args        the call has at least this many arguments (`db.delete(table)` takes the
+#                   table; a zero-argument `searchParams.delete()` is not an ORM write).
 #   receiver_names  "global" only: the exact receiver text.
 #   term            glossary slug.
 #
 # A call whose receiver root (or bare callee) is bound by an import of another package is
 # never a match. conf is "sure" when the name is bound to `package`, else "probably".
-# Names were checked against the packages' documentation or type definitions.
+#
+# Checked against the official documentation while building: next/cache (`revalidateTag`,
+# `updateTag`, `unstable_cache`), next/headers `cookies`, p-retry (default export), BullMQ
+# `Queue`, bcryptjs, argon2 (`hash`, `verify`), jsonwebtoken (`sign`, `verify`), jose
+# `SignJWT`, Drizzle (`select`, `selectDistinct`) and the Prisma client methods. The other
+# names come from knowledge of the libraries and were not checked against their docs:
+# TypeORM, Mongoose, zod, yup, joi, class-validator, `cacheTag`, `cacheLife`, `jwtVerify`,
+# `EncryptJWT`, `jwtDecrypt`, `FlowProducer`, Auth.js, react `cache` and the `sql` tag of
+# postgres and @vercel/postgres.
+#
+# Overlaps are intended: with no types, `updateMany` and `deleteMany` match both Prisma and
+# Mongoose, `transaction` both Drizzle and TypeORM, and an unbound `sql` both postgres rows
+# when a manifest declares both; each rule then reports its own row.
 
 # Prisma. The client is usually built in a local file, so these are mostly "probably".
 [[rule]]
@@ -69,6 +83,7 @@ package = "drizzle-orm"
 scope = "import"
 callees = ["select", "selectDistinct"]
 receiver = "any"
+receiver_depth = 1
 term = "orm"
 
 [[rule]]
@@ -78,6 +93,8 @@ package = "drizzle-orm"
 scope = "import"
 callees = ["insert", "update", "delete"]
 receiver = "any"
+receiver_depth = 1
+min_args = 1
 term = "orm"
 
 [[rule]]
@@ -87,6 +104,7 @@ package = "drizzle-orm"
 scope = "import"
 callees = ["transaction"]
 receiver = "any"
+receiver_depth = 1
 term = "transaction"
 
 # TypeORM. Only names that other code rarely uses (`find`, `remove` and `delete` are left out).
@@ -100,6 +118,7 @@ callees = [
   "getMany", "getOne", "getManyAndCount", "getRawMany", "getRawOne", "createQueryBuilder",
 ]
 receiver = "any"
+receiver_depth = 1
 term = "orm"
 
 [[rule]]
