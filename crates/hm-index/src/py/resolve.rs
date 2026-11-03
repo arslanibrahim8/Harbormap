@@ -214,6 +214,33 @@ impl PyProject<'_> {
         self.facts[file].symbols[symbol].kind
     }
 
+    /// The last import of `rel` that binds `name`. `from . import name` in a package's
+    /// own `__init__` names the same module and name again: it binds no name of its
+    /// own, so the lookup goes on to the submodule.
+    fn own_binding<'f>(
+        &self,
+        rel: &str,
+        facts: &'f FileFacts,
+        name: &str,
+    ) -> Option<(&'f ImportFact, &'f ImportedName)> {
+        facts.imports.iter().rev().find_map(|i| {
+            let n = i.names.iter().find(|n| n.local == name && n.local != "*")?;
+            let loops = n.imported == name
+                && !is_plain_import(i)
+                && matches!(
+                    self.modules.resolve(rel, &i.specifier),
+                    PyTarget::Module(m) if m.file.as_deref() == Some(rel)
+                );
+            (!loops).then_some((i, n))
+        })
+    }
+
+    /// Whether `name` is a name of the module file `rel` itself: a top-level symbol or
+    /// an import that leads elsewhere.
+    fn bound_in(&self, rel: &str, facts: &FileFacts, name: &str) -> bool {
+        last_top_level(facts, name).is_some() || self.own_binding(rel, facts, name).is_some()
+    }
+
     /// What the import `i` of `rel` binds to its local name `n`. `import a.b` binds
     /// `a` to the package `a`; `import a.b as c` binds `c` to `a.b`.
     fn follow_binding(
@@ -254,7 +281,7 @@ impl PyProject<'_> {
             if let Some(i) = last_top_level(facts, name) {
                 return Some(Named::Symbol(rel.to_string(), i));
             }
-            if let Some((i, n)) = import_binding(facts, name) {
+            if let Some((i, n)) = self.own_binding(rel, facts, name) {
                 return self.follow_binding(rel, i, n, hops);
             }
         }
@@ -297,7 +324,7 @@ impl PyProject<'_> {
         if let Some(i) = last_top_level(facts, name) {
             return Some((Named::Symbol(rel.to_string(), i), true));
         }
-        if let Some((i, n)) = import_binding(facts, name) {
+        if let Some((i, n)) = self.own_binding(rel, facts, name) {
             return Some((self.follow_binding(rel, i, n, 0)?, false));
         }
         Some((self.star_hit(rel, facts, name, 0)?, false))
@@ -388,34 +415,54 @@ impl PyProject<'_> {
         }
     }
 
-    /// The classes that the attribute facts for `attr` on a class state, or, when it
-    /// states none that resolve to a class, those on its bases (depth first).
-    fn attr_types(
-        &self,
-        file: &str,
-        class: usize,
-        attr: &str,
-        depth: u32,
-    ) -> BTreeSet<(String, usize)> {
+    /// The one class the attribute facts for `attr` on a class state, or, when the
+    /// class states none, on its bases (depth first). Every fact of the class that
+    /// decides must name that same class: one that names no class, or another one,
+    /// leaves the type unsure.
+    fn attr_type(&self, file: &str, class: usize, attr: &str, depth: u32) -> AttrType {
         let facts = &self.facts[file];
         let name = &facts.symbols[class].name;
-        let own: BTreeSet<(String, usize)> = facts
+        let stated: Vec<&str> = facts
             .attrs
             .iter()
             .filter(|a| a.class == *name && a.attr == attr)
-            .filter_map(|a| self.class_in(file, &a.type_name))
+            .map(|a| a.type_name.as_str())
             .collect();
-        if !own.is_empty() || depth >= MAX_HOPS {
-            return own;
+        if !stated.is_empty() {
+            let mut types = BTreeSet::new();
+            for ty in stated {
+                match self.class_in(file, ty) {
+                    Some(k) => types.insert(k),
+                    None => return AttrType::Unsure,
+                };
+            }
+            let mut types = types.into_iter();
+            return match (types.next(), types.next()) {
+                (Some((file, k)), None) => AttrType::One(file, k),
+                _ => AttrType::Unsure,
+            };
+        }
+        if depth >= MAX_HOPS {
+            return AttrType::Unstated;
         }
         for (base_file, base) in self.bases(file, class) {
-            let found = self.attr_types(&base_file, base, attr, depth + 1);
-            if !found.is_empty() {
-                return found;
+            match self.attr_type(&base_file, base, attr, depth + 1) {
+                AttrType::Unstated => {}
+                decided => return decided,
             }
         }
-        BTreeSet::new()
+        AttrType::Unstated
     }
+}
+
+/// What the attribute facts say about the type of an attribute.
+enum AttrType {
+    /// No class on the way states a type.
+    Unstated,
+    /// One class: its file and index.
+    One(String, usize),
+    /// A stated type that names no class, or two different classes.
+    Unsure,
 }
 
 /// What a call or base resolved to.
@@ -665,10 +712,11 @@ impl Resolver<'_, '_> {
         if is_plain_import(i) {
             return m.file.into_iter().map(Ok).collect();
         }
-        let own = m.file.as_deref().and_then(|f| p.facts.get(f));
+        let own = m.file.as_deref().and_then(|f| Some((f, p.facts.get(f)?)));
         let mut out = Vec::new();
         for n in &i.names {
-            let bound = n.imported == "*" || own.is_some_and(|f| binds(f, &n.imported));
+            let bound = n.imported == "*"
+                || own.is_some_and(|(file, facts)| p.bound_in(file, facts, &n.imported));
             let sub = m
                 .package_dir
                 .as_deref()
@@ -766,19 +814,13 @@ impl Resolver<'_, '_> {
                         None => UNRESOLVED,
                     },
                 },
-                [_, attr] => {
-                    let types = p.attr_types(rel, k, attr, 0);
-                    let mut types = types.into_iter();
-                    match (types.next(), types.next()) {
-                        (Some((file, ty)), None) => {
-                            match p.method_or_inherited(&file, ty, callee) {
-                                Some((file, m)) => probably(file, m, "py.call.attr"),
-                                None => UNRESOLVED,
-                            }
-                        }
-                        _ => UNRESOLVED,
-                    }
-                }
+                [_, attr] => match p.attr_type(rel, k, attr, 0) {
+                    AttrType::One(file, ty) => match p.method_or_inherited(&file, ty, callee) {
+                        Some((file, m)) => probably(file, m, "py.call.attr"),
+                        None => UNRESOLVED,
+                    },
+                    _ => UNRESOLVED,
+                },
                 _ => UNRESOLVED,
             };
         }

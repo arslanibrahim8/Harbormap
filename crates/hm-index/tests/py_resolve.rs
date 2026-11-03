@@ -515,3 +515,103 @@ fn forwards_follows_imports_to_their_module_files() {
         assert_eq!(forwards(&p, rel, target), want, "forwards({rel}, {target})");
     }
 }
+
+#[test]
+fn a_package_importing_its_own_submodule_binds_the_submodule() {
+    let tree = |main: &'static str| {
+        named_for(&[
+            ("p/__init__.py", "from . import sub\n"),
+            ("p/sub.py", "def f():\n    pass\n"),
+            ("main.py", main),
+        ])
+    };
+    for main in ["import p\np.sub.f()\n", "from p import sub\nsub.f()\n"] {
+        let n = tree(main);
+        n.assert_edge("calls", "main.py", "p/sub.py#f", "py.call.module", false);
+        n.assert_edge("imports", "p/__init__.py", "p/sub.py", "py.import", false);
+        assert!(
+            !n.edges
+                .iter()
+                .any(|(_, s, d, _, _)| s == "p/__init__.py" && d == "p/__init__.py"),
+            "a self-edge: {:#?}",
+            n.edges
+        );
+        assert!(n.refs.is_empty(), "{main}: {:#?}", n.refs);
+    }
+    // `from p import sub` names the submodule, so the edge goes to it.
+    tree("from p import sub\nsub.f()\n").assert_edge(
+        "imports",
+        "main.py",
+        "p/sub.py",
+        "py.import",
+        false,
+    );
+}
+
+#[test]
+fn an_attr_type_that_is_not_a_class_makes_the_call_a_ref() {
+    let n = named_for(&[(
+        "c.py",
+        "from unk import Unk\n\n\
+         class A:\n    def y(self):\n        pass\n\n\
+         class C:\n    def __init__(self, flag):\n        if flag:\n            self.x = A()\n        else:\n            self.x = Unk()\n\n    def run(self):\n        self.x.y()\n",
+    )]);
+    n.assert_ref("c.py", "call", "self.x.y", "unresolved");
+    assert!(
+        !n.edges.iter().any(|(_, s, _, _, _)| s == "c.py#C.run"),
+        "{:#?}",
+        n.edges
+    );
+
+    // The same on a base: the base's facts decide, all of them.
+    let n = named_for(&[(
+        "c.py",
+        "class A:\n    def y(self):\n        pass\n\n\
+         class B:\n    def __init__(self):\n        self.x = A()\n        self.x = make()\n\n\
+         class C(B):\n    def run(self):\n        self.x.y()\n",
+    )]);
+    n.assert_ref("c.py", "call", "self.x.y", "unresolved");
+}
+
+#[test]
+fn a_name_chain_is_followed_for_five_hops() {
+    // main -> c1 -> ... -> c<last>, each re-exporting `f`; the last one defines it.
+    let chain = |last: u32| {
+        let mut files: Vec<(String, String)> = (1..last)
+            .map(|i| (format!("c{i}.py"), format!("from c{} import f\n", i + 1)))
+            .collect();
+        files.push((format!("c{last}.py"), "def f():\n    pass\n".into()));
+        files.push(("main.py".into(), "from c1 import f\nf()\n".into()));
+        let files: Vec<(&str, &str)> = files
+            .iter()
+            .map(|(a, b)| (a.as_str(), b.as_str()))
+            .collect();
+        named_for(&files)
+    };
+    chain(5).assert_edge("calls", "main.py", "c5.py#f", "py.call.import", false);
+    let n = chain(6);
+    n.assert_ref("main.py", "call", "f", "unresolved");
+    assert!(!n.edges.iter().any(|(k, _, _, _, _)| k == "calls"));
+}
+
+#[test]
+fn an_aliased_dotted_import_binds_the_full_module() {
+    let n = named_for(&[
+        ("a/__init__.py", "def f():\n    pass\n"),
+        ("a/b.py", "def f():\n    pass\n"),
+        (
+            "main.py",
+            "import a.b as c\nimport a.b\nc.f()\na.f()\na.b.f()\n",
+        ),
+    ]);
+    n.assert_edge("imports", "main.py", "a/b.py", "py.import", false);
+    n.assert_edge("calls", "main.py", "a/b.py#f", "py.call.module", false);
+    n.assert_edge(
+        "calls",
+        "main.py",
+        "a/__init__.py#f",
+        "py.call.module",
+        false,
+    );
+    assert!(n.refs.is_empty(), "{:#?}", n.refs);
+}
