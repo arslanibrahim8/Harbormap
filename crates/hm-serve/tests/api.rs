@@ -334,3 +334,22 @@ async fn json_and_assets_are_gzipped_when_asked() {
     );
     assert_eq!(json.header("content-encoding"), Some("gzip"));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn odd_query_strings_are_answered_and_the_server_keeps_serving() {
+    let dir = project();
+    let live = start(dir.path()).await;
+    // Bytes that are not UTF-8, in a path and in a search.
+    assert_eq!(get_json(&live, "/api/file?path=src/%ff.ts").0, 404);
+    assert_eq!(get_json(&live, "/api/card?path=%ff").0, 404);
+    assert_eq!(get_json(&live, "/api/search?q=%ff%fe").0, 200);
+    // A search far longer than any file name matches nothing but is not an error.
+    let long = "a".repeat(60_000);
+    let (status, body) = get_json(&live, &format!("/api/search?q={long}"));
+    assert_eq!(status, 200);
+    assert_eq!(body["results"], serde_json::json!([]));
+    let (status, _) = get_json(&live, &format!("/api/file?path={long}"));
+    assert_eq!(status, 404);
+    // Still serving.
+    assert_eq!(get_json(&live, "/api/tech").0, 200);
+}

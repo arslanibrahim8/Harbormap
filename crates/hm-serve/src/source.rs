@@ -1,6 +1,6 @@
 //! `/api/file`: the text of one indexed file, for the source view of a card.
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{ErrorKind, Read};
 use std::path::Path;
 use std::sync::Arc;
@@ -53,7 +53,7 @@ pub(crate) async fn file(
     let root = shared.root.clone();
     let (text, truncated) = tokio::task::spawn_blocking(move || load(&root, &path))
         .await
-        .map_err(|_| ApiError::internal())??;
+        .map_err(ApiError::internal)??;
     Ok(Json(SourceFile {
         v: 1,
         path: row.path,
@@ -69,7 +69,7 @@ pub(crate) async fn file(
 fn load(root: &Path, rel: &str) -> Result<(String, bool), ApiError> {
     let gone = |e: std::io::Error| match e.kind() {
         ErrorKind::NotFound | ErrorKind::NotADirectory => ApiError::not_found(),
-        _ => ApiError::internal(),
+        _ => ApiError::internal(e),
     };
     let canonical = dunce::canonicalize(root.join(rel)).map_err(gone)?;
     if !within(&canonical, root, cfg!(windows)) {
@@ -78,10 +78,21 @@ fn load(root: &Path, rel: &str) -> Result<(String, bool), ApiError> {
             "the file is outside the project",
         ));
     }
+    // Only a regular file is read: opening a pipe would wait for a writer. The check is
+    // made before opening (so a pipe is never opened) and again on the open handle (so
+    // a swap in between is caught).
+    let not_a_file = || ApiError::new(StatusCode::NOT_FOUND, "not a regular file");
+    if !fs::metadata(&canonical).map_err(gone)?.is_file() {
+        return Err(not_a_file());
+    }
+    let file = File::open(&canonical).map_err(gone)?;
+    if !file.metadata().map_err(gone)?.is_file() {
+        return Err(not_a_file());
+    }
     // One byte more than the limit tells whether the file goes on.
     let mut bytes = Vec::new();
-    File::open(&canonical)
-        .and_then(|f| f.take(MAX_BYTES as u64 + 1).read_to_end(&mut bytes))
+    file.take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
         .map_err(gone)?;
     let truncated = bytes.len() > MAX_BYTES;
     if truncated {

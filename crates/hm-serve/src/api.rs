@@ -20,6 +20,9 @@ use crate::Shared;
 
 /// The most results `/api/search` returns.
 const SEARCH_LIMIT: usize = 20;
+/// The most characters of a search that are used. No file name is longer, and SQLite
+/// refuses a `LIKE` pattern of about 50 000 bytes.
+const SEARCH_CHARS: usize = 256;
 
 /// An error answer: a status and a short English message, as `{"v":1,"error":...}`.
 #[derive(Debug)]
@@ -41,7 +44,9 @@ impl ApiError {
         ApiError::new(StatusCode::NOT_FOUND, "not in the index")
     }
 
-    pub(crate) fn internal() -> ApiError {
+    /// A 500 with a generic body; the cause goes to stderr, not to the client.
+    pub(crate) fn internal(cause: impl std::fmt::Display) -> ApiError {
+        eprintln!("harbormap: serve: {cause}");
         ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
     }
 }
@@ -84,8 +89,8 @@ where
         f(&store)
     })
     .await
-    .map_err(|_| ApiError::internal())?
-    .map_err(|_| ApiError::internal())
+    .map_err(ApiError::internal)?
+    .map_err(ApiError::internal)
 }
 
 /// Accepts a repository-relative, `/`-separated path and nothing else: no empty path,
@@ -95,7 +100,9 @@ pub(crate) fn check_path(path: &str) -> Result<(), ApiError> {
     if path.is_empty() {
         return bad("empty path");
     }
-    if path.starts_with('/') || path.as_bytes().get(1) == Some(&b':') {
+    // `/x`, or a Windows drive (`C:x`, `C:/x`): an ASCII letter and a colon.
+    let drive = matches!(path.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic());
+    if path.starts_with('/') || drive {
         return bad("absolute path");
     }
     if path.contains('\\') || path.contains('\0') {
@@ -179,7 +186,12 @@ pub(crate) async fn find(
     State(shared): State<Arc<Shared>>,
     Params(params): Params<SearchParams>,
 ) -> Result<Json<Value>, ApiError> {
-    let q = params.q.unwrap_or_default();
+    let q: String = params
+        .q
+        .unwrap_or_default()
+        .chars()
+        .take(SEARCH_CHARS)
+        .collect();
     let hits = read(&shared, move |s| search(s, &q, SEARCH_LIMIT)).await?;
     let results: Vec<Value> = hits
         .into_iter()

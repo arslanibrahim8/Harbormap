@@ -86,24 +86,73 @@ async fn the_cookie_and_the_bearer_token_both_work() {
 async fn a_foreign_host_header_is_403() {
     let dir = project();
     let live = start(dir.path()).await;
-    let raw = |host: &str| {
+    // A raw request with a chosen Host; returns the status line and the whole answer.
+    let raw = |path: &str, host: &str, auth: Option<&str>| {
         let mut stream = TcpStream::connect(("127.0.0.1", live.port)).expect("connect");
-        let request = format!(
-            "GET /api/tech HTTP/1.1\r\nHost: {host}\r\nAuthorization: Bearer {}\r\n\
-             Connection: close\r\n\r\n",
-            live.token
-        );
+        let auth = auth
+            .map(|t| format!("Authorization: Bearer {t}\r\n"))
+            .unwrap_or_default();
+        let request =
+            format!("GET {path} HTTP/1.1\r\nHost: {host}\r\n{auth}Connection: close\r\n\r\n");
         stream.write_all(request.as_bytes()).expect("send");
         let mut answer = String::new();
-        stream.read_to_string(&mut answer).expect("read");
-        answer.lines().next().unwrap_or("").to_string()
+        // An event stream would never end; its answer is cut after the headers.
+        let mut buf = [0u8; 4096];
+        while !answer.contains("\r\n\r\n") {
+            let n = stream.read(&mut buf).expect("read");
+            if n == 0 {
+                break;
+            }
+            answer.push_str(&String::from_utf8_lossy(&buf[..n]));
+        }
+        let status = answer.lines().next().unwrap_or("").to_string();
+        (status, answer)
     };
-    assert!(raw("evil.example").contains(" 403 "));
-    assert!(raw(&format!("evil.example:{}", live.port)).contains(" 403 "));
-    // The right token does not excuse a foreign Host, and the wrong port is foreign.
-    assert!(raw("127.0.0.1:1").contains(" 403 "));
-    assert!(raw(&format!("localhost:{}", live.port)).contains(" 200 "));
-    assert!(raw(&format!("127.0.0.1:{}", live.port)).contains(" 200 "));
+    let token = live.token.clone();
+    let foreign = [
+        "evil.example",
+        &format!("evil.example:{}", live.port),
+        "127.0.0.1:1",
+    ];
+    let paths = [
+        "/".to_string(),
+        "/assets/app.js".to_string(),
+        "/api/events".to_string(),
+        "/api/tech".to_string(),
+        // The token in the address is not a way around the Host check: no cookie, no 303.
+        format!("/?t={token}"),
+    ];
+    for host in foreign {
+        for path in &paths {
+            // With the right token, and without a token at all: 403 either way.
+            for auth in [Some(token.as_str()), None] {
+                let (status, answer) = raw(path, host, auth);
+                assert!(status.contains(" 403 "), "{host} {path} {auth:?}: {status}");
+                assert!(!answer.to_ascii_lowercase().contains("set-cookie"));
+            }
+        }
+    }
+    // A request without any Host header is not served either.
+    let mut stream = TcpStream::connect(("127.0.0.1", live.port)).expect("connect");
+    stream
+        .write_all(b"GET /api/tech HTTP/1.0\r\n\r\n")
+        .expect("send");
+    let mut answer = String::new();
+    stream.read_to_string(&mut answer).expect("read");
+    assert!(answer.contains(" 403 "), "{answer}");
+
+    // The real hosts work.
+    for host in [
+        format!("localhost:{}", live.port),
+        format!("127.0.0.1:{}", live.port),
+    ] {
+        assert!(raw("/api/tech", &host, Some(&token)).0.contains(" 200 "));
+        assert!(
+            raw(&format!("/?t={token}"), &host, None)
+                .0
+                .contains(" 303 ")
+        );
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
