@@ -154,11 +154,11 @@ tr.builder = "içerik kaynaklarından derleme sırasında statik siteler üreten
 id = "remix"
 name = "Remix"
 category = "framework"
-npm = ["@remix-run/*"]
+npm = ["@remix-run/*", "remix"]
 en.beginner = "a framework for building web apps that load data on the server."
-en.builder = "a React framework focused on web standards, nested routes and server-side data loading."
+en.builder = "a web framework built on web standards, with nested routes and server-side data loading; versions 1 and 2 are built on React."
 tr.beginner = "verileri sunucuda yükleyen web uygulamaları yapmaya yarayan bir çatı."
-tr.builder = "web standartlarına odaklanan; iç içe rotalar ve sunucu tarafı veri yükleme sunan bir React çatısı."
+tr.builder = "web standartları üzerine kurulu; iç içe rotalar ve sunucu tarafı veri yükleme sunan bir web çatısı; 1 ve 2. sürümler React üzerine kuruludur."
 
 [[tech]]
 id = "react-router"
@@ -166,19 +166,19 @@ name = "React Router"
 category = "framework"
 npm = ["react-router", "react-router-dom"]
 en.beginner = "a library that switches between pages in a React app without reloading."
-en.builder = "a client-side routing library for React that maps URLs to components and supports nested routes."
+en.builder = "a routing library for React that maps URLs to components and supports nested routes; since v7 it can also work as a full framework."
 tr.beginner = "React uygulamasında sayfayı yenilemeden sayfalar arasında geçiş yapmayı sağlayan kütüphane."
-tr.builder = "URL'leri bileşenlerle eşleştiren, React için istemci tarafı yönlendirme kütüphanesi; iç içe rotaları destekler."
+tr.builder = "URL'leri bileşenlerle eşleştiren, iç içe rotaları destekleyen bir React yönlendirme kütüphanesi; 7. sürümden beri tam bir çatı olarak da çalışabilir."
 
 [[tech]]
 id = "tanstack-router"
 name = "TanStack Router"
 category = "framework"
 npm = ["@tanstack/react-router"]
-en.beginner = "a router that keeps React page addresses and their data in sync, with type-safe links."
+en.beginner = "a library that switches between pages in a React app and loads each page's data."
 en.builder = "a type-safe React router with nested routes, search-param state and built-in data loading."
-tr.beginner = "React sayfa adreslerini ve verilerini birbiriyle uyumlu tutan bir yönlendirici."
-tr.builder = "tür güvenli, React için iç içe rotalar, arama parametresi durumu ve yerleşik veri yükleme sunan yönlendirici."
+tr.beginner = "React uygulamasında sayfalar arasında geçiş yapan ve her sayfanın verisini yükleyen bir kütüphane."
+tr.builder = "iç içe rotalar, arama parametresi durumu ve yerleşik veri yükleme sunan, tür güvenli bir React yönlendiricisi."
 
 [[tech]]
 id = "express"
@@ -255,9 +255,9 @@ id = "trpc"
 name = "tRPC"
 category = "framework"
 npm = ["@trpc/*"]
-en.beginner = "a library that lets a web app call its server functions with full type safety."
+en.beginner = "a library that lets a web app call functions on its server as if they were local ones."
 en.builder = "a TypeScript RPC layer that shares server procedure types with the client, with no code generation step."
-tr.beginner = "web uygulamasının sunucu fonksiyonlarını tam tür güvenliğiyle çağırmayı sağlayan bir kütüphane."
+tr.beginner = "web uygulamasının sunucudaki fonksiyonları kendi fonksiyonlarıymış gibi çağırmasını sağlayan bir kütüphane."
 tr.builder = "sunucu prosedürlerinin türlerini istemciyle paylaşan, TypeScript ile uzaktan prosedür çağrısı (RPC) katmanı; kod üretme adımı gerektirmez."
 
 [[tech]]
@@ -316,9 +316,9 @@ name = "Qwik"
 category = "framework"
 npm = ["@builder.io/qwik"]
 en.beginner = "a web framework that loads only the code each visitor actually needs."
-en.builder = "a resumable web framework that ships minimal JavaScript and loads components on demand."
+en.builder = "a web framework that ships minimal JavaScript, loads components on demand and resumes in the browser where the server left off."
 tr.beginner = "her ziyaretçinin yalnızca gerçekten ihtiyaç duyduğu kodu yükleyen bir web çatısı."
-tr.builder = "minimum JavaScript gönderen ve bileşenleri istek üzerine yükleyen, devam ettirilebilir bir web çatısı."
+tr.builder = "minimum JavaScript gönderen, bileşenleri istek üzerine yükleyen ve sunucunun bıraktığı yerden tarayıcıda devam eden bir web çatısı."
 
 [[tech]]
 id = "tailwindcss"
@@ -344,7 +344,7 @@ tr.builder = "anlamsal bileşen sınıfları ve temalar ekleyen bir Tailwind CSS
 id = "radix-ui"
 name = "Radix UI"
 category = "ui"
-npm = ["@radix-ui/*"]
+npm = ["@radix-ui/*", "radix-ui"]
 en.beginner = "a set of accessible building blocks such as dialogs, menus and tabs for React."
 en.builder = "an unstyled, accessible React component primitive library used for dialogs, menus and popovers."
 tr.beginner = "React için; pencere, menü ve sekme gibi erişilebilir yapı taşları sunan bir koleksiyon."
@@ -437,7 +437,7 @@ category = "ui"
 npm = ["sass"]
 en.beginner = "a tool that lets you write CSS with variables, nesting and reusable blocks."
 en.builder = "the Dart Sass compiler that turns .scss and .sass files into plain CSS."
-tr.beginner = "CSS'i değişkenler, iç içe kurallar ve yeniden kullanılabilir bloklarla yazmanı sağlayan bir araç."
+tr.beginner = "CSS'i değişkenler, iç içe kurallar ve yeniden kullanılabilir bloklarla yazmayı sağlayan bir araç."
 tr.builder = ".scss ve .sass dosyalarını düz CSS'e çeviren Dart Sass derleyicisi."
 
 [[tech]]
@@ -457,7 +457,7 @@ category = "ui"
 npm = ["lucide-react"]
 en.beginner = "a library of simple, ready-made icons you can use in React pages."
 en.builder = "a React package of the Lucide open-source SVG icon set as components."
-tr.beginner = "React sayfalarında kullanabileceğin, hazır ve sade simgeler kütüphanesi."
+tr.beginner = "React sayfalarında kullanılabilen, hazır ve sade simgelerden oluşan bir kütüphane."
 tr.builder = "Lucide açık kaynaklı SVG simge setini React bileşenleri olarak sunan bir paket."
 
 [[tech]]
@@ -515,7 +515,7 @@ id = "classnames"
 name = "classnames"
 category = "ui"
 npm = ["classnames"]
-en.beginner = "an older helper that joins CSS class names together depending on conditions."
+en.beginner = "a tiny helper that joins CSS class names together depending on conditions."
 en.builder = "a small utility that builds CSS class name strings from conditional values, widely used in React projects."
 tr.beginner = "koşullara bağlı olarak CSS sınıf adlarını birleştiren, yaygın kullanılan bir yardımcı."
 tr.builder = "koşullu değerlerden CSS sınıf adı metni üreten küçük bir yardımcı; React projelerinde yaygındır."
@@ -537,7 +537,7 @@ category = "ui"
 npm = ["@headlessui/react"]
 en.beginner = "a set of ready-made menus, dialogs and switches with no built-in styling."
 en.builder = "unstyled, accessible React UI components made by Tailwind Labs, to style yourself."
-tr.beginner = "hazır menü, pencere ve açma kapatma bileşenleri sunan, stil içermeyen bir kütüphane."
+tr.beginner = "hazır menü, pencere ve anahtar bileşenleri sunan, stil içermeyen bir kütüphane."
 tr.builder = "Tailwind Labs ekibinin yaptığı, stil içermeyen ve erişilebilir React bileşenleri; Tailwind CSS ile kullanılır."
 
 [[tech]]
@@ -608,7 +608,7 @@ npm = ["@react-three/*"]
 en.beginner = "a way to build 3D scenes with React components instead of raw Three.js code."
 en.builder = "a React renderer for Three.js, with helper packages such as @react-three/drei."
 tr.beginner = "ham Three.js kodu yerine React bileşenleriyle 3 boyutlu sahneler kurmanın bir yolu."
-tr.builder = "Three.js için bir React çizicisi; @react-three/drei gibi yardımcı paketlerle birlikte gelir."
+tr.builder = "Three.js için bir React çizim katmanı (renderer); @react-three/drei gibi yardımcı paketlerle birlikte gelir."
 
 [[tech]]
 id = "tiptap"
@@ -668,7 +668,7 @@ npm = ["cmdk"]
 en.beginner = "a library for building a command menu, like the search box that opens with a keyboard shortcut."
 en.builder = "a React command menu component with fuzzy search, keyboard navigation and accessible markup."
 tr.beginner = "klavye kısayoluyla açılan arama kutusu gibi komut menüleri yapmayı sağlayan bir kütüphane."
-tr.builder = "bulanık arama, klavye gezinmesi ve erişilebilir yapı sunan bir React komut menüsü bileşeni."
+tr.builder = "esnek arama, klavye gezinmesi ve erişilebilir yapı sunan bir React komut menüsü bileşeni."
 
 [[tech]]
 id = "dnd-kit"
@@ -706,9 +706,9 @@ name = "TanStack Table"
 category = "ui"
 npm = ["@tanstack/react-table"]
 en.beginner = "a library that builds sortable, filterable tables from your data in React."
-en.builder = "a headless React table library for sorting, filtering, pagination and row selection, with you providing the markup."
-tr.beginner = "verilerinizden sıralanabilir ve filtrelenebilir tablolar kuran bir React kütüphanesi."
-tr.builder = "sıralama, filtreleme, sayfalama ve satır seçimi sunan, görünümü size bırakan bir React tablo kütüphanesi."
+en.builder = "a headless React table library for sorting, filtering, pagination and row selection, with the developer providing the markup."
+tr.beginner = "verilerden sıralanabilir ve filtrelenebilir tablolar kuran bir React kütüphanesi."
+tr.builder = "sıralama, filtreleme, sayfalama ve satır seçimi sunan, görünümü geliştiriciye bırakan bir React tablo kütüphanesi."
 
 [[tech]]
 id = "leaflet"
@@ -848,7 +848,7 @@ npm = ["@vueuse/core"]
 en.beginner = "a collection of ready-made helper functions for common tasks in Vue apps."
 en.builder = "a collection of Vue composable utilities such as storage, mouse and window-size helpers."
 tr.beginner = "Vue uygulamalarındaki sık işler için hazır yardımcı fonksiyonlar koleksiyonu."
-tr.builder = "depolama, fare ve pencere boyutu gibi konularda Vue birleştirilebilir yardımcılar sunan bir koleksiyon."
+tr.builder = "depolama, fare ve pencere boyutu gibi konularda hazır Vue fonksiyonları (composable) sunan bir koleksiyon."
 
 [[tech]]
 id = "i18next"
@@ -876,9 +876,9 @@ name = "React Hook Form"
 category = "ui"
 npm = ["react-hook-form"]
 en.beginner = "a library that makes forms in React easier to build and check for errors."
-en.builder = "a performant React form library that manages inputs and validation with minimal re-renders."
+en.builder = "a fast React form library that manages inputs and validation with minimal re-renders."
 tr.beginner = "React'ta formları daha kolay kuran ve hataları kontrol eden bir kütüphane."
-tr.builder = "girdileri ve doğrulamayı en az yeniden çizimle yöneten, performanslı bir React form kütüphanesi."
+tr.builder = "girdileri ve doğrulamayı en az yeniden çizimle yöneten, hızlı bir React form kütüphanesi."
 
 [[tech]]
 id = "formik"
