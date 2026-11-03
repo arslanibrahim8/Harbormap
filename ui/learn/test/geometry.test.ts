@@ -69,12 +69,31 @@ test("A to B and B to A take different paths with different midpoints", () => {
   assert.ok(Math.hypot(m1.x - m2.x, m1.y - m2.y) >= 14, "the two curves are at least 14 apart");
 });
 
-test("an arrow starts on the edge of its first box and ends on the edge of its second", () => {
-  const a = box(0, 0);
-  const b = box(400, 0);
-  const c = arrowCurve(a, b);
-  assert.ok(Math.abs(c.start.x - 200) < 1.5 || Math.abs(c.start.y) < 1.5 || Math.abs(c.start.y - 72) < 1.5);
-  assert.ok(c.end.x <= 400 + 1e-6 && c.end.x >= 400 - 1.5 * 40);
+/** True when `p` lies on the outline of `r`, within half a pixel. */
+function onOutline(r: Rect, p: { x: number; y: number }): boolean {
+  const eps = 0.5;
+  const inX = p.x >= r.x - eps && p.x <= r.x + r.w + eps;
+  const inY = p.y >= r.y - eps && p.y <= r.y + r.h + eps;
+  const onVertical = Math.abs(p.x - r.x) <= eps || Math.abs(p.x - (r.x + r.w)) <= eps;
+  const onHorizontal = Math.abs(p.y - r.y) <= eps || Math.abs(p.y - (r.y + r.h)) <= eps;
+  return (onVertical && inY) || (onHorizontal && inX);
+}
+
+test("an arrow starts exactly on the outline of its first box and ends on the outline of its second", () => {
+  const pairs: [Rect, Rect][] = [
+    [box(0, 0), box(400, 0)],
+    [box(0, 0), box(0, 300)],
+    [box(0, 0), box(320, 180)],
+    [box(500, 400), box(40, 20)],
+    [box(0, 0, 176, 52), box(272, 76, 176, 52)],
+  ];
+  for (const [a, b] of pairs) {
+    for (const [from, to] of [[a, b], [b, a]] as [Rect, Rect][]) {
+      const c = arrowCurve(from, to);
+      assert.ok(onOutline(from, c.start), `start ${JSON.stringify(c.start)} of ${JSON.stringify(from)}`);
+      assert.ok(onOutline(to, c.end), `end ${JSON.stringify(c.end)} of ${JSON.stringify(to)}`);
+    }
+  }
 });
 
 test("stroke width is 1.25 for one reference, grows with the log and stops at 6", () => {

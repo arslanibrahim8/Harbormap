@@ -8,6 +8,7 @@
 // translated to that corner.
 
 import { ApiError, group as fetchGroup } from "./api.ts";
+import { createCamera } from "./camera.ts";
 import { clear, h, isTyping, notify } from "./dom.ts";
 import { closeDrawer, currentCard, onCard, openFile } from "./drawer.ts";
 import { arrowsFor, childrenFor } from "./format.ts";
@@ -23,33 +24,23 @@ import {
   chipLabel,
   chipSlots,
   chipsFor,
-  clampZoom,
   easeOut,
-  ensureVisible,
-  fit,
   lerp,
-  resizeView,
   strokeWidth,
   truncate,
-  zoomAt,
 } from "./geometry.ts";
 import type { Pt, Rect } from "./geometry.ts";
+import { createGroupCache } from "./groupcache.ts";
 import { onFacts } from "./live.ts";
+import { GROW_MS, animate, reducedMotion } from "./motion.ts";
 import { currentView, getState, onChange, setState } from "./state.ts";
-import { defs, s, text, title, viewBoxOf } from "./svg.ts";
+import { defs, s, text, title } from "./svg.ts";
 import type { Arrow, Box, Chip, GroupView } from "./types.ts";
 
-/** How long a box takes to grow, and a camera move takes, in milliseconds. */
-const GROW_MS = 240;
 /** A pulse of a changed box. */
 const PULSE_MS = 300;
 /** Opacity of everything an expanded box covers. */
 const DIM = 0.35;
-/** Pixels the pointer must travel before a press becomes a pan. */
-const DRAG_PX = 4;
-/** Zoom limits, relative to the width of the fitted overview. */
-const ZOOM_IN = 8;
-const ZOOM_OUT = 4;
 
 /** One level of the picture: the overview, or one expanded group. */
 interface Layer {
@@ -73,26 +64,6 @@ interface Registered {
   dim: boolean;
 }
 
-function reducedMotion(): boolean {
-  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-/** Run `step(p)` for p from 0 to 1 over `ms` on animation frames, counted from `t0`;
- * `alive` stops it early (a newer picture replaced this one). */
-function animate(ms: number, step: (p: number) => void, alive: () => boolean, t0 = performance.now()): void {
-  if (reducedMotion()) {
-    step(1);
-    return;
-  }
-  const frame = (now: number): void => {
-    if (!alive()) return;
-    const p = Math.min(1, Math.max(0, (now - t0) / ms));
-    step(p);
-    if (p < 1) requestAnimationFrame(frame);
-  };
-  frame(performance.now());
-}
-
 /** Draw the map into `root` and keep it in step with the state. */
 export function renderMap(root: HTMLElement): void {
   const svg = s("svg", { class: "map-svg", role: "group", "aria-label": "Map of the project" }) as SVGSVGElement;
@@ -103,161 +74,44 @@ export function renderMap(root: HTMLElement): void {
 
   // ---- State of the picture ------------------------------------------------
 
-  const groups = new Map<string, GroupView>();
+  const cache = createGroupCache();
   /** Bumped by every drawing; animations of an older drawing stop. */
   let drawing = 0;
   let registered = new Map<string, Registered>();
   /** The expansion the last drawing showed, to tell growth from a refresh. */
   let drawnExpanded: string[] = [];
+  /** The growth in progress: which expansion, and when it began, so a redraw in the
+   * middle of it carries the animation on instead of cutting it short. */
+  let growth: { key: string; t0: number } | null = null;
+  /** The links of the card that the last drawing showed (see `linksKey`). */
+  let drawnLinks = "";
+  /** The file whose card was last checked for being out of sight (see `maybeReveal`). */
+  let settled: string | null = null;
   /** Bumped by every request to expand, so only the newest one lands. */
   let expandRequest = 0;
+  /** Bumped by every refetch of the expanded groups; only the newest one applies. */
+  let refetchRun = 0;
+  /** True when a refetch failed and the next facts delta must try again. */
+  let retryNext = false;
 
-  // ---- Camera --------------------------------------------------------------
+  const camera = createCamera({ root, svg, rects: () => getState().overview?.boxes ?? [] });
 
-  let view: Rect | null = null;
-  /** The fitted overview: the zoom limits are relative to it. */
-  let base: Rect | null = null;
-  /** True while the camera is the fitted one, so a resize or a refetch refits it. */
-  let auto = true;
-  let size = { w: 0, h: 0 };
-  let cameraRun = 0;
-  /** The innermost expanded group with its chips, in the world; null when collapsed. */
-  let focus: Rect | null = null;
-
-  const applyView = (): void => {
-    if (view !== null) svg.setAttribute("viewBox", viewBoxOf(view));
-  };
-
-  const overviewRects = (): Rect[] => getState().overview?.boxes ?? [];
-
-  const fitNow = (): void => {
-    view = fit(overviewRects(), size);
-    base = view;
-    auto = true;
-    applyView();
-  };
-
-  /** Move the camera to `to` over GROW_MS. */
-  const glideTo = (to: Rect): void => {
-    const from = view;
-    const run = ++cameraRun;
-    if (from === null) {
-      view = to;
-      applyView();
-      return;
-    }
-    animate(
-      GROW_MS,
-      (p) => {
-        const e = easeOut(p);
-        view = { x: lerp(from.x, to.x, e), y: lerp(from.y, to.y, e), w: lerp(from.w, to.w, e), h: lerp(from.h, to.h, e) };
-        applyView();
-      },
-      () => run === cameraRun,
-    );
-  };
-
-  const measure = (): void => {
-    const w = root.clientWidth;
-    const h2 = root.clientHeight;
-    if (w === 0 || h2 === 0) return;
-    if (view === null || auto) {
-      size = { w, h: h2 };
-      fitNow();
-    } else if (w !== size.w || h2 !== size.h) {
-      view = resizeView(view, size, { w, h: h2 });
-      // A narrower map (the drawer opened) must not push the expanded group off it.
-      if (focus !== null) view = ensureVisible(view, focus, 24);
-      size = { w, h: h2 };
-      applyView();
-    }
-  };
-
-  /** The world point under a pointer event. */
-  const toWorld = (clientX: number, clientY: number): Pt => {
-    const r = svg.getBoundingClientRect();
-    const v = view ?? { x: 0, y: 0, w: 1, h: 1 };
-    return { x: v.x + ((clientX - r.left) / (r.width || 1)) * v.w, y: v.y + ((clientY - r.top) / (r.height || 1)) * v.h };
-  };
-
-  svg.addEventListener(
-    "wheel",
-    (e) => {
-      if (view === null) return;
-      e.preventDefault();
-      cameraRun += 1;
-      const unit = e.deltaMode === 1 ? 16 : 1;
-      const factor = Math.exp(Math.max(-200, Math.min(200, e.deltaY * unit)) * 0.0015);
-      let next = zoomAt(view, factor, toWorld(e.clientX, e.clientY));
-      if (base !== null) next = clampZoom(next, base.w / ZOOM_IN, base.w * ZOOM_OUT);
-      view = next;
-      auto = false;
-      applyView();
-    },
-    { passive: false },
-  );
-
-  let press: { x: number; y: number; view: Rect; id: number } | null = null;
-  let dragged = false;
-  svg.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || view === null) return;
-    press = { x: e.clientX, y: e.clientY, view, id: e.pointerId };
-    dragged = false;
-  });
-  svg.addEventListener("pointermove", (e) => {
-    if (press === null || e.pointerId !== press.id) return;
-    const dx = e.clientX - press.x;
-    const dy = e.clientY - press.y;
-    if (!dragged) {
-      if (Math.hypot(dx, dy) < DRAG_PX) return;
-      dragged = true;
-      cameraRun += 1;
-      // Capture only once it is a drag, so a plain click still reaches its box.
-      svg.setPointerCapture(e.pointerId);
-      svg.classList.add("dragging");
-    }
-    const r = svg.getBoundingClientRect();
-    view = {
-      x: press.view.x - (dx * press.view.w) / (r.width || 1),
-      y: press.view.y - (dy * press.view.h) / (r.height || 1),
-      w: press.view.w,
-      h: press.view.h,
-    };
-    auto = false;
-    applyView();
-  });
-  const release = (e: PointerEvent): void => {
-    if (press === null || e.pointerId !== press.id) return;
-    press = null;
-    svg.classList.remove("dragging");
-    if (dragged) {
-      // The click that follows a drag is not a click on a box.
-      window.setTimeout(() => {
-        dragged = false;
-      }, 0);
-    }
-  };
-  svg.addEventListener("pointerup", release);
-  svg.addEventListener("pointercancel", release);
-  svg.addEventListener(
-    "click",
-    (e) => {
-      if (dragged) e.stopPropagation();
-    },
-    true,
-  );
   svg.addEventListener("click", (e) => {
     // A click on the empty map (not on a box or a chip) clears the selection.
     if ((e.target as Element).closest("[data-act]") === null && getState().selected !== null) closeDrawer();
   });
-  svg.addEventListener("dblclick", (e) => {
-    if ((e.target as Element).closest("[data-act]") !== null || size.w === 0) return;
-    cameraRun += 1;
-    const to = fit(overviewRects(), size);
-    auto = true;
-    base = to;
-    glideTo(to);
-  });
+
+  /** Make `el` do `fn` on a click, and on Enter or Space when it has the focus. */
+  const activatable = (el: Element, fn: () => void): void => {
+    el.addEventListener("click", fn);
+    el.addEventListener("keydown", (e) => {
+      const k = e as KeyboardEvent;
+      if (k.key === "Enter" || k.key === " ") {
+        k.preventDefault();
+        fn();
+      }
+    });
+  };
 
   // ---- Expanding and collapsing ---------------------------------------------
 
@@ -265,21 +119,28 @@ export function renderMap(root: HTMLElement): void {
    * counted in the boxes that are visible now. */
   const reopenCard = (): void => {
     const sel = getState().selected;
-    if (sel !== null && sel.symbol === null) void openFile(sel.path, currentView());
+    if (sel !== null && sel.symbol === null) {
+      // The user moved the view: the card must not move it back to reveal the file.
+      settled = sel.path;
+      void openFile(sel.path, currentView());
+    }
   };
 
   const sameIds = (a: string[], b: string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
-  /** Show the groups `ids` (outermost first): fetch the ones not held, then switch. */
+  /** Show the groups `ids` (outermost first): fetch the ones that are not held or
+   * are older than the overview, then switch. */
   async function expandTo(ids: string[]): Promise<void> {
     if (sameIds(ids, getState().expanded)) return;
     const mine = ++expandRequest;
+    const version = cache.version;
+    const seq = getState().seq;
     try {
       await Promise.all(
         ids
-          .filter((id) => !groups.has(id))
+          .filter((id) => cache.needsFetch(id, seq))
           .map(async (id) => {
-            groups.set(id, await fetchGroup(id));
+            cache.set(id, await fetchGroup(id));
           }),
       );
     } catch (e) {
@@ -290,6 +151,8 @@ export function renderMap(root: HTMLElement): void {
     if (mine !== expandRequest) return;
     setState({ expanded: ids });
     reopenCard();
+    // The facts changed while the groups were on their way: they may be old already.
+    if (cache.version !== version) void refetchGroups();
   }
 
   /** Go back to the first `n` levels of the expansion. */
@@ -303,6 +166,7 @@ export function renderMap(root: HTMLElement): void {
 
   function activate(box: Box, layer: number): void {
     if (box.kind === "file" && box.path !== undefined) {
+      settled = box.path;
       void openFile(box.path, currentView());
     } else if (box.expandable) {
       void expandTo([...getState().expanded.slice(0, layer), box.id]);
@@ -329,7 +193,7 @@ export function renderMap(root: HTMLElement): void {
     for (let i = 0; i < expanded.length; i += 1) {
       const parent = layers[i];
       const box = parent?.all.find((b) => b.id === expanded[i]);
-      const g = groups.get(expanded[i] ?? "");
+      const g = cache.get(expanded[i] ?? "");
       if (parent === undefined || box === undefined || g === undefined) break;
       layers.push({
         origin: { x: parent.origin.x + box.x, y: parent.origin.y + box.y },
@@ -402,13 +266,7 @@ export function renderMap(root: HTMLElement): void {
       );
     }
     if (dim) g.classList.add("dim");
-    g.addEventListener("click", () => activate(box, layerIndex));
-    g.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        activate(box, layerIndex);
-      }
-    });
+    activatable(g, () => activate(box, layerIndex));
     return g;
   }
 
@@ -469,14 +327,7 @@ export function renderMap(root: HTMLElement): void {
         s("rect", { width: r.w, height: r.h, rx: r.h / 2 }),
         text(12, 16, "t", chipLabel(c)),
       );
-      const go = (): void => void expandTo([c.id]);
-      g.addEventListener("click", go);
-      g.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
-        }
-      });
+      activatable(g, () => void expandTo([c.id]));
       els.push(g);
     });
     const last = slots[shown.chips.length];
@@ -492,13 +343,13 @@ export function renderMap(root: HTMLElement): void {
   interface Drawn {
     /** The rectangle (in the world) of the innermost group and its chips. */
     focus: Rect | null;
-    /** True when the innermost group grew in this drawing. */
-    grew: boolean;
+    /** True when the innermost group began to grow in this drawing. */
+    fresh: boolean;
   }
 
   /** Boxes that changed lately and when, so a redraw in the middle of a pulse (the
    * card refreshes right after the overview) carries it on instead of ending it. */
-  const pulses = new Map<string, number>();
+  const recent = new Map<string, number>();
 
   function draw(): Drawn {
     const level = getState().level;
@@ -507,13 +358,18 @@ export function renderMap(root: HTMLElement): void {
     const alive = (): boolean => mine === drawing;
     registered = new Map();
     scene.replaceChildren();
-    if (layers.length === 0) return { focus: null, grew: false };
+    if (layers.length === 0) return { focus: null, fresh: false };
 
     const expanded = getState().expanded.slice(0, layers.length - 1);
     // Growth, not a refresh: the innermost level is new, or a different group.
     const last = expanded.length - 1;
-    const growing = last >= 0 && drawnExpanded[last] !== expanded[last] && !reducedMotion();
+    const now = performance.now();
+    const fresh = last >= 0 && drawnExpanded[last] !== expanded[last];
+    if (fresh) growth = { key: expanded.join("/"), t0: now };
+    // A redraw within the 240 ms of a growth continues it from where it is.
+    const growing = !reducedMotion() && growth !== null && growth.key === expanded.join("/") && now - growth.t0 < GROW_MS;
     drawnExpanded = expanded;
+    drawnLinks = linksKey();
 
     const innermost = layers.length - 1;
     const dimsByLayer: SVGElement[][] = [];
@@ -599,9 +455,8 @@ export function renderMap(root: HTMLElement): void {
     });
 
     // Boxes that changed lately pulse (once, or the rest of it after a redraw).
-    const now = performance.now();
-    for (const [id, t0] of pulses) {
-      if (now - t0 >= PULSE_MS) pulses.delete(id);
+    for (const [id, t0] of recent) {
+      if (now - t0 >= PULSE_MS) recent.delete(id);
       const r = registered.get(id);
       if (r !== undefined && !r.dim && now - t0 < PULSE_MS) {
         const el = r.el;
@@ -620,15 +475,15 @@ export function renderMap(root: HTMLElement): void {
     } else {
       note.hidden = true;
     }
-    if (grow !== null) animate(GROW_MS, grow, alive);
-    return { focus, grew: grow !== null };
+    if (grow !== null && growth !== null) animate(GROW_MS, grow, alive, growth.t0);
+    return { focus, fresh };
   }
 
   function breadcrumbs(): void {
     const expanded = getState().expanded;
     const names: string[] = [];
     for (const id of expanded) {
-      const g = groups.get(id);
+      const g = cache.get(id);
       if (g === undefined) break;
       names.push(g.name);
     }
@@ -657,25 +512,47 @@ export function renderMap(root: HTMLElement): void {
     const o = getState().overview;
     if (o === null) return;
     const t = performance.now();
-    for (const id of pulseIds) pulses.set(id, t);
+    for (const id of pulseIds) recent.set(id, t);
     mount();
     breadcrumbs();
-    measure();
     const drawn = draw();
-    focus = drawn.focus;
-    const grew = drawn.grew;
+    camera.setFocus(drawn.focus);
+    camera.sync();
     if (o.boxes.length === 0) {
       note.textContent = "No files on this map yet.";
       note.hidden = false;
     }
     // A new expansion may reach past the edge of the screen: bring it into view.
-    if (grew && focus !== null && view !== null) {
-      const to = ensureVisible(view, focus, 24);
-      if (to !== view) {
-        auto = false;
-        glideTo(to);
-      }
-    }
+    if (drawn.fresh && drawn.focus !== null) camera.reveal(drawn.focus);
+  }
+
+  /** What the picture draws from the open card: the links of the selected file in the
+   * view on screen. Empty when there are none. */
+  function linksKey(): string {
+    const sel = getState().selected;
+    const payload = currentCard();
+    if (sel === null || payload === null || payload.kind !== "file" || payload.card.path !== sel.path) return "";
+    const links = payload.links;
+    if (links === null || links.view !== currentView()) return "";
+    return `${sel.path}|${JSON.stringify(links)}`;
+  }
+
+  /** A file card opened from outside the map (a search hit, a link in the drawer) for a
+   * file that is not in the picture: expand along the card's `ancestors` so the file
+   * appears and its links draw. Done once per card; a card the map itself asked for
+   * again after the user moved the view never moves it back. */
+  function maybeReveal(): void {
+    const sel = getState().selected;
+    const payload = currentCard();
+    if (sel === null || sel.symbol !== null || payload === null || payload.kind !== "file") return;
+    if (payload.card.path !== sel.path || settled === sel.path) return;
+    settled = sel.path;
+    const ancestors = payload.ancestors;
+    if (ancestors === undefined || ancestors === null || ancestors.length === 0) return;
+    const layers = buildLayers(getState().level);
+    const inner = layers[layers.length - 1];
+    if (inner?.shown.some((b) => b.kind === "file" && b.path === sel.path) === true) return;
+    void expandTo(ancestors);
   }
 
   // ---- Wiring ----------------------------------------------------------------
@@ -689,7 +566,7 @@ export function renderMap(root: HTMLElement): void {
     let boxes: Box[] = o.boxes;
     for (const id of cur) {
       const b = boxes.find((x) => x.id === id);
-      const g = groups.get(id);
+      const g = cache.get(id);
       if (b === undefined || g === undefined) break;
       keep += 1;
       boxes = g.children;
@@ -701,25 +578,30 @@ export function renderMap(root: HTMLElement): void {
     }
   }
 
-  /** Fetch the expanded groups again; a 404 collapses to the level above it. */
+  /** Fetch the expanded groups again; a 404 collapses to the level above it. Any other
+   * failure keeps what is on screen and tries again on the next facts delta. */
   async function refetchGroups(): Promise<void> {
     const ids = getState().expanded;
     if (ids.length === 0) return;
+    const mine = ++refetchRun;
+    retryNext = false;
     const results = await Promise.allSettled(ids.map((id) => fetchGroup(id)));
-    if (!sameIds(ids, getState().expanded)) return;
-    const pulses = new Set<string>();
+    if (mine !== refetchRun || !sameIds(ids, getState().expanded)) return;
+    const changed = new Set<string>();
     let gone = -1;
     results.forEach((r, i) => {
       const id = ids[i] ?? "";
       if (r.status === "fulfilled") {
-        const old = groups.get(id);
+        const old = cache.get(id);
         if (old !== undefined) {
-          for (const c of changedBoxes(old.children, old.arrows, r.value.children, r.value.arrows)) pulses.add(c);
+          for (const c of changedBoxes(old.children, old.arrows, r.value.children, r.value.arrows)) changed.add(c);
         }
-        groups.set(id, r.value);
-      } else if (r.reason instanceof ApiError && r.reason.status === 404 && gone < 0) {
-        gone = i;
-        groups.delete(id);
+        cache.set(id, r.value);
+      } else if (r.reason instanceof ApiError && r.reason.status === 404) {
+        if (gone < 0) gone = i;
+        cache.delete(id);
+      } else {
+        retryNext = true;
       }
     });
     if (gone >= 0) {
@@ -727,16 +609,17 @@ export function renderMap(root: HTMLElement): void {
       setState({ expanded: ids.slice(0, gone) });
       reopenCard();
     } else {
-      render(pulses);
+      render(changed);
     }
   }
 
   onChange((st, prev) => {
+    if (st.selected === null) settled = null;
     if (st.overview !== prev.overview) {
       if (st.overview !== null && prev.overview !== null) {
         const t = performance.now();
         for (const id of changedBoxes(prev.overview.boxes, prev.overview.arrows, st.overview.boxes, st.overview.arrows)) {
-          pulses.set(id, t);
+          recent.set(id, t);
         }
         const before = st.expanded;
         pruneExpanded();
@@ -750,19 +633,22 @@ export function renderMap(root: HTMLElement): void {
     }
     if (st.tab === "map" && prev.tab !== "map") requestAnimationFrame(() => render());
   });
-  onCard(() => render());
+  onCard(() => {
+    maybeReveal();
+    // The card refreshes after every delta: redraw only when its links are not the
+    // ones on screen, so a growth in progress is not disturbed for nothing.
+    if (linksKey() !== drawnLinks) render();
+  });
   onFacts((d) => {
     const ids = getState().expanded;
-    if (d.regrouped || ids.some((id) => d.groups_changed.includes(id))) void refetchGroups();
+    cache.invalidate(d, ids);
+    if (retryNext || d.regrouped || ids.some((id) => d.groups_changed.includes(id))) void refetchGroups();
   });
 
   if (typeof ResizeObserver === "function") {
     // The map has no size while its tab is hidden: the first measure that finds one
     // fits the overview, and every later one keeps the zoom.
-    new ResizeObserver(() => {
-      measure();
-      if (getState().overview !== null) applyView();
-    }).observe(root);
+    new ResizeObserver(() => camera.sync()).observe(root);
   }
 
   // Esc goes up one level, unless a card is open: then the drawer takes it first.

@@ -131,6 +131,9 @@ export interface FileCardPayload {
     incoming: { id: string; count: number }[];
     outgoing: { id: string; count: number }[];
   } | null;
+  /** Group ids from the top box down to the file's parent group; null for a file
+   * the map does not place. Absent from an older server. */
+  ancestors?: string[] | null;
 }
 
 /** GET /api/card?path=P&symbol=S */
