@@ -57,6 +57,8 @@ struct Plan {
     /// The one type of the file, and its methods.
     ty: String,
     methods: Vec<String>,
+    /// The method names the file's interface `I{i}` declares; none, no interface.
+    declares: Vec<String>,
 }
 
 fn is_test_index(i: usize) -> bool {
@@ -88,8 +90,10 @@ fn read(dir: &Path, rel: &str) -> String {
 /// Every file has 3–6 exported functions and one type with 1–3 methods; every 10th
 /// one is a `_test.go` file. Functions call functions of their package in other
 /// files, `pN.F()` of the packages below (which they import), the other methods of
-/// their receiver, and `x.M()` by method name. Some method names belong to two
-/// types, so those calls stay refs until one of the two goes away.
+/// their receiver, and `x.M()` by method name. A call by method name is inferred only
+/// for a name an interface declares, so most non-test files declare an interface
+/// with some of their method names, the shared ones always. Some method names belong
+/// to two types, so those calls stay refs until one of the two goes away.
 pub fn project(dir: &Path, seed: u64, files: u32) {
     let n = files as usize;
     let mut rng = Rng(seed);
@@ -104,12 +108,23 @@ pub fn project(dir: &Path, seed: u64, files: u32) {
         if shares[i / 2] && (i ^ 1) < n {
             methods[0] = format!("Sync{}", i / 2);
         }
+        let test = is_test_index(i);
+        let declares = if test {
+            Vec::new()
+        } else {
+            methods
+                .iter()
+                .filter(|m| m.starts_with("Sync") || rng.chance(55))
+                .cloned()
+                .collect()
+        };
         plans.push(Plan {
             pkg: i / PACKAGE_SIZE,
-            test: is_test_index(i),
+            test,
             funcs: (0..count).map(|k| format!("F{i}_{k}")).collect(),
             ty: format!("T{i}"),
             methods,
+            declares,
         });
     }
     for i in 0..n {
@@ -232,6 +247,15 @@ fn render(plans: &[Plan], i: usize, rng: &mut Rng) -> String {
         "// {} holds the state of file {i}.\ntype {} struct {{\n\tn int\n}}\n\n",
         me.ty, me.ty
     ));
+    if !me.declares.is_empty() {
+        out.push_str(&format!(
+            "// I{i} is what file {i} offers.\ntype I{i} interface {{\n"
+        ));
+        for m in &me.declares {
+            out.push_str(&format!("\t{m}(a int, b string) int\n"));
+        }
+        out.push_str("}\n\n");
+    }
     for (name, body) in me.funcs.iter().zip(&funcs) {
         out.push_str(&format!(
             "func {name}(a int, b string) int {{\n\tsum := a + len(b)\n"

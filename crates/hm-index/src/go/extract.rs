@@ -256,7 +256,9 @@ impl<'s> Extractor<'s> {
     }
 
     /// A `type_spec` or `type_alias` at the top level of the file: an interface, or a
-    /// class for every other type. The whole spec is the signature and the body.
+    /// class for every other type. The whole spec is the signature and the body. Each
+    /// method an interface declares is a method owned by the interface, with the spec
+    /// as its signature and no body.
     fn type_decl(&mut self, node: Node) {
         let top_level = node
             .parent()
@@ -266,11 +268,10 @@ impl<'s> Extractor<'s> {
             return;
         }
         let name = self.field_text(node, "name");
-        let is_interface = node.kind() == "type_spec"
-            && node
-                .child_by_field_name("type")
-                .is_some_and(|t| t.kind() == "interface_type");
-        let kind = if is_interface {
+        let interface = node
+            .child_by_field_name("type")
+            .filter(|t| node.kind() == "type_spec" && t.kind() == "interface_type");
+        let kind = if interface.is_some() {
             SymbolKind::Interface
         } else {
             SymbolKind::Class
@@ -281,6 +282,15 @@ impl<'s> Extractor<'s> {
         self.push_symbol(kind, name, "", node, None);
         if let Some(last) = self.symbols.last_mut() {
             last.fact.body_hash = body_hash(node, self.src);
+        }
+        if let Some(interface) = interface {
+            let mut cursor = interface.walk();
+            for spec in interface.named_children(&mut cursor) {
+                if spec.kind() == "method_elem" {
+                    let method = self.field_text(spec, "name");
+                    self.push_symbol(SymbolKind::Method, method, name, spec, None);
+                }
+            }
         }
     }
 

@@ -82,17 +82,28 @@ fn kinds_and_receivers_in_shop_and_store() {
     let kinds: Vec<_> = shop
         .symbols
         .iter()
-        .map(|s| (s.name.as_str(), s.kind))
+        .map(|s| (s.owner.as_str(), s.name.as_str(), s.kind))
         .collect();
+    // An interface's method specs are methods owned by the interface.
     assert_eq!(
         kinds,
         vec![
-            ("Order", SymbolKind::Class),
-            ("OrderStore", SymbolKind::Interface),
-            ("Notifier", SymbolKind::Interface),
-            ("Validate", SymbolKind::Function),
+            ("", "Order", SymbolKind::Class),
+            ("", "OrderStore", SymbolKind::Interface),
+            ("OrderStore", "Save", SymbolKind::Method),
+            ("OrderStore", "Find", SymbolKind::Method),
+            ("", "Notifier", SymbolKind::Interface),
+            ("Notifier", "Notify", SymbolKind::Method),
+            ("", "Validate", SymbolKind::Function),
         ]
     );
+    let save = &shop.symbols[2];
+    assert_eq!(save.sig, "Save(o *Order) error");
+    // No body: every method spec has the hash of nothing.
+    assert_eq!(save.body_hash, shop.symbols[3].body_hash);
+    assert_eq!(save.body_hash, shop.symbols[5].body_hash);
+    assert!(save.exported);
+    assert_eq!((save.l0, save.l1), (14, 14));
 
     let store = extract(&read_fixture("go-basic/store/memory.go"));
     let methods: Vec<_> = store
@@ -202,6 +213,28 @@ fn generic_receivers_and_aliases_name_their_type() {
             ("", "List", SymbolKind::Class),
             ("", "Id", SymbolKind::Class),
             ("List", "Len", SymbolKind::Method),
+        ]
+    );
+}
+
+#[test]
+fn interface_method_specs_are_methods_and_embedded_types_are_not() {
+    let f = extract(
+        "package a\n\nimport \"io\"\n\ntype RW interface {\n\tio.Reader\n\tClose() error\n\tlower(n int)\n}\n\ntype T struct{}\n\nfunc (t T) Close() error { return nil }\n",
+    );
+    let got: Vec<_> = f
+        .symbols
+        .iter()
+        .map(|s| (s.owner.as_str(), s.name.as_str(), s.kind, s.exported))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            ("", "RW", SymbolKind::Interface, true),
+            ("RW", "Close", SymbolKind::Method, true),
+            ("RW", "lower", SymbolKind::Method, false),
+            ("", "T", SymbolKind::Class, true),
+            ("T", "Close", SymbolKind::Method, true),
         ]
     );
 }

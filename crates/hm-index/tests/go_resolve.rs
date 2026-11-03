@@ -186,21 +186,30 @@ fn go_basic_resolves_package_receiver_and_method_calls() {
             n.edges
         );
     }
-    let probably = [
-        ("http/server.go#NewServer", "http/server.go#Server.routes"),
-        (
+    // `OrderStore` declares `Save`, and `Memory` is its one implementation.
+    assert!(
+        n.has_edge(
+            "calls",
             "http/server.go#Server.handleOrder",
             "store/memory.go#Memory.Save",
+            "go.call.method",
+            true
         ),
-        ("cmd/shopd/main.go#main", "http/server.go#Server.ServeHTTP"),
-    ];
-    for (src, dst) in probably {
-        assert!(
-            n.has_edge("calls", src, dst, "go.call.method", true),
-            "missing method call {src} -> {dst} in {:#?}",
-            n.edges
-        );
-    }
+        "{:#?}",
+        n.edges
+    );
+    // No interface of the project declares `routes` or `ServeHTTP`.
+    assert!(n.has_ref("http/server.go", "call", "s.routes", "unresolved"));
+    assert!(n.has_ref("cmd/shopd/main.go", "call", "srv.ServeHTTP", "unresolved"));
+    // An interface's own method spec is never a call target.
+    assert!(
+        !n.edges
+            .iter()
+            .any(|(_, _, dst, _, _)| dst.starts_with("shop.go#")
+                && (dst.contains("OrderStore.") || dst.contains("Notifier."))),
+        "{:#?}",
+        n.edges
+    );
     // Only `go.call.method` is inferred.
     for (_, _, _, rule, inferred) in &n.edges {
         assert_eq!(*inferred, rule == "go.call.method", "{rule}");
@@ -366,11 +375,11 @@ fn a_method_name_on_two_types_is_a_ref_and_test_methods_stay_home() {
     let n = resolve_sources(&[
         (
             "a/a.go",
-            "package a\n\ntype F struct{}\n\nfunc (f *F) Close() {}\n\ntype G struct{}\n\nfunc (g G) Close() {}\n\nfunc Use(x any) {\n\tx.Close()\n}\n",
+            "package a\n\ntype Closer interface {\n\tClose()\n}\n\ntype F struct{}\n\nfunc (f *F) Close() {}\n\ntype G struct{}\n\nfunc (g G) Close() {}\n\nfunc Use(x any) {\n\tx.Close()\n}\n",
         ),
         (
             "x/x.go",
-            "package x\n\ntype Conn struct{}\n\nfunc (c *Conn) Shut() {}\n",
+            "package x\n\ntype Shutter interface {\n\tShut()\n}\n\ntype Conn struct{}\n\nfunc (c *Conn) Shut() {}\n",
         ),
         (
             "x/fake_test.go",
@@ -434,4 +443,65 @@ fn siblings_and_method_names_for_propagation() {
     assert_eq!(names, BTreeSet::from(["Run".to_string()]));
     assert!(calls_any_method(&facts["p/b.go"], &names));
     assert!(!calls_any_method(&facts["p/a.go"], &names));
+}
+
+#[test]
+fn inferred_method_calls_need_an_interface_and_skip_other_mains() {
+    let n = resolve_sources(&[
+        (
+            "api/api.go",
+            "package api\n\ntype Handler interface {\n\tServe()\n\tRoute()\n}\n",
+        ),
+        (
+            "srv/srv.go",
+            "package srv\n\ntype S struct{}\n\nfunc (s *S) Serve() {}\n\nfunc (s *S) Scan() {}\n",
+        ),
+        (
+            "cmd/tool/main.go",
+            "package main\n\ntype R struct{}\n\nfunc (r R) Route() {}\n\nfunc main() {\n\tvar r R\n\tr.Route()\n}\n",
+        ),
+        (
+            "web/web.go",
+            "package web\n\nfunc Use(h any, x any, r any) {\n\th.Serve()\n\tx.Scan()\n\tr.Route()\n}\n",
+        ),
+        // An interface in a test file does not make its method names inferable.
+        (
+            "web/web_test.go",
+            "package web\n\ntype scanner interface {\n\tScan()\n}\n",
+        ),
+    ]);
+    assert!(
+        n.has_edge(
+            "calls",
+            "web/web.go#Use",
+            "srv/srv.go#S.Serve",
+            "go.call.method",
+            true
+        ),
+        "{:#?}",
+        n.edges
+    );
+    // `Scan` has one implementation, but no project interface declares it.
+    assert!(n.has_ref("web/web.go", "call", "x.Scan", "unresolved"));
+    // The one `Route` is in another folder's `package main`: another binary.
+    assert!(n.has_ref("web/web.go", "call", "r.Route", "unresolved"));
+    // In its own folder it is the target.
+    assert!(
+        n.has_edge(
+            "calls",
+            "cmd/tool/main.go#main",
+            "cmd/tool/main.go#R.Route",
+            "go.call.method",
+            true
+        ),
+        "{:#?}",
+        n.edges
+    );
+    assert!(
+        !n.edges
+            .iter()
+            .any(|(_, _, dst, _, _)| dst.starts_with("api/")),
+        "{:#?}",
+        n.edges
+    );
 }

@@ -18,6 +18,8 @@ struct Indexed {
     report: IndexReport,
     /// (kind, source, destination), as `path` or `path#Owner.name`.
     edges: BTreeSet<(String, String, String)>,
+    /// (source, destination, file, line) of each inferred `go.call.method` edge.
+    method_calls: Vec<(String, String, String, String)>,
     /// (file, kind, text, status).
     refs: BTreeSet<(String, String, String, String)>,
     /// path -> (class, parse_status).
@@ -104,6 +106,13 @@ fn index(root: &Path) -> Indexed {
         .iter()
         .map(|r| (r[0].clone(), name_of(&r[1]), name_of(&r[2])))
         .collect();
+    let method_calls = rows(
+        "SELECT src_id, dst_id, file_id, CAST(line AS TEXT) FROM edge
+         WHERE rule = 'go.call.method' ORDER BY file_id, line",
+    )
+    .iter()
+    .map(|r| (name_of(&r[0]), name_of(&r[1]), path_of(&r[2]), r[3].clone()))
+    .collect();
     let refs = rows("SELECT file_id, kind, text, status FROM ref")
         .iter()
         .map(|r| (path_of(&r[0]), r[1].clone(), r[2].clone(), r[3].clone()))
@@ -111,6 +120,7 @@ fn index(root: &Path) -> Indexed {
     Indexed {
         report,
         edges,
+        method_calls,
         refs,
         files,
     }
@@ -193,6 +203,33 @@ fn wtf_indexes_and_resolves() {
         got.has_ref(main, "import", "github.com/pelletier/go-toml", "external"),
         "{:#?}",
         got.refs.iter().filter(|r| r.0 == main).collect::<Vec<_>>()
+    );
+
+    // Calls by method name are inferred only for names a project interface
+    // declares, and never into another folder's `package main`.
+    eprintln!("wtf go.call.method edges: {}", got.method_calls.len());
+    for (src, dst, file, line) in &got.method_calls {
+        eprintln!("  {file}:{line} {src} -> {dst}");
+    }
+    let wrong: Vec<_> = got
+        .edges
+        .iter()
+        .filter(|(kind, src, dst)| {
+            kind == "calls"
+                && (dst == "sqlite/sqlite.go#NullTime.Scan"
+                    || dst == "sqlite/sqlite.go#NullTime.Value"
+                    || (src.starts_with("http/server.go")
+                        && dst.starts_with("cmd/wtf-storybook/main.go")))
+        })
+        .collect();
+    assert!(wrong.is_empty(), "{wrong:#?}");
+    assert!(
+        got.has_ref("sqlite/dial.go", "call", "rows.Scan", "unresolved"),
+        "{:#?}",
+        got.refs
+            .iter()
+            .filter(|r| r.0 == "sqlite/dial.go" && r.2.ends_with(".Scan"))
+            .collect::<Vec<_>>()
     );
 }
 

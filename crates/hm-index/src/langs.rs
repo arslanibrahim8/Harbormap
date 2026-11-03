@@ -153,14 +153,17 @@ pub fn reads_names(rel: &str, facts: &FileFacts, names: &BTreeSet<String>) -> bo
 }
 
 /// The [`inferred_names`] of `rel` that the change from `old` to `new` facts
-/// gained, lost or gave another symbol id: a name-match edge stores the id of the
-/// one symbol of that name, so a method whose receiver changes moves it too.
+/// gained, lost or gave another symbol id or package clause: a name-match edge
+/// stores the id of the one symbol of that name, so a method whose receiver changes
+/// moves it too, and a Go method counts as a target or not by its file's package
+/// (`main` elsewhere is another binary). An interface's method specs are among the
+/// names: they decide whether a name is inferred at all.
 pub fn inferred_changes(
     rel: &str,
     old: Option<&FileFacts>,
     new: Option<&FileFacts>,
 ) -> BTreeSet<String> {
-    let named = |facts: Option<&FileFacts>| -> BTreeSet<(String, String)> {
+    let named = |facts: Option<&FileFacts>| -> BTreeSet<(String, String, Option<String>)> {
         let Some(facts) = facts else {
             return BTreeSet::new();
         };
@@ -172,11 +175,11 @@ pub fn inferred_changes(
             .into_iter()
             .zip(&facts.symbols)
             .filter(|(_, s)| names.contains(&s.name))
-            .map(|(id, s)| (s.name.clone(), id))
+            .map(|(id, s)| (s.name.clone(), id, facts.package.clone()))
             .collect()
     };
     named(old)
         .symmetric_difference(&named(new))
-        .map(|(name, _)| name.clone())
+        .map(|(name, ..)| name.clone())
         .collect()
 }

@@ -411,3 +411,32 @@ fn a_dotted_call_through_a_submodule_binding_elsewhere_stays_cold_equal() {
     assert!(has_ref(&ix, "main.py", "a.b.f", "unresolved"));
     assert_cold(&ix, dir.path());
 }
+
+#[test]
+fn an_interface_method_name_decides_inferred_calls_elsewhere() {
+    let (mut ix, dir) = indexed("go-basic");
+    // `store/memory_test.go` calls `m.Save` on a local: only the name links it to
+    // `Memory.Save`, and only while `OrderStore` declares `Save`. It does not import
+    // `shop.go`.
+    let test = "store/memory_test.go#TestSave";
+    assert!(has_edge(&ix, "calls", test, "store/memory.go#Memory.Save"));
+    edit(dir.path(), "shop.go", "\tSave(o *Order) error\n", "");
+    let d = ix.apply(&set(["shop.go"])).unwrap();
+    assert!(
+        d.reresolved.contains(&"store/memory_test.go".to_string()),
+        "{d:?}"
+    );
+    assert!(!has_edge(&ix, "calls", test, "store/memory.go#Memory.Save"));
+    assert!(has_ref(&ix, "store/memory_test.go", "m.Save", "unresolved"));
+    assert_cold(&ix, dir.path());
+
+    edit(
+        dir.path(),
+        "shop.go",
+        "\tFind(id int)",
+        "\tSave(o *Order) error\n\tFind(id int)",
+    );
+    ix.apply(&set(["shop.go"])).unwrap();
+    assert!(has_edge(&ix, "calls", test, "store/memory.go#Memory.Save"));
+    assert_cold(&ix, dir.path());
+}

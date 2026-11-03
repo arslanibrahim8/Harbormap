@@ -1,10 +1,11 @@
 //! Turns the facts of a Go file into edges and refs. Imports resolve through the
 //! `go.mod` files to package folders; calls resolve within the caller's package,
 //! through imported packages, through the receiver of the enclosing method, and
-//! last by method name across the repository (`Probably`, `inferred`). A reference
-//! that does not name exactly one target is a ref, never an edge.
+//! last by method name across the repository (`Probably`, `inferred`): only a name
+//! that an interface of the project declares, and only when one concrete method has
+//! it. A reference that does not name exactly one target is a ref, never an edge.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use hm_core::ids::file_id;
 
@@ -47,17 +48,34 @@ const PREDECLARED_TYPES: &[&str] = &[
 /// The Method symbols of every `.go` file by name, so that one build serves a pass.
 #[derive(Debug, Clone, Default)]
 pub struct MethodIndex {
-    /// Method name to `(file, symbol index)`, in file order and then source order.
+    /// Method name to the concrete methods of that name as `(file, symbol index)`,
+    /// in file order and then source order. An interface's method specs are not in it.
     by_name: HashMap<String, Vec<(String, usize)>>,
+    /// The method names that the interfaces of non-test files declare.
+    declared: HashSet<String>,
 }
 
 impl MethodIndex {
     /// Lists the Method symbols of the `.go` files of `facts`.
     pub fn build(facts: &BTreeMap<String, FileFacts>) -> MethodIndex {
         let mut by_name: HashMap<String, Vec<(String, usize)>> = HashMap::new();
+        let mut declared = HashSet::new();
         for (rel, f) in facts.iter().filter(|(rel, _)| rel.ends_with(".go")) {
+            let interfaces: HashSet<&str> = f
+                .symbols
+                .iter()
+                .filter(|s| s.kind == SymbolKind::Interface && s.owner.is_empty())
+                .map(|s| s.name.as_str())
+                .collect();
             for (i, s) in f.symbols.iter().enumerate() {
-                if s.kind == SymbolKind::Method {
+                if s.kind != SymbolKind::Method {
+                    continue;
+                }
+                if interfaces.contains(s.owner.as_str()) {
+                    if !is_test(rel) {
+                        declared.insert(s.name.clone());
+                    }
+                } else {
                     by_name
                         .entry(s.name.clone())
                         .or_default()
@@ -65,11 +83,16 @@ impl MethodIndex {
                 }
             }
         }
-        MethodIndex { by_name }
+        MethodIndex { by_name, declared }
     }
 
     fn named(&self, name: &str) -> &[(String, usize)] {
         self.by_name.get(name).map_or(&[], Vec::as_slice)
+    }
+
+    /// Whether an interface of a non-test file declares a method `name`.
+    fn declared(&self, name: &str) -> bool {
+        self.declared.contains(name)
     }
 }
 
@@ -482,16 +505,25 @@ impl Resolver<'_, '_> {
         self.by_method_name(callee)
     }
 
-    /// The single Method named `name` in the repository's Go code, leaving out test
-    /// files outside the caller's folder.
+    /// The single concrete Method named `name` in the repository's Go code, when an
+    /// interface of the project declares that name (spec §6.2: an interface call is
+    /// inferred when one implementation exists). Test files and `package main` files
+    /// count only in the caller's folder: elsewhere they are another package's tests
+    /// or another binary.
     fn by_method_name(&self, name: &str) -> Outcome {
+        if !self.p.methods.declared(name) {
+            return UNRESOLVED;
+        }
         let (dir, _) = split(self.rel);
-        let mut candidates = self
-            .p
-            .methods
-            .named(name)
-            .iter()
-            .filter(|(f, _)| !is_test(f) || split(f).0 == dir);
+        let mut candidates = self.p.methods.named(name).iter().filter(|(f, _)| {
+            let home = split(f).0 == dir;
+            let main = self
+                .p
+                .facts
+                .get(f)
+                .is_some_and(|ff| ff.package.as_deref() == Some("main"));
+            home || !(is_test(f) || main)
+        });
         match (candidates.next(), candidates.next()) {
             (Some((file, symbol)), None) => Outcome::Edge {
                 file: file.clone(),
