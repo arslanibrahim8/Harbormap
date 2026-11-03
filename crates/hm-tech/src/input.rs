@@ -11,7 +11,8 @@ use crate::model::Ecosystem;
 pub struct TechInput {
     /// Manifest roots: directories that hold a manifest.
     pub roots: Vec<String>,
-    /// Packages the project itself defines (workspace members); never listed.
+    /// Packages the project itself defines; never listed. Must include every workspace
+    /// package name and the go.mod `module` path of every root.
     pub own_packages: Vec<PackageRef>,
     pub declared: Vec<DeclaredDep>,
     /// One row per (importer file, package).
@@ -20,6 +21,7 @@ pub struct TechInput {
     pub import_coverage: Vec<Ecosystem>,
     /// Any file paths; only the ones the catalog knows are kept.
     pub configs: Vec<String>,
+    /// External images only; the caller leaves out Dockerfile stage names (`FROM build`).
     pub images: Vec<DockerImage>,
     pub languages: Vec<LanguageCount>,
 }
@@ -52,7 +54,13 @@ pub struct DeclaredDep {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExternalImport {
     pub ecosystem: Ecosystem,
-    /// The import specifier as written (npm subpaths such as `lodash/fp` are allowed).
+    /// What the import names, by ecosystem:
+    /// - npm: the import specifier as written; the builder reduces it to the package name.
+    /// - Go: the import path; it is matched to declared modules by `/`-segment prefix.
+    /// - pypi, maven, nuget, crates: the registry package name. The caller maps import names
+    ///   to it (`yaml` to `PyYAML`, `org.springframework.web` to an artifact) and keeps the
+    ///   ecosystem out of `import_coverage` until it does; otherwise the list makes false
+    ///   "declared, not imported" and "used but not declared" claims.
     pub package: String,
     pub importer: String,
 }
