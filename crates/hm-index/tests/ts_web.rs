@@ -45,7 +45,11 @@ fn client_urls_normalise() {
     for (raw, want) in [
         ("/api/orders/{}", "/api/orders/{}"),
         ("/api/orders?page=2", "/api/orders"),
-        ("https://shop.example/api/x#top", "/api/x"),
+        ("https://shop.example/api/x#top", "//shop.example/api/x"),
+        ("http://localhost:3000/api/x#top", "/api/x"),
+        ("#", ""),
+        ("?q=1", ""),
+        ("", ""),
         ("{}/api/orders", "{}/api/orders"),
         ("/api//x/", "/api/x"),
     ] {

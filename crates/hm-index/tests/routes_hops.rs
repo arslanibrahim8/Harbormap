@@ -163,8 +163,7 @@ fn variable_built_and_ambiguous_urls_never_match() {
         "app/api/orders/[slug]/route.ts",
         "export async function GET() {\n  return Response.json({})\n}\n",
     );
-    // Documented behaviour: a literal `https://host` is dropped, so an absolute URL matches
-    // like its path.
+    // An absolute URL of another host never matches; its host stays in the stored url.
     write(
         copy.path(),
         "lib/pay.ts",
@@ -172,9 +171,11 @@ fn variable_built_and_ambiguous_urls_never_match() {
     );
     let d = derive_tree(copy.path());
     let names = labels(copy.path(), &d);
-    assert_eq!(
-        calls_from(&d, &names, "lib/pay.ts#pay"),
-        BTreeSet::from([pair("GET /api/orders", "ts.client.fetch")])
+    assert!(calls_from(&d, &names, "lib/pay.ts#pay").is_empty());
+    assert!(
+        d.client_calls
+            .iter()
+            .any(|c| c.file == "lib/pay.ts" && c.url == "//pay.example/api/orders")
     );
     assert!(calls_from(&d, &names, "ui/orders.tsx#Orders").is_empty());
     assert_eq!(
@@ -189,9 +190,9 @@ fn variable_built_and_ambiguous_urls_never_match() {
     );
 }
 
-// A literal `http(s)://host` is dropped, so an absolute URL matches like its path; this is
-// documented behaviour (the host is not checked). Anything that is not a path from the root
-// never matches.
+// An absolute URL is a local path only for `localhost`, `127.0.0.1`, `0.0.0.0` and `[::1]`
+// (any port); any other host is kept in the stored url and never matches. Anything that is
+// not a path from the root never matches either.
 #[test]
 fn absolute_relative_and_protocol_relative_urls() {
     let dir = app(&[
@@ -201,8 +202,14 @@ fn absolute_relative_and_protocol_relative_urls() {
         ),
         (
             "lib/calls.ts",
-            "export function absolute() { return fetch('https://pay.example/api/orders') }\n\
-             export function upper() { return fetch('HTTPS://pay.example/api/orders') }\n\
+            "export function local() { return fetch('http://localhost:3000/api/orders') }\n\
+             export function loopback() { return fetch('https://127.0.0.1/api/orders') }\n\
+             export function anyAddress() { return fetch('http://0.0.0.0:8080/api/orders') }\n\
+             export function ipv6() { return fetch('http://[::1]:3000/api/orders') }\n\
+             export function upper() { return fetch('HTTP://LocalHost/api/orders') }\n\
+             export function other() { return fetch('https://pay.example/api/orders') }\n\
+             export function otherUpper() { return fetch('HTTPS://Pay.Example:8443/api/orders') }\n\
+             export function lookalike() { return fetch('http://localhost.example/api/orders') }\n\
              export function relative() { return fetch('api/orders') }\n\
              export function protocolRelative() { return fetch('//cdn.host/api/orders') }\n\
              export function protocolRelativeLocal() { return fetch('//api/orders') }\n",
@@ -211,30 +218,89 @@ fn absolute_relative_and_protocol_relative_urls() {
     let d = derive_tree(dir.path());
     let names = labels(dir.path(), &d);
     let source = |name: &str| format!("lib/calls.ts#{name}");
-    for name in ["absolute", "upper"] {
+    for name in ["local", "loopback", "anyAddress", "ipv6", "upper"] {
         assert_eq!(
             calls_from(&d, &names, &source(name)),
             BTreeSet::from([pair("GET /api/orders", "ts.client.fetch")]),
             "{name}"
         );
     }
-    for name in ["relative", "protocolRelative", "protocolRelativeLocal"] {
+    for name in [
+        "other",
+        "otherUpper",
+        "lookalike",
+        "relative",
+        "protocolRelative",
+        "protocolRelativeLocal",
+    ] {
         assert!(calls_from(&d, &names, &source(name)).is_empty(), "{name}");
     }
-    // All five calls are stored.
-    assert_eq!(d.client_calls.len(), 5, "{:#?}", d.client_calls);
+    let url_of = |name: &str| {
+        let id = &names.iter().find(|(_, n)| **n == source(name)).unwrap().0;
+        d.client_calls
+            .iter()
+            .find(|c| c.src_id == **id)
+            .map(|c| c.url.clone())
+            .unwrap()
+    };
+    assert_eq!(url_of("local"), "/api/orders");
+    assert_eq!(url_of("other"), "//pay.example/api/orders");
+    assert_eq!(url_of("otherUpper"), "//pay.example:8443/api/orders");
+    assert_eq!(url_of("lookalike"), "//localhost.example/api/orders");
+    // All eleven calls are stored.
+    assert_eq!(d.client_calls.len(), 11, "{:#?}", d.client_calls);
 }
 
 #[test]
 fn client_urls_keep_what_never_matches_distinct() {
     use hm_index::ts::web::normalize_client_url as n;
-    assert_eq!(n("HTTPS://pay.example/api/orders"), "/api/orders");
-    assert_eq!(n("Http://pay.example"), "/");
+    assert_eq!(n("HTTPS://localhost/api/orders"), "/api/orders");
+    assert_eq!(n("http://localhost:3000"), "/");
+    assert_eq!(n("http://[::1]:3000/x?y=1"), "/x");
+    assert_eq!(n("http://0.0.0.0/x"), "/x");
+    assert_eq!(
+        n("HTTPS://Pay.Example/api/orders"),
+        "//pay.example/api/orders"
+    );
+    assert_eq!(n("http://pay.example:8080//x/"), "//pay.example:8080/x");
+    assert_eq!(n("Http://pay.example"), "//pay.example");
+    assert_eq!(n("https://{}/api"), "//{}/api");
     assert_eq!(n("//cdn.host/x"), "//cdn.host/x");
     assert_eq!(n("//cdn.host//x/"), "//cdn.host/x");
     assert_eq!(n("api/x"), "api/x");
     assert_eq!(n("/api//x/"), "/api/x");
+    assert_eq!(n("/"), "/");
     assert_eq!(n("{}/api/orders"), "{}/api/orders");
+    // No path: the current page, never `/`.
+    for raw in ["", "#", "#top", "?q=1", "?page=2#x"] {
+        assert_eq!(n(raw), "", "{raw:?}");
+    }
+}
+
+#[test]
+fn a_url_without_a_path_is_no_client_call_and_never_the_home_page() {
+    let dir = app(&[
+        (
+            "app/page.tsx",
+            "export default function Home() { return <form action=\"#\"><input /></form> }\n",
+        ),
+        (
+            "app/ui/f.tsx",
+            "export function F() {\n  return <div><form action=\"?page=2\" /><form action=\"\" /><form action=\"/real\" /></div>\n}\n\
+             export function g() { return fetch('?x=1') }\n\
+             export function h() { return fetch('#top') }\n\
+             export function i() { return fetch('') }\n",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    let names = labels(dir.path(), &d);
+    let rows: Vec<_> = d
+        .client_calls
+        .iter()
+        .map(|c| (c.file.as_str(), c.url.as_str()))
+        .collect();
+    assert_eq!(rows, [("app/ui/f.tsx", "/real")], "{:#?}", d.client_calls);
+    assert!(edges(&d, &names, "http_calls").is_empty(), "{:#?}", d.edges);
 }
 
 #[test]
@@ -367,8 +433,8 @@ fn matching_prefers_literals_and_accepts_catch_alls_and_any_routes() {
              export function help() { return fetch('/help') }\n\
              export function helpDeep() { return fetch('/help/a/b') }\n\
              export function any() { return fetch('/api/any', { method: 'DELETE' }) }\n\
-             export function deep() { return fetch('/api/orders/1/2') }\n\
-             export function nearby() { return fetch('/api/orders/{}/x') }\n",
+             export function extraSegments() { return fetch('/api/orders/1/2') }\n\
+             export function paramThenExtraSegment() { return fetch('/api/orders/{}/x') }\n",
         ),
     ]);
     let d = derive_tree(dir.path());
@@ -383,8 +449,8 @@ fn matching_prefers_literals_and_accepts_catch_alls_and_any_routes() {
     assert_eq!(one("help"), fetch("GET /help/{...topic?}"));
     assert_eq!(one("helpDeep"), fetch("GET /help/{...topic?}"));
     assert_eq!(one("any"), fetch("ANY /api/any"));
-    assert!(one("deep").is_empty());
-    assert!(one("nearby").is_empty());
+    assert!(one("extraSegments").is_empty());
+    assert!(one("paramThenExtraSegment").is_empty());
 }
 
 #[test]
@@ -687,7 +753,8 @@ fn forms_without_an_action_call_their_own_page() {
         ),
         row("app/page.tsx#Home", "GET", "/", "ts.client.form_self"),
         row("app/ui/btn.tsx#Btn", "POST", "/go", "ts.client.form"),
-        row("app/ui/btn.tsx#Btn", "GET", "/x", "ts.client.form"),
+        // Without `formMethod` a button or input takes the unknown method of its form.
+        row("app/ui/btn.tsx#Btn", "ANY", "/x", "ts.client.form"),
     ]
     .into_iter()
     .collect();
@@ -704,4 +771,115 @@ fn forms_without_an_action_call_their_own_page() {
         calls_from(&d, &names, "app/ui/btn.tsx#Btn"),
         BTreeSet::from([pair("POST /go", "ts.client.form")])
     );
+}
+
+#[test]
+fn form_methods_are_read_or_unknown() {
+    let dir = app(&[
+        (
+            "app/x/route.ts",
+            "export async function PUT() { return new Response() }\n",
+        ),
+        (
+            "app/ui/m.tsx",
+            "export function M({ m }: { m: string }) {\n\
+             \x20 return (\n\
+             \x20   <div>\n\
+             \x20     <form action=\"/x\" />\n\
+             \x20     <form action=\"/x\" method=\"POST\" />\n\
+             \x20     <button formAction=\"/x\" />\n\
+             \x20     <button formAction=\"/x\" formMethod=\"put\" />\n\
+             \x20     <button formAction=\"/x\" formMethod={m} />\n\
+             \x20   </div>\n\
+             \x20 )\n\
+             }\n",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    let by_line: Vec<_> = d
+        .client_calls
+        .iter()
+        .map(|c| (c.line, c.method.as_str()))
+        .collect();
+    // A form without `method` is GET; a button without a readable `formMethod` is unknown.
+    assert_eq!(
+        by_line,
+        [(4, "GET"), (5, "POST"), (6, "ANY"), (7, "PUT"), (8, "ANY")]
+    );
+    let names = labels(dir.path(), &d);
+    // `GET` and `POST` do not reach a `PUT` route; the unknown ones and `PUT` do.
+    let lines: BTreeSet<_> = d
+        .edges
+        .iter()
+        .filter(|e| e.kind == "http_calls")
+        .map(|e| e.line)
+        .collect();
+    assert_eq!(lines, BTreeSet::from([6, 7, 8]));
+    assert_eq!(
+        calls_from(&d, &names, "app/ui/m.tsx#M"),
+        BTreeSet::from([pair("PUT /x", "ts.client.form")])
+    );
+}
+
+#[test]
+fn routes_of_equal_specificity_give_no_edge() {
+    // `/docs/{id}` and `/docs/{...slug}` both have one literal segment: a tie, although
+    // Next.js would pick `[id]`. `/docs/a/b` fits only the catch-all.
+    let dir = app(&[
+        (
+            "app/docs/[id]/page.tsx",
+            "export default function One() { return null }\n",
+        ),
+        (
+            "app/docs/[...slug]/page.tsx",
+            "export default function Many() { return null }\n",
+        ),
+        (
+            "lib/c.ts",
+            "export function one() { return fetch('/docs/1') }\n\
+             export function many() { return fetch('/docs/a/b') }\n",
+        ),
+    ]);
+    let d = derive_tree(dir.path());
+    let names = labels(dir.path(), &d);
+    assert!(calls_from(&d, &names, "lib/c.ts#one").is_empty());
+    assert_eq!(
+        calls_from(&d, &names, "lib/c.ts#many"),
+        BTreeSet::from([pair("GET /docs/{...slug}", "ts.client.fetch")])
+    );
+}
+
+#[test]
+fn the_same_route_in_two_apps_gives_no_edge() {
+    let dir = tempfile::tempdir().unwrap();
+    for app in ["web", "admin"] {
+        write(
+            dir.path(),
+            &format!("apps/{app}/package.json"),
+            r#"{ "name": "x", "dependencies": { "next": "15.2.0" } }"#,
+        );
+        write(
+            dir.path(),
+            &format!("apps/{app}/app/api/health/route.ts"),
+            "export async function GET() { return new Response() }\n",
+        );
+    }
+    write(
+        dir.path(),
+        "apps/web/lib/c.ts",
+        "export function health() { return fetch('/api/health') }\n",
+    );
+    let d = derive_tree(dir.path());
+    let names = labels(dir.path(), &d);
+    assert_eq!(
+        d.routes
+            .iter()
+            .filter(|r| r.pattern == "/api/health")
+            .count(),
+        2,
+        "{:#?}",
+        d.routes
+    );
+    assert!(calls_from(&d, &names, "apps/web/lib/c.ts#health").is_empty());
+    assert_eq!(d.client_calls.len(), 1);
 }

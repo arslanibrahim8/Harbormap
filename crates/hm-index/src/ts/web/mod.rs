@@ -68,11 +68,20 @@ pub(crate) fn compile(scm: &str, lang: Lang) -> Option<Query> {
     )
 }
 
+/// The hosts that mean this machine: a client that calls one of them reaches a route of the
+/// project being indexed.
+const LOCAL_HOSTS: [&str; 4] = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"];
+
 /// The path a client call asks for. `raw` is the literal's text without quotes, with each
-/// `${…}` already replaced by `{}`. Drops `?…` and `#…`, drops a leading `http://host` or
-/// `https://host` (the scheme in any case), collapses `//` and a trailing `/`, and keeps a
-/// leading `{}`. A protocol-relative `//host/x` keeps its leading `//`, so that it is never
-/// taken for a path of this site.
+/// `${…}` already replaced by `{}`. Drops `?…` and `#…`, collapses `//` and a trailing `/`,
+/// and keeps a leading `{}`.
+///
+/// An absolute `http://` or `https://` URL (the scheme in any case) is a local path only
+/// when its host is `localhost`, `127.0.0.1`, `0.0.0.0` or `[::1]`, with any port; any other
+/// host stays in the result, lower-cased and with its port, as `//host/path`. A
+/// protocol-relative `//host/x` keeps its leading `//` too. Neither starts with a single `/`,
+/// so a route never matches them. A reference with no path (`""`, `#top`, `?page=2`) means
+/// the current page and gives `""`.
 pub fn normalize_client_url(raw: &str) -> String {
     let end = raw.find(['?', '#']).unwrap_or(raw.len());
     let mut rest = &raw[..end];
@@ -83,25 +92,47 @@ pub fn normalize_client_url(raw: &str) -> String {
             .is_some_and(|head| head.eq_ignore_ascii_case(scheme))
         {
             let after = &rest[scheme.len()..];
-            rest = after.find('/').map_or("", |i| &after[i..]);
+            let (host, path) = after.split_at(after.find('/').unwrap_or(after.len()));
+            let host = host.to_ascii_lowercase();
+            let name = host.rsplit_once(':').map_or(host.as_str(), |(name, port)| {
+                // `[::1]` has colons of its own; a port is digits after the last one.
+                if port.chars().all(|c| c.is_ascii_digit()) && !port.is_empty() {
+                    name
+                } else {
+                    host.as_str()
+                }
+            });
+            if !LOCAL_HOSTS.contains(&name) {
+                let joined = path_parts(path);
+                return if joined.is_empty() {
+                    format!("//{host}")
+                } else {
+                    format!("//{host}/{joined}")
+                };
+            }
+            rest = path;
             had_scheme = true;
             break;
         }
     }
-    let joined = rest
-        .split('/')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("/");
+    let joined = path_parts(rest);
     if !had_scheme && rest.starts_with("//") {
         return format!("//{joined}");
     }
     // A leading `{}` is a base URL variable, not a path segment: `{}/api` stays as is.
-    if rest.starts_with('/') || joined.is_empty() {
+    if rest.starts_with('/') || had_scheme {
         format!("/{joined}")
     } else {
         joined
     }
+}
+
+/// The non-empty `/`-separated parts of `path`, joined by `/`.
+fn path_parts(path: &str) -> String {
+    path.split('/')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 #[cfg(test)]

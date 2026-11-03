@@ -7,6 +7,10 @@
 //! edge. Data hooks (React Query, SWR) and server-action forms add the `calls` edges that a
 //! plain call graph cannot see: the framework, not the code, runs the function.
 //!
+//! Matching is segment by segment. Of the routes that fit, the one with the most literal
+//! segments wins (not Next.js's left-to-right precedence of static over dynamic over
+//! catch-all), and two routes with the same count, in any root, give no edge: no guessing.
+//!
 //! Rules checked against the official docs while building:
 //! - `useMutation` and `useQuery` take `mutationFn` / `queryFn` and the callbacks
 //!   `onSuccess`, `onError`, `onSettled`; `useSWR(key, fetcher)` takes the fetcher second.
@@ -46,7 +50,7 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
     let mut calls: BTreeSet<(ClientCall, Target)> = BTreeSet::new();
     let mut edges: BTreeSet<InferredEdge> = BTreeSet::new();
     for (rel, facts) in project.facts {
-        for c in &facts.web.url_calls {
+        for c in facts.web.url_calls.iter().filter(|c| !c.url.is_empty()) {
             calls.insert((
                 ClientCall {
                     file: rel.clone(),
@@ -60,7 +64,13 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
             ));
         }
         for form in &facts.web.forms {
-            let method = form.method.clone().unwrap_or_else(|| "GET".to_string());
+            // A `<form>` without `method` is `GET`; a button or input without `formMethod`
+            // takes the method of the form around it, which is not known here.
+            let method = match (&form.method, form.element.as_str()) {
+                (Some(m), _) => m.clone(),
+                (None, "form") => "GET".to_string(),
+                (None, _) => "ANY".to_string(),
+            };
             let call = |url: String, rule: &str, src_id: String| ClientCall {
                 file: rel.clone(),
                 src_id,
@@ -70,13 +80,16 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
                 rule: rule.to_string(),
             };
             match &form.action {
-                Some(ArgFact::Str(u)) if !u.is_empty() => {
-                    let src_id = source(&mut ids, rel, &form.owner, form.line);
+                // `action="#"` or `action="?page=2"` has no path: the current page, not `/`.
+                Some(ArgFact::Str(u)) => {
                     let url = normalize_client_url(u);
-                    calls.insert((call(url, "ts.client.form", src_id), Target::ByUrl));
+                    if !url.is_empty() {
+                        let src_id = source(&mut ids, rel, &form.owner, form.line);
+                        calls.insert((call(url, "ts.client.form", src_id), Target::ByUrl));
+                    }
                 }
                 // A form that submits to the page it is in: the page's own pattern.
-                Some(ArgFact::Str(_)) | None if is_self_form(form) => {
+                None if is_self_form(form) => {
                     let mut pages = routes
                         .iter()
                         .filter(|r| r.entry_kind == "page" && r.file == *rel);
@@ -138,6 +151,7 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
         }
     }
 
+    let matcher = Matcher::new(&routes);
     let mut found: HashMap<(&str, &str), Option<&Route>> = HashMap::new();
     for (call, target) in &calls {
         let dst = match target {
@@ -147,7 +161,7 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
                 .filter(|r| methods_agree(&r.method, &call.method)),
             Target::ByUrl => *found
                 .entry((call.method.as_str(), call.url.as_str()))
-                .or_insert_with(|| match_route(&routes, &call.method, &call.url)),
+                .or_insert_with(|| matcher.find(&call.method, &call.url)),
         };
         if let Some(route) = dst {
             edges.insert(InferredEdge {
@@ -261,40 +275,72 @@ enum Seg {
     },
 }
 
-/// The route that a client call to `url` with `method` reaches (Learn spec §6.3), among the
-/// `http` and `page` routes of `routes` of every root: a client may call another app of the
-/// repository. A route fits when its method is the same (or `ANY` on either side) and its
-/// pattern takes the URL; of the routes that fit, the one with the most literal segments
-/// wins. `None` for no match and for a tie (no guessing).
-pub fn match_route<'r>(routes: &'r [Route], method: &str, url: &str) -> Option<&'r Route> {
-    // A path from the root of this site: not `api/x`, not `{}/x` (a base URL held in a
-    // variable), not `//host/x` (protocol-relative, another host).
-    if !url.starts_with('/') || url.starts_with("//") {
-        return None;
+/// A route with its pattern read once.
+struct Candidate<'r> {
+    route: &'r Route,
+    segs: Vec<Seg>,
+    literals: usize,
+}
+
+/// The routes a client call can reach, with each pattern read once per derivation.
+struct Matcher<'r> {
+    candidates: Vec<Candidate<'r>>,
+}
+
+impl<'r> Matcher<'r> {
+    /// Over the `http` and `page` routes of `routes` of every root: a client may call another
+    /// app of the repository.
+    fn new(routes: &'r [Route]) -> Matcher<'r> {
+        let candidates = routes
+            .iter()
+            .filter(|r| r.entry_kind == "http" || r.entry_kind == "page")
+            .map(|route| {
+                let segs: Vec<Seg> = segments(&route.pattern).map(seg).collect();
+                let literals = segs.iter().filter(|s| matches!(s, Seg::Literal(_))).count();
+                Candidate {
+                    route,
+                    segs,
+                    literals,
+                }
+            })
+            .collect();
+        Matcher { candidates }
     }
-    let parts: Vec<&str> = segments(url).collect();
-    let mut best: Option<(&Route, usize)> = None;
-    let mut tied = false;
-    for route in routes
-        .iter()
-        .filter(|r| r.entry_kind == "http" || r.entry_kind == "page")
-        .filter(|r| methods_agree(&r.method, method))
-    {
-        let segs: Vec<Seg> = segments(&route.pattern).map(seg).collect();
-        if !fits(&segs, &parts) {
-            continue;
+
+    /// The route with the most literal segments among those that fit; `None` for no match
+    /// and for a tie (no guessing).
+    fn find(&self, method: &str, url: &str) -> Option<&'r Route> {
+        // A path from the root of this site: not `api/x`, not `{}/x` (a base URL held in a
+        // variable), not `//host/x` (another host, whatever the scheme).
+        if !url.starts_with('/') || url.starts_with("//") {
+            return None;
         }
-        let literals = segs.iter().filter(|s| matches!(s, Seg::Literal(_))).count();
-        match best {
-            Some((_, most)) if most > literals => {}
-            Some((_, most)) if most == literals => tied = true,
-            _ => {
-                best = Some((route, literals));
-                tied = false;
+        let parts: Vec<&str> = segments(url).collect();
+        let mut best: Option<&Candidate> = None;
+        let mut tied = false;
+        for c in &self.candidates {
+            if !methods_agree(&c.route.method, method) || !fits(&c.segs, &parts) {
+                continue;
+            }
+            match best {
+                Some(b) if b.literals > c.literals => {}
+                Some(b) if b.literals == c.literals => tied = true,
+                _ => {
+                    best = Some(c);
+                    tied = false;
+                }
             }
         }
+        best.filter(|_| !tied).map(|c| c.route)
     }
-    best.filter(|_| !tied).map(|(route, _)| route)
+}
+
+/// The route that a client call to `url` with `method` reaches, among `routes`; see
+/// [`Matcher`]. `derive` builds one `Matcher` for all its calls; this is the one-off form for
+/// callers that match a single URL.
+#[allow(dead_code)]
+pub fn match_route<'r>(routes: &'r [Route], method: &str, url: &str) -> Option<&'r Route> {
+    Matcher::new(routes).find(method, url)
 }
 
 /// The non-empty `/`-separated parts of a path or pattern.
