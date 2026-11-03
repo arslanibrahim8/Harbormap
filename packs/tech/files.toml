@@ -1,1 +1,567 @@
 # Config files and Docker images. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "docker-compose"
+name = "Docker Compose"
+category = "deploy"
+en.beginner = "a tool that starts several containers for your project from one file."
+en.builder = "a Docker CLI plugin that defines and runs multi-container apps from a YAML file."
+tr.beginner = "projeni tek bir dosyadan birden çok konteynerle başlatan bir araç."
+tr.builder = "birden çok konteynerli uygulamayı YAML dosyasıyla tanımlayıp çalıştıran bir Docker CLI eklentisi."
+
+[[tech]]
+id = "nginx"
+name = "nginx"
+category = "deploy"
+en.beginner = "a web server that serves your site and passes requests to your app."
+en.builder = "a high-performance HTTP server and reverse proxy, configured with nginx.conf files."
+tr.beginner = "sitenizi sunan ve istekleri uygulamanıza ileten bir web sunucusu."
+tr.builder = "yüksek performanslı bir HTTP sunucusu ve ters vekil sunucu; ayarları nginx.conf dosyasında tutulur."
+
+[[tech]]
+id = "caddy"
+name = "Caddy"
+category = "deploy"
+en.beginner = "a web server that gets and renews HTTPS certificates for your site automatically."
+en.builder = "a Go web server with automatic HTTPS, configured with a Caddyfile."
+tr.beginner = "sitenizin HTTPS sertifikalarını kendiliğinden alıp yenileyen bir web sunucusu."
+tr.builder = "otomatik HTTPS özellikli, Go ile yazılmış bir web sunucusu; ayarları Caddyfile dosyasında yapılır."
+
+[[tech]]
+id = "golangci-lint"
+name = "golangci-lint"
+category = "build"
+en.beginner = "a tool that checks your Go code for bugs and style problems at once."
+en.builder = "a Go linter that runs many linters in parallel and reads a .golangci.yml file."
+tr.beginner = "Go kodunuzdaki hataları ve stil sorunlarını tek seferde denetleyen bir araç."
+tr.builder = "birden çok linter aracını paralel çalıştıran bir Go kod denetleme aracı; ayarları .golangci.yml dosyasından okur."
+
+[[tech]]
+id = "sqlc"
+name = "sqlc"
+category = "data"
+en.beginner = "a tool that turns your plain SQL queries into safe Go code."
+en.builder = "a code generator that compiles SQL queries into type-safe Go, configured by sqlc.yaml."
+tr.beginner = "yazdığınız SQL sorgularını güvenli Go koduna çeviren bir araç."
+tr.builder = "SQL sorgularından tip güvenli Go kodu üreten bir kod üreticisi; ayarları sqlc.yaml dosyasında tutulur."
+
+[[tech]]
+id = "buf"
+name = "Buf"
+category = "build"
+en.beginner = "a tool that checks your protobuf files and generates code from them."
+en.builder = "a CLI for linting, breaking-change checks and code generation for Protocol Buffers, configured by buf.yaml."
+tr.beginner = "protobuf dosyalarınızı denetleyip bu dosyalardan kod üreten bir araç."
+tr.builder = "Protocol Buffers şemaları için denetim, kırıcı değişiklik kontrolü ve kod üretimi yapan bir komut satırı aracı; ayarları buf.yaml dosyasındadır."
+
+[[tech]]
+id = "mariadb"
+name = "MariaDB"
+category = "data"
+en.beginner = "a free database server that stores your app's data, compatible with MySQL."
+en.builder = "an open-source relational database server forked from MySQL and compatible with its clients."
+tr.beginner = "uygulamanızın verilerini tutan, MySQL ile uyumlu ücretsiz bir veritabanı sunucusu."
+tr.builder = "MySQL'den türetilmiş, açık kaynaklı bir ilişkisel veritabanı sunucusu; MySQL istemcileriyle çalışır."
+
+[[tech]]
+id = "memcached"
+name = "Memcached"
+category = "data"
+en.beginner = "a fast memory cache that keeps often-used data ready so pages load quicker."
+en.builder = "a distributed in-memory key-value cache server with a simple text protocol."
+tr.beginner = "sık kullanılan verileri hazırda tutarak sayfaların daha hızlı açılmasını sağlayan bir bellek önbelleği."
+tr.builder = "bellekte anahtar-değer çiftlerini tutan, dağıtık çalışabilen basit bir önbellek sunucusu."
+
+[[tech]]
+id = "valkey"
+name = "Valkey"
+category = "data"
+en.beginner = "a fast in-memory store, compatible with Redis, for caches and quick data."
+en.builder = "an open-source key-value data server forked from Redis, under the Linux Foundation, with Redis-compatible commands."
+tr.beginner = "hızlı bir bellek içi veri deposu; önbellek ve hızlı veri için Redis ile uyumludur."
+tr.builder = "Redis'ten türetilmiş, açık kaynaklı bir anahtar-değer sunucusu; Linux Foundation bünyesinde geliştirilir."
+
+[[tech]]
+id = "traefik"
+name = "Traefik"
+category = "deploy"
+en.beginner = "a proxy that finds your running services and routes web traffic to them automatically."
+en.builder = "a cloud-native reverse proxy and load balancer that reads routing rules from Docker labels or config."
+tr.beginner = "çalışan servislerinizi bulup web trafiğini onlara otomatik yönlendiren bir vekil sunucu."
+tr.builder = "bulut ortamları için ters vekil sunucu ve yük dengeleyici; yönlendirme kurallarını Docker etiketlerinden veya dosyadan okur."
+
+[[tech]]
+id = "apache-httpd"
+name = "Apache HTTP Server"
+category = "deploy"
+en.beginner = "a veteran web server that has been serving websites since the 1990s."
+en.builder = "the Apache HTTP Server, a modular web server configured through httpd.conf and .htaccess files."
+tr.beginner = "1990'lardan beri web sitelerini sunan, köklü bir web sunucusu."
+tr.builder = "modüler yapıda bir web sunucusu; ayarları httpd.conf ve .htaccess dosyalarından okur."
+
+[[tech]]
+id = "alpine"
+name = "Alpine Linux"
+category = "deploy"
+en.beginner = "a very small Linux system often used as the base of Docker images."
+en.builder = "a minimal Linux distribution built on musl libc and BusyBox, popular as a Docker base image."
+tr.beginner = "Docker imajlarının temeli olarak sıkça kullanılan çok küçük bir Linux sistemi."
+tr.builder = "musl libc ve BusyBox üzerine kurulu, minimal bir Linux dağıtımı; Docker temel imajı olarak yaygın kullanılır."
+
+[[tech]]
+id = "debian"
+name = "Debian"
+category = "deploy"
+en.beginner = "a stable Linux system, a common base for Docker images and servers."
+en.builder = "a community Linux distribution using the apt package manager; its slim images are common Docker bases."
+tr.beginner = "kararlı bir Linux sistemi; Docker imajları ve sunucular için yaygın bir temel."
+tr.builder = "apt paket yöneticisini kullanan, topluluk tarafından geliştirilen bir Linux dağıtımı; hafif imajları Docker için yaygındır."
+
+[[tech]]
+id = "ubuntu"
+name = "Ubuntu"
+category = "deploy"
+en.beginner = "a widely used Linux system that many servers and Docker images are built on."
+en.builder = "a Debian-based Linux distribution by Canonical, with the apt package manager and LTS releases."
+tr.beginner = "birçok sunucuda ve Docker imajında kullanılan yaygın bir Linux sistemi."
+tr.builder = "Canonical şirketinin Debian tabanlı Linux dağıtımı; apt paket yöneticisini ve uzun süre destekli sürümleri içerir."
+
+[[tech]]
+id = "minio"
+name = "MinIO"
+category = "data"
+en.beginner = "a self-hosted file storage server that works like Amazon S3."
+en.builder = "an S3-compatible object storage server you run yourself, used for uploads and backups."
+tr.beginner = "Amazon S3 gibi çalışan, kendi sunucunuzda kurulan bir dosya depolama sunucusu."
+tr.builder = "S3 uyumlu, kendi altyapınızda çalıştırdığınız bir nesne depolama sunucusu; yükleme dosyaları için kullanılır."
+
+[[tech]]
+id = "mailpit"
+name = "Mailpit"
+category = "testing"
+en.beginner = "a fake mail server that catches the emails your app sends during development."
+en.builder = "a local SMTP test server with a web interface and API that stores captured emails."
+tr.beginner = "geliştirme sırasında uygulamanızın gönderdiği e-postaları yakalayan sahte bir posta sunucusu."
+tr.builder = "SMTP ile çalışan yerel bir test sunucusu; yakalanan e-postaları web arayüzünde ve API üzerinden gösterir."
+
+[[tech]]
+id = "localstack"
+name = "LocalStack"
+category = "deploy"
+en.beginner = "a tool that runs local copies of cloud services such as AWS on your own computer."
+en.builder = "an emulator for AWS APIs in a Docker container, so apps can test cloud calls offline."
+tr.beginner = "AWS gibi bulut hizmetlerinin yerel kopyalarını kendi bilgisayarınızda çalıştıran bir araç."
+tr.builder = "AWS API'lerini Docker konteynerinde taklit eden bir öykünücü; uygulamalar bulut çağrılarını çevrimdışı test edebilir."
+
+[[tech]]
+id = "adminer"
+name = "Adminer"
+category = "data"
+en.beginner = "a small web page for browsing and editing the tables of your database."
+en.builder = "a single-file PHP tool for managing MySQL, PostgreSQL, SQLite and other databases in a browser."
+tr.beginner = "veritabanınızın tablolarını tarayıcıdan görüntülemenizi ve düzenlemenizi sağlayan küçük bir web sayfası."
+tr.builder = "tek dosyalık PHP aracı; MySQL, PostgreSQL, SQLite ve diğer veritabanlarını tarayıcıda yönetir."
+
+[[tech]]
+id = "pgadmin"
+name = "pgAdmin"
+category = "data"
+en.beginner = "a web-based control panel for managing your PostgreSQL databases."
+en.builder = "an open-source web administration tool for PostgreSQL, with a query tool and schema browser."
+tr.beginner = "PostgreSQL veritabanlarınızı yönetmek için web tabanlı bir kontrol paneli."
+tr.builder = "PostgreSQL için açık kaynaklı bir web yönetim aracı; sorgu aracı ve şema tarayıcısı içerir."
+
+[[tech]]
+id = "grafana"
+name = "Grafana"
+category = "deploy"
+en.beginner = "a dashboard tool that draws charts from your app's metrics and logs."
+en.builder = "an open-source visualization and alerting platform that queries data sources like Prometheus."
+tr.beginner = "uygulamanızın ölçümlerinden ve günlüklerinden grafik çizen bir gösterge paneli aracı."
+tr.builder = "Prometheus gibi veri kaynaklarını sorgulayıp grafik ve uyarı üreten açık kaynaklı bir izleme platformu."
+
+[[tech]]
+id = "jaeger"
+name = "Jaeger"
+category = "deploy"
+en.beginner = "a tool that traces one request as it moves through your services, to find slow steps."
+en.builder = "an open-source distributed tracing system that collects and shows OpenTelemetry-compatible spans."
+tr.beginner = "bir isteğin servisler arasındaki yolculuğunu izleyip yavaş adımları bulmanıza yardımcı olan bir araç."
+tr.builder = "dağıtık izleme sistemi; OpenTelemetry ile uyumlu izleri toplayıp gösterir."
+
+[[tech]]
+id = "clickhouse"
+name = "ClickHouse"
+category = "data"
+en.beginner = "a database built for fast analysis of very large amounts of data."
+en.builder = "a column-oriented SQL analytics database management system for large-scale queries."
+tr.beginner = "çok büyük veri kümelerinde hızlı analiz yapmak için geliştirilmiş bir veritabanı."
+tr.builder = "sütun tabanlı, SQL ile sorgulanan bir analitik veritabanı yönetim sistemi; büyük veri sorguları için tasarlanmıştır."
+
+[[tech]]
+id = "cassandra"
+name = "Apache Cassandra"
+category = "data"
+en.beginner = "a database that spreads data across many servers and stays online if some fail."
+en.builder = "a distributed wide-column NoSQL database with tunable consistency and no single point of failure."
+tr.beginner = "verileri birçok sunucuya dağıtan ve bazıları çalışmaz olsa da çevrimiçi kalan bir veritabanı."
+tr.builder = "geniş sütunlu, dağıtık bir NoSQL veritabanı; tutarlılık düzeyi ayarlanabilir ve tek hata noktası yoktur."
+
+[[tech]]
+id = "neo4j"
+name = "Neo4j"
+category = "data"
+en.beginner = "a database that stores data as connected nodes, good for relationships like friends or links."
+en.builder = "a graph database that stores nodes and relationships, queried with the Cypher language."
+tr.beginner = "verileri birbirine bağlı düğümler olarak tutan bir veritabanı; arkadaşlık gibi ilişkiler için uygundur."
+tr.builder = "düğümler ve ilişkilerden oluşan bir graf veritabanı; sorgular Cypher dilinde yazılır."
+
+[[tech]]
+id = "opensearch"
+name = "OpenSearch"
+category = "data"
+en.beginner = "a search engine that finds text in your data quickly, like a site's search box."
+en.builder = "an open-source search and analytics engine forked from Elasticsearch, with a REST API."
+tr.beginner = "verileriniz içinde metni hızla bulan bir arama motoru; site aramaları gibi."
+tr.builder = "Elasticsearch'ten türetilmiş, açık kaynaklı bir arama ve analiz motoru; REST API sunar."
+
+[[tech]]
+id = "keycloak"
+name = "Keycloak"
+category = "auth"
+en.beginner = "a login server that handles sign-in, user accounts and single sign-on for your apps."
+en.builder = "an open-source identity and access management server supporting OAuth 2.0, OpenID Connect and SAML."
+tr.beginner = "uygulamalarınız için oturum açma, kullanıcı hesapları ve tek oturum açma işlerini yürüten bir sunucu."
+tr.builder = "açık kaynaklı bir kimlik ve erişim yönetimi sunucusu; OAuth 2.0, OpenID Connect ve SAML destekler."
+
+[[config]]
+tech = "nextjs"
+files = ["next.config.*"]
+
+[[config]]
+tech = "nuxt"
+files = ["nuxt.config.*"]
+
+[[config]]
+tech = "vite"
+files = ["vite.config.*"]
+
+[[config]]
+tech = "vitest"
+files = ["vitest.config.*", "vitest.workspace.*"]
+
+[[config]]
+tech = "jest"
+files = ["jest.config.*"]
+
+[[config]]
+tech = "playwright"
+files = ["playwright.config.*"]
+
+[[config]]
+tech = "cypress"
+files = ["cypress.config.*"]
+
+[[config]]
+tech = "tailwindcss"
+files = ["tailwind.config.*"]
+
+[[config]]
+tech = "postcss"
+files = ["postcss.config.*"]
+
+[[config]]
+tech = "drizzle"
+files = ["drizzle.config.*"]
+
+[[config]]
+tech = "prisma"
+files = ["schema.prisma"]
+
+[[config]]
+tech = "typescript"
+files = ["tsconfig.json", "tsconfig.*.json"]
+
+[[config]]
+tech = "astro"
+files = ["astro.config.*"]
+
+[[config]]
+tech = "sveltekit"
+files = ["svelte.config.*"]
+
+[[config]]
+tech = "angular"
+files = ["angular.json"]
+
+[[config]]
+tech = "nestjs"
+files = ["nest-cli.json"]
+
+[[config]]
+tech = "remix"
+files = ["remix.config.*"]
+
+[[config]]
+tech = "webpack"
+files = ["webpack.config.*"]
+
+[[config]]
+tech = "rollup"
+files = ["rollup.config.*"]
+
+[[config]]
+tech = "babel"
+files = ["babel.config.*", ".babelrc"]
+
+[[config]]
+tech = "eslint"
+files = ["eslint.config.*", ".eslintrc*"]
+
+[[config]]
+tech = "prettier"
+files = ["prettier.config.*", ".prettierrc*"]
+
+[[config]]
+tech = "biome"
+files = ["biome.json", "biome.jsonc"]
+
+[[config]]
+tech = "turbo"
+files = ["turbo.json"]
+
+[[config]]
+tech = "nx"
+files = ["nx.json"]
+
+[[config]]
+tech = "lerna"
+files = ["lerna.json"]
+
+[[config]]
+tech = "tsup"
+files = ["tsup.config.*"]
+
+[[config]]
+tech = "knex"
+files = ["knexfile.*"]
+
+[[config]]
+tech = "typeorm"
+files = ["ormconfig.*"]
+
+[[config]]
+tech = "cloudflare-workers"
+files = ["wrangler.toml", "wrangler.json", "wrangler.jsonc"]
+
+[[config]]
+tech = "docker"
+files = ["Dockerfile", "Dockerfile.*", "*.Dockerfile"]
+
+[[config]]
+tech = "docker-compose"
+files = ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]
+
+[[config]]
+tech = "pytest"
+files = ["pytest.ini"]
+
+[[config]]
+tech = "tox"
+files = ["tox.ini"]
+
+[[config]]
+tech = "mypy"
+files = ["mypy.ini"]
+
+[[config]]
+tech = "ruff"
+files = ["ruff.toml", ".ruff.toml"]
+
+[[config]]
+tech = "pre-commit"
+files = [".pre-commit-config.yaml"]
+
+[[config]]
+tech = "alembic"
+files = ["alembic.ini"]
+
+[[config]]
+tech = "nginx"
+files = ["nginx.conf"]
+
+[[config]]
+tech = "caddy"
+files = ["Caddyfile"]
+
+[[config]]
+tech = "golangci-lint"
+files = [".golangci.yml", ".golangci.yaml"]
+
+[[config]]
+tech = "sqlc"
+files = ["sqlc.yaml", "sqlc.yml", "sqlc.json"]
+
+[[config]]
+tech = "buf"
+files = ["buf.yaml", "buf.gen.yaml"]
+
+[[image]]
+tech = "nodejs"
+names = ["node"]
+
+[[image]]
+tech = "python"
+names = ["python"]
+
+[[image]]
+tech = "go"
+names = ["golang"]
+
+[[image]]
+tech = "rust"
+names = ["rust"]
+
+[[image]]
+tech = "java"
+names = ["eclipse-temurin", "openjdk", "amazoncorretto"]
+
+[[image]]
+tech = "dotnet"
+names = ["mcr.microsoft.com/dotnet/sdk", "mcr.microsoft.com/dotnet/aspnet", "mcr.microsoft.com/dotnet/runtime"]
+
+[[image]]
+tech = "bun"
+names = ["oven/bun"]
+
+[[image]]
+tech = "deno"
+names = ["denoland/deno"]
+
+[[image]]
+tech = "postgresql"
+names = ["postgres"]
+
+[[image]]
+tech = "supabase"
+names = ["supabase/postgres"]
+
+[[image]]
+tech = "mysql"
+names = ["mysql"]
+
+[[image]]
+tech = "mongodb"
+names = ["mongo"]
+
+[[image]]
+tech = "redis"
+names = ["redis"]
+
+[[image]]
+tech = "sqlserver"
+names = ["mcr.microsoft.com/mssql/server"]
+
+[[image]]
+tech = "rabbitmq"
+names = ["rabbitmq"]
+
+[[image]]
+tech = "elasticsearch"
+names = ["elasticsearch", "docker.elastic.co/elasticsearch/elasticsearch"]
+
+[[image]]
+tech = "kafka"
+names = ["apache/kafka", "bitnami/kafka", "confluentinc/cp-kafka"]
+
+[[image]]
+tech = "nats"
+names = ["nats"]
+
+[[image]]
+tech = "mariadb"
+names = ["mariadb"]
+
+[[image]]
+tech = "memcached"
+names = ["memcached"]
+
+[[image]]
+tech = "valkey"
+names = ["valkey/valkey"]
+
+[[image]]
+tech = "nginx"
+names = ["nginx"]
+
+[[image]]
+tech = "caddy"
+names = ["caddy"]
+
+[[image]]
+tech = "traefik"
+names = ["traefik"]
+
+[[image]]
+tech = "apache-httpd"
+names = ["httpd"]
+
+[[image]]
+tech = "alpine"
+names = ["alpine"]
+
+[[image]]
+tech = "debian"
+names = ["debian"]
+
+[[image]]
+tech = "ubuntu"
+names = ["ubuntu"]
+
+[[image]]
+tech = "minio"
+names = ["minio/minio"]
+
+[[image]]
+tech = "mailpit"
+names = ["axllent/mailpit"]
+
+[[image]]
+tech = "localstack"
+names = ["localstack/localstack"]
+
+[[image]]
+tech = "adminer"
+names = ["adminer"]
+
+[[image]]
+tech = "pgadmin"
+names = ["dpage/pgadmin4"]
+
+[[image]]
+tech = "grafana"
+names = ["grafana/grafana"]
+
+[[image]]
+tech = "jaeger"
+names = ["jaegertracing/all-in-one"]
+
+[[image]]
+tech = "clickhouse"
+names = ["clickhouse/clickhouse-server"]
+
+[[image]]
+tech = "cassandra"
+names = ["cassandra"]
+
+[[image]]
+tech = "neo4j"
+names = ["neo4j"]
+
+[[image]]
+tech = "opensearch"
+names = ["opensearchproject/opensearch"]
+
+[[image]]
+tech = "keycloak"
+names = ["quay.io/keycloak/keycloak"]
