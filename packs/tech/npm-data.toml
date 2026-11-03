@@ -5,9 +5,9 @@ id = "prisma"
 name = "Prisma"
 category = "data"
 npm = ["prisma", "@prisma/client"]
-en.beginner = "a tool that lets code read and write the database using simple, typed commands."
+en.beginner = "a tool that lets code read and write the database with simple commands, and catches typos before the app runs."
 en.builder = "a TypeScript ORM with a schema file, a generated typed client and migrations run by the Prisma CLI."
-tr.beginner = "kodun veritabanını okuyup yazmasını basit komutlarla sağlayan bir araç."
+tr.beginner = "kodun veritabanını basit komutlarla okuyup yazmasını sağlayan ve yazım hatalarını uygulama çalışmadan yakalayan bir araç."
 tr.builder = "şema dosyasından tür bilgisi üreten bir TypeScript ORM'i; göçleri prisma komut satırı aracıyla yönetir."
 
 [[tech]]
@@ -18,7 +18,7 @@ npm = ["drizzle-orm", "drizzle-kit"]
 en.beginner = "a library that turns code into database queries."
 en.builder = "a TypeScript ORM and SQL query builder with typed schemas, plus drizzle-kit for migrations."
 tr.beginner = "kodu veritabanı sorgularına çeviren bir kütüphane."
-tr.builder = "Türü belli şemalarla çalışan bir TypeScript ORM ve SQL sorgu kurucusu; drizzle-kit göçleri yönetir."
+tr.builder = "türü belli şemalarla çalışan bir TypeScript ORM ve SQL sorgu kurucusu; drizzle-kit göçleri yönetir."
 
 [[tech]]
 id = "typeorm"
@@ -77,7 +77,7 @@ category = "data"
 npm = ["@mikro-orm/*"]
 en.beginner = "a library that saves objects to a database and tracks their changes for you."
 en.builder = "a TypeScript ORM that tracks entity changes with a unit of work, with migrations and many database drivers."
-tr.beginner = "nesneleri veritabanına kaydeden ve yaptığın değişiklikleri kendisi takip eden bir kütüphane."
+tr.beginner = "nesneleri veritabanına kaydeden ve üzerlerindeki değişiklikleri kendisi takip eden bir kütüphane."
 tr.builder = "varlık değişikliklerini bir iş birimi ile izleyen bir TypeScript ORM'i; göçler ve birçok veritabanı sürücüsü içerir."
 
 [[tech]]
@@ -118,7 +118,7 @@ npm = ["@libsql/client"]
 en.beginner = "a small connector that lets apps store data in a light database, on a device or online."
 en.builder = "the client for libSQL, a fork of SQLite, used with Turso and with local or remote SQLite databases."
 tr.beginner = "uygulamaların verileri hafif bir veritabanında, cihazda ya da bulutta saklamasını sağlayan küçük bir bağlayıcı."
-tr.builder = "SQLite'ın çatallanmış sürümü olan libSQL için istemci; Turso ile ve yerel ya da uzak SQLite veritabanlarıyla kullanılır."
+tr.builder = "SQLite'tan türetilmiş libSQL için istemci; Turso ile ve yerel ya da uzak SQLite veritabanlarıyla kullanılır."
 
 [[tech]]
 id = "upstash"
@@ -208,7 +208,7 @@ npm = ["@apollo/server"]
 en.beginner = "a library that sets up a GraphQL API that the app's frontend can ask for data."
 en.builder = "a standalone GraphQL server library that runs a schema and resolvers over HTTP, for Node.js."
 tr.beginner = "uygulamanın ön yüzünün veri isteyebileceği bir GraphQL API'si kuran kütüphane."
-tr.builder = "şema ve çözümleyicileri HTTP üzerinden çalıştıran bağımsız bir GraphQL sunucu kütüphanesi, Node.js için."
+tr.builder = "Node.js için, şema ve çözümleyicileri HTTP üzerinden sunan bağımsız bir GraphQL sunucu kütüphanesi."
 
 [[tech]]
 id = "graphql-request"
@@ -225,10 +225,10 @@ id = "urql"
 name = "urql"
 category = "data"
 npm = ["urql"]
-en.beginner = "a GraphQL library for React and other frontends that loads and caches server data."
-en.builder = "an extensible GraphQL client with a document cache, extended through a chain of exchange plugins."
-tr.beginner = "React ve diğer ön yüzler için GraphQL verilerini yükleyen ve önbelleğe alan bir kütüphane."
-tr.builder = "eklentilerle genişleyen bir GraphQL istemcisi; belge önbelleği içerir."
+en.beginner = "a GraphQL library for React that loads and caches server data."
+en.builder = "an extensible GraphQL client for React with a document cache, extended through a chain of exchange plugins."
+tr.beginner = "React için GraphQL verilerini sunucudan yükleyen ve önbelleğe alan bir kütüphane."
+tr.builder = "React için eklentilerle genişleyen bir GraphQL istemcisi; belge önbelleği içerir."
 
 [[tech]]
 id = "convex"
@@ -238,7 +238,7 @@ npm = ["convex"]
 en.beginner = "a hosted backend with a database that updates the app's screens live when data changes."
 en.builder = "a hosted backend platform with a reactive database, server functions and a TypeScript client."
 tr.beginner = "veri değiştiğinde uygulamanın ekranlarını canlı olarak güncelleyen, barındırılan bir arka uç."
-tr.builder = "tepkisel bir veritabanı, sunucu işlevleri ve TypeScript istemcisi içeren barındırılan bir arka uç platformu."
+tr.builder = "veri değişince canlı güncellenen bir veritabanı, sunucu işlevleri ve TypeScript istemcisi içeren barındırılan bir arka uç platformu."
 
 [[tech]]
 id = "pglite"
@@ -296,9 +296,9 @@ name = "Auth.js (NextAuth)"
 category = "auth"
 npm = ["next-auth", "@auth/*"]
 en.beginner = "a library that adds sign-in to an app, with logins from Google, GitHub and other providers."
-en.builder = "an authentication library for JavaScript frameworks, formerly NextAuth, with sessions, OAuth and database adapters."
+en.builder = "an authentication library for Next.js and other frameworks, started as NextAuth.js and now called Auth.js, with sessions, OAuth and database adapters."
 tr.beginner = "uygulamaya Google, GitHub ve diğer hesaplarla giriş ekleyen bir kütüphane."
-tr.builder = "JavaScript çatıları için bir kimlik doğrulama kütüphanesi, eski adıyla NextAuth; oturumlar, OAuth ve veritabanı bağdaştırıcıları içerir."
+tr.builder = "Next.js ve diğer çatılar için bir kimlik doğrulama kütüphanesi; NextAuth.js olarak başladı, şimdi Auth.js adını taşır; oturumlar, OAuth ve veritabanı bağdaştırıcıları içerir."
 
 [[tech]]
 id = "clerk"
@@ -347,7 +347,7 @@ category = "auth"
 npm = ["jose"]
 en.beginner = "a library that creates and checks signed login tokens in many JavaScript environments."
 en.builder = "a JavaScript library for JOSE standards, including JWT, JWS, JWE and JWK, that runs in many runtimes."
-tr.beginner = "giriş ve API'ler için imzalı belirteçleri oluşturan ve kontrol eden bir kütüphane."
+tr.beginner = "giriş için imzalı belirteçleri birçok JavaScript ortamında oluşturan ve kontrol eden bir kütüphane."
 tr.builder = "JOSE standartlarını (JWT, JWS, JWE, JWK) birçok çalışma ortamında destekleyen bir JavaScript kütüphanesi."
 
 [[tech]]
@@ -536,15 +536,15 @@ name = "Superstruct"
 category = "validation"
 npm = ["superstruct"]
 en.beginner = "a small library that describes the shape of data and checks it while the app runs."
-en.builder = "a TypeScript library for defining and validating data structures with composable, typed structs."
+en.builder = "a JavaScript and TypeScript library for defining and validating data structures with composable, typed structs."
 tr.beginner = "verinin biçimini tanımlayan ve uygulama çalışırken kontrol eden küçük bir kütüphane."
-tr.builder = "veri yapılarını tanımlamak ve doğrulamak için TypeScript kütüphanesi; birleştirilebilir, tür bilgisi taşıyan yapılar sunar."
+tr.builder = "veri yapılarını tanımlamak ve doğrulamak için JavaScript ve TypeScript kütüphanesi; birleştirilebilir, tür bilgisi taşıyan yapılar sunar."
 
 [[tech]]
 id = "typebox"
 name = "TypeBox"
 category = "validation"
-npm = ["@sinclair/typebox"]
+npm = ["@sinclair/typebox", "typebox"]
 en.beginner = "a library that defines a data shape once and uses it for both types and checks."
 en.builder = "a JSON Schema builder for TypeScript that produces types and validation schemas from one definition."
 tr.beginner = "veri biçimini bir kez tanımlayıp hem tür hem doğrulama için kullanan bir kütüphane."
@@ -576,7 +576,7 @@ name = "React Hook Form resolvers"
 category = "validation"
 npm = ["@hookform/resolvers"]
 en.beginner = "a helper that connects form checking rules, such as Zod or Yup, to a React form."
-en.builder = "adapter package that plugs schema validators such as Zod, Yup and Joi into React Hook Form."
+en.builder = "an adapter package that plugs schema validators such as Zod, Yup and Joi into React Hook Form."
 tr.beginner = "Zod veya Yup gibi form kurallarını bir React formuna bağlayan yardımcı bir paket."
 tr.builder = "Zod, Yup ve Joi gibi şema doğrulayıcılarını React Hook Form'a bağlayan bağdaştırıcı paketi."
 
@@ -596,6 +596,6 @@ name = "T3 Env"
 category = "build"
 npm = ["@t3-oss/env-nextjs"]
 en.beginner = "a helper that checks secret settings, such as database passwords, when the app starts."
-en.builder = "a Next.js environment variable loader that validates env values with Zod schemas."
+en.builder = "a Next.js environment variable loader that validates env values with schemas, such as Zod ones."
 tr.beginner = "uygulama başladığında veritabanı şifresi gibi gizli ayarları kontrol eden küçük bir yardımcı."
-tr.builder = "Next.js için ortam değişkenlerini okuyan ve Zod şemalarıyla doğrulayan bir araç."
+tr.builder = "Next.js için ortam değişkenlerini okuyan ve Zod gibi şemalarla doğrulayan bir araç."
