@@ -127,7 +127,7 @@ category = "framework"
 crates = ["tower"]
 en.beginner = "a Rust library of reusable building blocks, such as timeouts and retries, that wrap around a web service."
 en.builder = "a library of composable service and middleware traits for Rust, used by axum, tonic and hyper-based servers."
-tr.beginner = "bir web servisini saran, zaman aşımı ve yeniden deneme gibi hazır parçalar sunan bir Rust kütüphanesi."
+tr.beginner = "web servisini saran, zaman aşımı ve yeniden deneme gibi hazır parçalar sunan bir Rust kütüphanesi."
 tr.builder = "axum, tonic ve hyper tabanlı sunucularda kullanılan, birleştirilebilir servis ve ara katman arayüzleri sunan kütüphane."
 
 [[tech]]
@@ -135,9 +135,9 @@ id = "tower-http"
 name = "Tower HTTP"
 category = "framework"
 crates = ["tower-http"]
-en.beginner = "a Rust library of ready-made add-ons for web servers, such as request logging, compression and browser access rules (CORS)."
+en.beginner = "a Rust library of ready-made web server add-ons, such as request logging, compression and browser access rules (CORS)."
 en.builder = "HTTP-specific tower middleware for tracing, compression, CORS, static file serving and timeouts."
-tr.beginner = "istek kaydı, sıkıştırma ve tarayıcı erişim kuralları (CORS) gibi web sunucusu eklentilerini hazır sunan bir Rust kütüphanesi."
+tr.beginner = "istek kaydı, sıkıştırma ve tarayıcı erişim kuralları (CORS) gibi hazır sunucu eklentileri sunan Rust kütüphanesi."
 tr.builder = "tower için HTTP'ye özel ara katmanlar: izleme, sıkıştırma, CORS, statik dosya sunumu ve zaman aşımı."
 
 [[tech]]
