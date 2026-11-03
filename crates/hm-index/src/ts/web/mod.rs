@@ -12,8 +12,6 @@ mod client;
 mod next;
 mod server;
 
-// Read by the extraction modules that fill the stubs; remove when the first one lands.
-#[allow(dead_code)]
 /// A symbol with the byte range it occupies, to find the symbol around a node.
 pub(crate) struct Span {
     pub start: usize,
@@ -30,8 +28,6 @@ pub(crate) struct Callback {
     pub end: usize,
 }
 
-// Read by the extraction modules that fill the stubs; remove when the first one lands.
-#[allow(dead_code)]
 /// The `(owner, name)` of the innermost span around `pos`; `None` at top level.
 pub(crate) fn owner_at(spans: &[Span], pos: usize) -> Owner {
     spans
@@ -55,8 +51,6 @@ pub(crate) fn extract_web(root: Node, src: &[u8], lang: Lang, spans: &[Span]) ->
     out
 }
 
-// Read by the extraction modules that fill the stubs; remove when the first one lands.
-#[allow(dead_code)]
 /// Compiles the part of `scm` that applies to `lang`. A query that does not compile is
 /// a bug and panics; `None` for a language L1 does not parse. Each area module keeps
 /// the result in one `OnceLock` per language.
