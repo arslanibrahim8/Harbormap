@@ -296,6 +296,37 @@ fn peer_suffix_and_link_versions() {
 }
 
 #[test]
+fn values_that_are_not_versions_resolve_to_nothing() {
+    // pnpm writes an alias as `name@version` and a git or tarball dependency as its URL;
+    // npm writes a git URL as `version` too. None of them is a version.
+    let pnpm = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      \
+                width:\n        specifier: npm:string-width@^4.2.0\n        version: string-width@4.2.3\n      \
+                gitdep:\n        specifier: github:shop/gitdep\n        version: https://codeload.github.com/shop/gitdep/tar.gz/0123abc\n      \
+                tar:\n        specifier: https://shop.example/tar-1.0.0.tgz\n        version: https://shop.example/tar-1.0.0.tgz\n      \
+                plain:\n        specifier: ^1.0.0\n        version: 1.0.4\n";
+    let lock = parse_lockfile("pnpm-lock.yaml", pnpm).unwrap();
+    assert_eq!(lock.resolved(".", "width", "npm:string-width@^4.2.0"), None);
+    assert_eq!(lock.resolved(".", "gitdep", "github:shop/gitdep"), None);
+    assert_eq!(
+        lock.resolved(".", "tar", "https://shop.example/tar-1.0.0.tgz"),
+        None
+    );
+    assert_eq!(
+        lock.resolved(".", "plain", "^1.0.0").as_deref(),
+        Some("1.0.4")
+    );
+    let npm = r#"{ "lockfileVersion": 3, "packages": {
+        "node_modules/gitdep": { "version": "git+ssh://git@github.com/shop/gitdep.git#0123abc" },
+        "node_modules/plain": { "version": "1.0.4" } } }"#;
+    let lock = parse_lockfile("package-lock.json", npm).unwrap();
+    assert_eq!(lock.resolved(".", "gitdep", "github:shop/gitdep"), None);
+    assert_eq!(
+        lock.resolved(".", "plain", "^1.0.0").as_deref(),
+        Some("1.0.4")
+    );
+}
+
+#[test]
 fn older_pnpm_shapes_resolve() {
     // v6 without workspaces: the sections sit at the top, same shape as an importer.
     let v6 = "lockfileVersion: '6.0'\n\ndependencies:\n  next:\n    specifier: ^15.0.0\n    \

@@ -92,14 +92,17 @@ impl LockIndex {
 }
 
 /// Drops quotes, peer suffixes (`(react@19)` in pnpm v6+, `_react@19` before) and a
-/// trailing comment; a local package gives `None`.
+/// trailing comment. A local package, and anything that does not start with a digit (a
+/// pnpm alias `string-width@4.2.3`, a git or tarball URL), gives `None`.
 fn clean_version(raw: &str) -> Option<String> {
     let v = raw.trim().trim_matches(['\'', '"']).trim();
     if v.is_empty() || LOCAL_PREFIXES.iter().any(|p| v.starts_with(p)) {
         return None;
     }
     let end = v.find(['(', '_', ' ']).unwrap_or(v.len());
-    (end > 0).then(|| v[..end].to_string())
+    let v = &v[..end];
+    v.starts_with(|c: char| c.is_ascii_digit())
+        .then(|| v.to_string())
 }
 
 #[derive(Deserialize)]
