@@ -261,6 +261,22 @@ fn matcher_forms_are_read_in_source_order() {
 }
 
 #[test]
+fn matcher_strings_are_their_values_not_their_source_spelling() {
+    // The Next.js docs' own matcher (next-learn's `proxy.ts`) escapes the regex dot as
+    // `\\.`: the matcher Next.js reads is `\.`.
+    let m = |src: &str| hm_index::ts::extract(src, Lang::TypeScript).web.matcher;
+    let got = m(r"export const config = {
+  matcher: ['/((?!api|_next/static|.*\\.png$).*)', { source: '/a\'b' }, '/\u0063\x64\
+e'],
+}")
+    .unwrap();
+    assert_eq!(
+        got.values,
+        [r"/((?!api|_next/static|.*\.png$).*)", "/a'b", "/cde"]
+    );
+}
+
+#[test]
 fn a_directive_function_is_named_by_a_binding_not_by_a_property_key() {
     let f = tsx("export function Shop() {\n\
          \x20 const save = async () => { 'use server' }\n\

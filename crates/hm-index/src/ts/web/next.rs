@@ -60,6 +60,63 @@ fn string_value(node: Node, src: &[u8]) -> Option<String> {
     t.get(1..t.len().checked_sub(1)?).map(str::to_string)
 }
 
+/// The value of a string literal, its escape sequences decoded (`'\\.png'` is `\.png`);
+/// `None` for anything else. A malformed `\x`/`\u` escape (a syntax error) is kept as read.
+fn decoded_string(node: Node, src: &[u8]) -> Option<String> {
+    let raw = string_value(node, src)?;
+    let mut out = String::with_capacity(raw.len());
+    let mut chars = raw.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        let Some(e) = chars.next() else {
+            out.push('\\');
+            break;
+        };
+        match e {
+            'n' => out.push('\n'),
+            'r' => out.push('\r'),
+            't' => out.push('\t'),
+            'b' => out.push('\u{8}'),
+            'f' => out.push('\u{c}'),
+            'v' => out.push('\u{b}'),
+            '0' if !chars.peek().is_some_and(char::is_ascii_digit) => out.push('\0'),
+            // A line continuation.
+            '\n' => {}
+            '\r' => {
+                chars.next_if_eq(&'\n');
+            }
+            'x' | 'u' => {
+                let braced = e == 'u' && chars.next_if_eq(&'{').is_some();
+                let digits = if braced {
+                    6
+                } else if e == 'x' {
+                    2
+                } else {
+                    4
+                };
+                let hex: String = (0..digits)
+                    .map_while(|_| chars.next_if(char::is_ascii_hexdigit))
+                    .collect();
+                let closed = !braced || chars.next_if_eq(&'}').is_some();
+                match u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
+                    Some(ch) if closed => out.push(ch),
+                    _ => {
+                        out.push('\\');
+                        out.push(e);
+                        out.push_str(if braced { "{" } else { "" });
+                        out.push_str(&hex);
+                    }
+                }
+            }
+            other => out.push(other),
+        }
+    }
+    Some(out)
+}
+
 /// `node` without parentheses and without `as` / `satisfies` / `!` wrappers.
 fn peel(mut node: Node) -> Node {
     while matches!(
@@ -410,7 +467,7 @@ fn matcher_values(object: Node, src: &[u8]) -> Vec<String> {
 
 /// A matcher entry: a string, or an object with a `source` string.
 fn matcher_item(item: Node, src: &[u8], out: &mut Vec<String>) {
-    if let Some(s) = string_value(item, src) {
+    if let Some(s) = decoded_string(item, src) {
         out.push(s);
     } else if item.kind() == "object" {
         let mut cursor = item.walk();
@@ -423,7 +480,7 @@ fn matcher_item(item: Node, src: &[u8], out: &mut Vec<String>) {
                 .child_by_field_name("value")
                 .map(peel)
                 .filter(|_| is_source)
-                .and_then(|v| string_value(v, src))
+                .and_then(|v| decoded_string(v, src))
             {
                 out.push(s);
             }
