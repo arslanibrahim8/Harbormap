@@ -1,0 +1,17 @@
+{
+  "name": "harbormap-learn-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Harbormap Learn panel: TypeScript, no framework, bundled by esbuild",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "tsc --noEmit",
+    "test": "node --test \"test/*.test.ts\"",
+    "verify": "node build.mjs --check"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "6.0.3"
+  }
+}

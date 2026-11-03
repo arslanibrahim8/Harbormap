@@ -1,0 +1,3 @@
+# Harbormap Learn panel
+
+The browser panel served by `harbormap learn` is plain TypeScript (no framework), bundled by a pinned esbuild into `dist/`, which is committed and embedded in the Rust server so that users never need Node. After changing anything under `src/`, `build.mjs`, `package.json`, `package-lock.json` or `tsconfig.json`, run `npm ci` once, then `npm run build` and commit `dist/`; `npm run check` type-checks, `npm test` runs the pure-module tests, and `npm run verify` (also run in CI, and mirrored by `cargo test -p hm-serve --test bundle`) fails when `dist/` does not match its source.
