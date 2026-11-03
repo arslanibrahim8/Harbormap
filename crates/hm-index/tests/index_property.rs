@@ -17,6 +17,8 @@ fn edit_strategy() -> impl Strategy<Value = (Edit, u64)> {
         Just(Edit::AddFile),
         Just(Edit::DeleteFile),
         Just(Edit::BreakSyntax),
+        Just(Edit::EditManifest),
+        Just(Edit::ToggleVerb),
     ];
     (edit, any::<u64>())
 }
