@@ -1,1 +1,1272 @@
 # Python packages from PyPI. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+# ---- Web frameworks and servers ----
+
+[[tech]]
+id = "django"
+name = "Django"
+category = "framework"
+pypi = ["django"]
+en.beginner = "a framework that helps build a complete website or web app quickly."
+en.builder = "a Python web framework with a database layer, admin panel, authentication and templates, built to work out of the box."
+tr.beginner = "hızlıca tam bir web sitesi veya web uygulaması kurmaya yardım eden bir çerçeve."
+tr.builder = "Python ile yazılmış; veritabanı katmanı, yönetici paneli, kimlik doğrulama ve şablonları hazır sunan bir web çerçevesi."
+
+[[tech]]
+id = "django-rest-framework"
+name = "Django REST framework"
+category = "framework"
+pypi = ["djangorestframework"]
+en.beginner = "an add-on that lets a Django project share its data with other apps."
+en.builder = "a toolkit on top of Django for building REST APIs, with serializers, viewsets, authentication and browsable pages."
+tr.beginner = "bir Django projesinin verilerini başka uygulamalarla paylaşmasını sağlayan bir eklenti."
+tr.builder = "Django üzerine kurulu; REST API yazmak için serileştiriciler, görünüm kümeleri ve kimlik doğrulama sunan bir araç seti."
+
+[[tech]]
+id = "django-channels"
+name = "Django Channels"
+category = "framework"
+pypi = ["channels"]
+en.beginner = "an add-on that lets a Django project handle live connections, such as chat messages."
+en.builder = "a Django extension for WebSockets and other long-lived connections, with channel layers for passing messages between processes."
+tr.beginner = "bir Django projesinin sohbet mesajları gibi anlık bağlantıları yönetmesini sağlayan bir eklenti."
+tr.builder = "Django için WebSocket ve uzun süreli bağlantıları destekleyen bir eklenti; süreçler arası mesaj kanalları içerir."
+
+[[tech]]
+id = "flask"
+name = "Flask"
+category = "framework"
+pypi = ["flask"]
+en.beginner = "a small, flexible framework for building websites and web services with Python."
+en.builder = "a lightweight Python web framework (WSGI) with routing, templates and extensions, leaving most other choices to you."
+tr.beginner = "Python ile web siteleri ve web servisleri kurmak için küçük, esnek bir çerçeve."
+tr.builder = "Yönlendirme, şablon ve eklenti desteği olan hafif bir Python web çerçevesi; diğer seçimleri size bırakır."
+
+[[tech]]
+id = "fastapi"
+name = "FastAPI"
+category = "framework"
+pypi = ["fastapi"]
+en.beginner = "a fast library for building web services that check the data they receive."
+en.builder = "a modern Python framework for async web APIs, using type hints for validation and generating OpenAPI docs automatically."
+tr.beginner = "gelen verileri kendisi kontrol eden, web servisleri kurmak için hızlı bir kütüphane."
+tr.builder = "Tür ipuçlarıyla veri doğrulayan, eşzamansız web servisleri için modern bir Python çerçevesi; OpenAPI belgelerini otomatik üretir."
+
+[[tech]]
+id = "starlette"
+name = "Starlette"
+category = "framework"
+pypi = ["starlette"]
+en.beginner = "a small toolkit for handling web requests, and the base that FastAPI is built on."
+en.builder = "a lightweight ASGI framework with routing, middleware, WebSockets and background tasks, used under FastAPI."
+tr.beginner = "web isteklerini karşılayan küçük bir araç seti; FastAPI bunun üzerine kuruludur."
+tr.builder = "Yönlendirme, ara katman, WebSocket ve arka plan görevleri sunan hafif bir ASGI çerçevesi; FastAPI bunun üzerine kuruludur."
+
+[[tech]]
+id = "uvicorn"
+name = "Uvicorn"
+category = "framework"
+pypi = ["uvicorn"]
+en.beginner = "a server that runs a Python web app so visitors can reach it."
+en.builder = "a fast ASGI server, usually started for FastAPI or Starlette apps, supporting HTTP/1.1 and WebSockets."
+tr.beginner = "Python web uygulamanızı ziyaretçilerin erişebileceği şekilde çalıştıran bir sunucu."
+tr.builder = "FastAPI ve Starlette uygulamalarını çalıştıran hızlı bir ASGI sunucusu; HTTP/1.1 ve WebSocket destekler."
+
+[[tech]]
+id = "gunicorn"
+name = "Gunicorn"
+category = "framework"
+pypi = ["gunicorn"]
+en.beginner = "a server that runs a Python web app with several workers at once, for live sites."
+en.builder = "a WSGI HTTP server for Python apps that runs a pool of worker processes, usually behind a reverse proxy."
+tr.beginner = "Python web uygulamasını birden çok işlemle aynı anda çalıştıran, canlı siteler için bir sunucu."
+tr.builder = "Python WSGI uygulamaları için, genellikle bir ters vekil sunucunun arkasında çalışan HTTP sunucusu."
+
+[[tech]]
+id = "aiohttp"
+name = "aiohttp"
+category = "framework"
+pypi = ["aiohttp"]
+en.beginner = "a library for sending and receiving web requests, handling many at the same time."
+en.builder = "an asynchronous HTTP client and server library for Python, built on asyncio."
+tr.beginner = "web istekleri gönderen ve karşılayan, birçoğunu aynı anda yürüten bir kütüphane."
+tr.builder = "asyncio üzerine kurulu, eşzamansız bir HTTP istemci ve sunucu kütüphanesi."
+
+[[tech]]
+id = "tornado"
+name = "Tornado"
+category = "framework"
+pypi = ["tornado"]
+en.beginner = "a Python web framework that keeps many connections open at once, such as for chat."
+en.builder = "an asynchronous Python web framework and networking library with non-blocking I/O and WebSocket support."
+tr.beginner = "aynı anda çok sayıda bağlantıyı açık tutabilen, sohbet gibi uygulamalar için bir web çerçevesi."
+tr.builder = "Engellemeyen ağ işlemleri ve WebSocket desteği olan, eşzamansız bir Python web çerçevesi ve ağ kütüphanesi."
+
+[[tech]]
+id = "sanic"
+name = "Sanic"
+category = "framework"
+pypi = ["sanic"]
+en.beginner = "a fast Python web framework that handles many requests at the same time."
+en.builder = "an asynchronous Python web framework and server with routing, middleware and grouped route blueprints."
+tr.beginner = "aynı anda çok sayıda isteği karşılayan hızlı bir Python web çerçevesi."
+tr.builder = "Yönlendirme, ara katman ve modüler rota grupları sunan eşzamansız bir Python web çerçevesi ve sunucusu."
+
+[[tech]]
+id = "litestar"
+name = "Litestar"
+category = "framework"
+pypi = ["litestar"]
+en.beginner = "a Python framework for building web services that check their data automatically."
+en.builder = "an ASGI framework with typed routes, dependency injection, data validation and OpenAPI documentation."
+tr.beginner = "veriyi otomatik kontrol eden web servisleri kurmak için bir Python çerçevesi."
+tr.builder = "Tür ipuçlarına dayalı rotalar, bağımlılık enjeksiyonu, veri doğrulama ve OpenAPI belgeleri sunan bir ASGI çerçevesi."
+
+[[tech]]
+id = "werkzeug"
+name = "Werkzeug"
+category = "framework"
+pypi = ["werkzeug"]
+en.beginner = "a toolkit that handles the basic web request and routing work under Flask."
+en.builder = "a WSGI utility library with a request and response layer, routing, a debug server and a test client, used by Flask."
+tr.beginner = "Flask'ın altında web isteklerini ve yönlendirmeyi yöneten temel bir araç seti."
+tr.builder = "İstek ve yanıt katmanı, yönlendirme, hata ayıklama sunucusu ve test istemcisi içeren, Flask'ın kullandığı bir WSGI kütüphanesi."
+
+[[tech]]
+id = "jinja2"
+name = "Jinja2"
+category = "other"
+pypi = ["jinja2"]
+en.beginner = "a tool that fills web pages and documents with changing text and data."
+en.builder = "a Python template engine that renders HTML and text from templates, with loops, filters and template inheritance."
+tr.beginner = "web sayfalarını ve belgeleri değişen yazı ve verilerle dolduran bir araç."
+tr.builder = "Döngü, filtre ve şablon miras alma özellikleri olan bir Python şablon motoru; HTML ve metin üretir."
+
+# ---- Data ----
+
+[[tech]]
+id = "sqlalchemy"
+name = "SQLAlchemy"
+category = "data"
+pypi = ["sqlalchemy"]
+en.beginner = "a library that turns Python code into database queries and tables."
+en.builder = "a Python SQL toolkit and ORM, with a query layer for SQL and an ORM that maps classes to tables."
+tr.beginner = "Python kodunu veritabanı sorgularına ve tablolara çeviren bir kütüphane."
+tr.builder = "Python için bir SQL araç seti; sınıfları tablolara eşleyen nesne-ilişkisel eşleme katmanı içerir."
+
+[[tech]]
+id = "alembic"
+name = "Alembic"
+category = "data"
+pypi = ["alembic"]
+en.beginner = "a tool that records and applies changes to a database's structure over time."
+en.builder = "a database migration tool for SQLAlchemy, generating and running versioned schema change scripts."
+tr.beginner = "bir veritabanının yapısındaki değişiklikleri kaydeden ve sırayla uygulayan bir araç."
+tr.builder = "SQLAlchemy için veritabanı göç aracı; sürümlü şema değişikliği betikleri üretir ve çalıştırır."
+
+[[tech]]
+id = "sqlmodel"
+name = "SQLModel"
+category = "data"
+pypi = ["sqlmodel"]
+en.beginner = "a library that uses one Python class to describe both a database table and web data."
+en.builder = "a library combining SQLAlchemy and Pydantic, so one model defines both the database table and the API data."
+tr.beginner = "tek Python sınıfıyla hem veritabanı tablosunu hem web verisini tanımlamayı sağlayan bir kütüphane."
+tr.builder = "SQLAlchemy ve Pydantic'i birleştiren bir kütüphane; tek model hem veritabanı tablosunu hem API verisini tanımlar."
+
+[[tech]]
+id = "peewee"
+name = "Peewee"
+category = "data"
+pypi = ["peewee"]
+en.beginner = "a small library that lets Python code read and write a database with simple classes."
+en.builder = "a small Python ORM with a simple API, supporting SQLite, MySQL and PostgreSQL."
+tr.beginner = "Python kodunuzun basit sınıflarla veritabanını okuyup yazmasını sağlayan küçük bir kütüphane."
+tr.builder = "SQLite, MySQL ve PostgreSQL ile çalışan, küçük ve basit bir Python veritabanı kütüphanesi."
+
+[[tech]]
+id = "tortoise-orm"
+name = "Tortoise ORM"
+category = "data"
+pypi = ["tortoise-orm"]
+en.beginner = "a library that reads and writes a database from Python code, designed for async apps."
+en.builder = "an asynchronous Python ORM with models, migrations and support for several SQL databases."
+tr.beginner = "Python kodundan veritabanını okuyup yazan, eşzamansız uygulamalar için bir kütüphane."
+tr.builder = "Eşzamansız bir Python veritabanı kütüphanesi; modeller, göçler ve birçok SQL veritabanı desteği sunar."
+
+[[tech]]
+id = "celery"
+name = "Celery"
+category = "data"
+pypi = ["celery"]
+en.beginner = "a tool that runs slow jobs in the background, so the website stays fast."
+en.builder = "a distributed task queue for Python that sends jobs to worker processes through a broker such as Redis or RabbitMQ."
+tr.beginner = "yavaş işleri arka planda çalıştırarak sitenin hızlı kalmasını sağlayan bir araç."
+tr.builder = "Redis veya RabbitMQ gibi bir aracı üzerinden işleri işçi süreçlere dağıtan, Python için dağıtık görev kuyruğu."
+
+[[tech]]
+id = "rq-py"
+name = "RQ"
+category = "data"
+pypi = ["rq"]
+en.beginner = "a simple tool that runs slow jobs in the background using a Redis database."
+en.builder = "a simple Python job queue that stores jobs in Redis and runs them in separate worker processes."
+tr.beginner = "Redis veritabanını kullanarak yavaş işleri arka planda çalıştıran basit bir araç."
+tr.builder = "İşleri Redis'te saklayan ve ayrı işçi süreçlerde çalıştıran basit bir Python iş kuyruğu."
+
+[[tech]]
+id = "dramatiq"
+name = "Dramatiq"
+category = "data"
+pypi = ["dramatiq"]
+en.beginner = "a tool that runs slow jobs in the background of a Python app."
+en.builder = "a fast distributed task queue for Python with Redis or RabbitMQ brokers, retries and rate limits."
+tr.beginner = "Python uygulamasında yavaş işleri arka planda yürüten bir araç."
+tr.builder = "Redis veya RabbitMQ ile çalışan, yeniden deneme ve hız sınırı özellikleri olan hızlı bir Python görev kuyruğu."
+
+[[tech]]
+id = "strawberry-graphql"
+name = "Strawberry"
+category = "data"
+pypi = ["strawberry-graphql"]
+en.beginner = "a library that lets a Python app send only the data a client asks for."
+en.builder = "a GraphQL library for Python that builds schemas from type hints, with dataclass and async support."
+tr.beginner = "Python uygulamanızın, istemcinin yalnızca istediği veriyi göndermesini sağlayan bir kütüphane."
+tr.builder = "Tür ipuçlarından şema üreten, dataclass ve eşzamansız destek sunan bir Python GraphQL kütüphanesi."
+
+[[tech]]
+id = "graphene"
+name = "Graphene"
+category = "data"
+pypi = ["graphene"]
+en.beginner = "a library for building a flexible data service in Python, where clients pick the fields they want."
+en.builder = "a GraphQL framework for Python that defines schemas with classes and works with Django, Flask and SQLAlchemy."
+tr.beginner = "Python ile esnek bir veri servisi kurmanızı sağlayan, istemcilerin istedikleri alanları seçtiği bir kütüphane."
+tr.builder = "Sınıflarla şema tanımlayan, Django, Flask ve SQLAlchemy ile çalışabilen bir Python GraphQL çerçevesi."
+
+[[tech]]
+id = "flask-sqlalchemy"
+name = "Flask-SQLAlchemy"
+category = "data"
+pypi = ["flask-sqlalchemy"]
+en.beginner = "an add-on that connects a Flask app to a database using SQLAlchemy."
+en.builder = "a Flask extension that integrates SQLAlchemy, with session handling, models and automatic session cleanup."
+tr.beginner = "Bir Flask uygulamasını SQLAlchemy kullanarak bir veritabanına bağlayan bir eklenti."
+tr.builder = "SQLAlchemy'yi Flask'a bağlayan; oturum yönetimi, modeller ve otomatik temizlik sunan bir eklenti."
+
+# ---- HTTP, scraping and messaging ----
+
+[[tech]]
+id = "requests-py"
+name = "Requests"
+category = "other"
+pypi = ["requests"]
+en.beginner = "a library that lets Python code fetch web pages and send data to other services."
+en.builder = "the most popular Python HTTP client library, with sessions, cookies, authentication and JSON handling."
+tr.beginner = "Python kodunun web sayfalarını çekmesini ve diğer servislere veri göndermesini sağlayan bir kütüphane."
+tr.builder = "Python'un en yaygın HTTP istemci kütüphanesi; oturum, çerez, kimlik doğrulama ve JSON desteği sunar."
+
+[[tech]]
+id = "httpx"
+name = "HTTPX"
+category = "other"
+pypi = ["httpx"]
+en.beginner = "a library that fetches web data from Python, in both normal and async modes."
+en.builder = "a modern HTTP client for Python with sync and async APIs, HTTP/2 support and a requests-like interface."
+tr.beginner = "Python'dan web verisi çeken; normal ve eşzamansız modda çalışabilen bir kütüphane."
+tr.builder = "Eşzamanlı ve eşzamansız kullanımı olan, HTTP/2 destekli, requests'e benzer modern bir Python HTTP istemcisi."
+
+[[tech]]
+id = "urllib3"
+name = "urllib3"
+category = "other"
+pypi = ["urllib3"]
+en.beginner = "a low-level library that manages the network connections behind Python web requests."
+en.builder = "a low-level HTTP client library with connection pooling, retries and TLS, used under requests."
+tr.beginner = "Python'daki web isteklerinin arkasındaki ağ bağlantılarını yöneten düşük seviyeli bir kütüphane."
+tr.builder = "Bağlantı havuzu, yeniden deneme ve TLS sunan, requests'in altında çalışan düşük seviyeli bir HTTP kütüphanesi."
+
+[[tech]]
+id = "beautifulsoup"
+name = "Beautiful Soup"
+category = "other"
+pypi = ["beautifulsoup4"]
+en.beginner = "a library that reads web pages and pulls out the text and links you need."
+en.builder = "an HTML and XML parser for Python that navigates and searches a document tree, using lxml or html.parser."
+tr.beginner = "web sayfalarını okuyup içinden ihtiyacınız olan metni ve bağlantıları çıkaran bir kütüphane."
+tr.builder = "HTML ve XML belgelerini ayrıştırıp içinde arama ve gezinme yapmayı sağlayan bir Python kütüphanesi."
+
+[[tech]]
+id = "lxml"
+name = "lxml"
+category = "other"
+pypi = ["lxml"]
+en.beginner = "a fast library for reading and writing XML and HTML files in Python."
+en.builder = "a Python binding to the libxml2 and libxslt C libraries, for fast XML and HTML parsing and XPath queries."
+tr.beginner = "Python'da XML ve HTML dosyalarını hızlıca okuyup yazmayı sağlayan bir kütüphane."
+tr.builder = "libxml2 ve libxslt C kütüphanelerine bağlanan; hızlı XML ve HTML ayrıştırma ile XPath sorguları sunan bir Python kütüphanesi."
+
+[[tech]]
+id = "scrapy"
+name = "Scrapy"
+category = "other"
+pypi = ["scrapy"]
+en.beginner = "a framework that visits many web pages automatically and collects data from them."
+en.builder = "an asynchronous web crawling and scraping framework with spiders, item pipelines and built-in exports."
+tr.beginner = "çok sayıda web sayfasını otomatik gezip onlardan veri toplayan bir çerçeve."
+tr.builder = "Örümcek (spider) sınıfları, veri hatları ve dışa aktarma özelliği olan eşzamansız bir veri toplama çerçevesi."
+
+
+[[tech]]
+id = "websockets-py"
+name = "websockets"
+category = "other"
+pypi = ["websockets"]
+en.beginner = "a library for live two-way connections between a browser and a Python server, such as chat."
+en.builder = "a Python library for building WebSocket servers and clients, implementing the protocol with asyncio."
+tr.beginner = "Tarayıcı ile Python sunucusu arasında, sohbet gibi çift yönlü canlı bağlantı kuran bir kütüphane."
+tr.builder = "WebSocket sunucuları ve istemcileri yazmak için, protokolü asyncio ile uygulayan bir Python kütüphanesi."
+
+[[tech]]
+id = "python-socketio"
+name = "python-socketio"
+category = "other"
+pypi = ["python-socketio"]
+en.beginner = "a library for live two-way messages between a Python server and browser pages, like chat."
+en.builder = "a Python implementation of the Socket.IO protocol for real-time events, with rooms, namespaces and async servers."
+tr.beginner = "Python sunucusu ile tarayıcı sayfaları arasında sohbet gibi canlı, çift yönlü mesajlar gönderen bir kütüphane."
+tr.builder = "Gerçek zamanlı olaylar için Socket.IO protokolünün Python uygulaması; odalar, ad alanları ve eşzamansız sunucular sunar."
+
+[[tech]]
+id = "apscheduler"
+name = "APScheduler"
+category = "other"
+pypi = ["apscheduler"]
+en.beginner = "a library that runs Python functions on a schedule, such as every morning or every hour."
+en.builder = "a Python task scheduling library that supports interval, cron-style and one-off jobs with memory or database stores."
+tr.beginner = "Python fonksiyonlarını her sabah veya her saat gibi belirli zamanlarda çalıştıran bir kütüphane."
+tr.builder = "Aralıklı, cron benzeri ve tek seferlik işleri destekleyen, bellekte ya da veritabanında saklanabilen bir Python zamanlayıcı kütüphanesi."
+
+[[tech]]
+id = "paramiko"
+name = "Paramiko"
+category = "other"
+pypi = ["paramiko"]
+en.beginner = "a library that connects Python to other computers securely, to run commands and move files."
+en.builder = "a Python implementation of the SSHv2 protocol, offering client and server functions and SFTP file transfer."
+tr.beginner = "Python'u başka bilgisayarlara güvenli biçimde bağlayıp komut çalıştırmanızı ve dosya taşımanızı sağlayan bir kütüphane."
+tr.builder = "SSHv2 protokolünün Python uygulaması; istemci ve sunucu işlevleri ile SFTP dosya aktarımı sunar."
+
+[[tech]]
+id = "kubernetes-py"
+name = "Kubernetes Python client"
+category = "deploy"
+pypi = ["kubernetes"]
+en.beginner = "a library that lets Python code control apps running on a Kubernetes cluster."
+en.builder = "the official Python client for the Kubernetes API, generated from its OpenAPI spec to manage cluster resources."
+tr.beginner = "Python kodunun, konteynerlerin çalıştığı sunucu kümesindeki uygulamaları yönetmesini sağlayan bir kütüphane."
+tr.builder = "Kubernetes API'si için resmi Python istemcisi; küme kaynaklarını yönetmek için OpenAPI tanımından üretilmiştir."
+
+# ---- Testing ----
+
+[[tech]]
+id = "pytest"
+name = "pytest"
+category = "testing"
+pypi = ["pytest", "pytest-*"]
+en.beginner = "a tool that runs your Python tests and reports which ones fail, with clear messages."
+en.builder = "a Python test runner with plain assert statements, parametrized tests, fixtures and a large plugin ecosystem."
+tr.beginner = "Python testlerinizi çalıştıran ve hangilerinin başarısız olduğunu açık mesajlarla gösteren bir araç."
+tr.builder = "Basit doğrulama ifadeleri (assert), parametreli testler ve geniş eklenti desteği sunan Python test çalıştırıcısı."
+
+[[tech]]
+id = "coverage-py"
+name = "Coverage.py"
+category = "testing"
+pypi = ["coverage"]
+en.beginner = "a tool that shows which parts of your Python code the tests actually run."
+en.builder = "a code coverage tool for Python that records executed lines and branches, often run together with pytest."
+tr.beginner = "testlerinizin Python kodunuzun hangi kısımlarını gerçekten çalıştırdığını gösteren bir araç."
+tr.builder = "Çalışan satırları ve dalları kaydeden, Python için kod kapsamı ölçüm aracı; çoğunlukla pytest ile kullanılır."
+
+[[tech]]
+id = "tox"
+name = "tox"
+category = "testing"
+pypi = ["tox"]
+en.beginner = "a tool that runs your Python tests in several clean environments, one per Python version."
+en.builder = "a test automation tool that builds isolated virtual environments and runs tests, linters or commands in each."
+tr.beginner = "Python testlerinizi her Python sürümü için ayrı, temiz ortamlarda çalıştıran bir araç."
+tr.builder = "Her biri için ayrı sanal ortam kuran ve testleri, kod denetim araçlarını ya da komutları çalıştıran bir test otomasyon aracı."
+
+[[tech]]
+id = "nox"
+name = "nox"
+category = "testing"
+pypi = ["nox"]
+en.beginner = "a tool that runs Python tests in clean environments, with its setup written in Python."
+en.builder = "a Python test automation tool, similar to tox, that defines sessions in a noxfile.py and creates virtual environments."
+tr.beginner = "Python testlerini, ayarları da Python'da yazılmış temiz ortamlarda çalıştıran bir araç."
+tr.builder = "noxfile.py dosyasında oturumlar tanımlayan ve sanal ortamlar kuran, tox'a benzer bir Python test otomasyon aracı."
+
+[[tech]]
+id = "hypothesis"
+name = "Hypothesis"
+category = "testing"
+pypi = ["hypothesis"]
+en.beginner = "a tool that tests your code with many generated inputs to find edge cases."
+en.builder = "a property-based testing library for Python that generates inputs and shrinks failing examples to minimal cases."
+tr.beginner = "kodunuzu çok sayıda otomatik üretilen girdiyle test ederek sınır durumlarını bulan bir araç."
+tr.builder = "Girdileri otomatik üreten ve başarısız örnekleri en küçük hâline indiren, Python için özellik tabanlı test kütüphanesi."
+
+[[tech]]
+id = "faker-py"
+name = "Faker"
+category = "testing"
+pypi = ["faker"]
+en.beginner = "a tool that creates realistic fake names, addresses and other sample data for tests."
+en.builder = "a Python library that generates fake but realistic data, such as names, addresses and dates, for tests and demos."
+tr.beginner = "testler için gerçekçi görünen sahte isim, adres ve benzeri veriler üreten bir araç."
+tr.builder = "Testler ve tanıtımlar için sahte ama gerçekçi isim, adres ve tarih gibi veriler üreten bir Python kütüphanesi."
+
+[[tech]]
+id = "factory-boy"
+name = "factory_boy"
+category = "testing"
+pypi = ["factory-boy"]
+en.beginner = "a helper that creates ready-made test objects, so tests do not repeat setup code."
+en.builder = "a Python library for defining test data as factories, with Django and SQLAlchemy integrations."
+tr.beginner = "testlerin her seferinde aynı hazırlık kodunu tekrarlamaması için hazır test nesneleri üreten bir yardımcı."
+tr.builder = "Test verisi nesnelerini fabrika olarak tanımlayan, Django ve SQLAlchemy ile çalışabilen bir Python kütüphanesi."
+
+[[tech]]
+id = "freezegun"
+name = "FreezeGun"
+category = "testing"
+pypi = ["freezegun"]
+en.beginner = "a tool that sets the clock in tests to a fixed date, so time-based code can be checked."
+en.builder = "a library that freezes or shifts Python's datetime and time functions during a test."
+tr.beginner = "testlerde saati belirli bir tarihe sabitleyen, zamana bağlı kodun kontrol edilmesini sağlayan bir araç."
+tr.builder = "Bir test sırasında Python'un datetime ve time fonksiyonlarını dondurup kaydıran bir kütüphane."
+
+[[tech]]
+id = "responses-py"
+name = "responses"
+category = "testing"
+pypi = ["responses"]
+en.beginner = "a tool that fakes replies from web services during tests, so tests run without the internet."
+en.builder = "a library that mocks the requests library in tests by registering the responses for expected URLs."
+tr.beginner = "testlerde web servislerinin yanıtlarını taklit eden, testlerin internet olmadan çalışmasını sağlayan bir araç."
+tr.builder = "Testlerde requests kütüphanesi çağrılarını taklit eden; beklenen adresler için yanıtları önceden tanımlayan bir kütüphane."
+
+[[tech]]
+id = "respx"
+name = "RESPX"
+category = "testing"
+pypi = ["respx"]
+en.beginner = "a tool that fakes web responses for tests that use the httpx library."
+en.builder = "a library that mocks httpx requests in tests by defining routes and their responses."
+tr.beginner = "httpx kütüphanesini kullanan testlerde web yanıtlarını taklit eden bir araç."
+tr.builder = "Testlerde httpx isteklerini, yollar ve yanıtlar tanımlayarak taklit eden bir Python kütüphanesi."
+
+[[tech]]
+id = "moto"
+name = "Moto"
+category = "testing"
+pypi = ["moto"]
+en.beginner = "a tool that fakes Amazon cloud services on your computer so tests run without an account."
+en.builder = "a Python library that mocks AWS services such as S3 and DynamoDB in tests, used with boto3."
+tr.beginner = "Amazon bulut hizmetlerini bilgisayarınızda taklit ederek testlerin hesap olmadan çalışmasını sağlayan bir araç."
+tr.builder = "Testlerde S3 ve DynamoDB gibi AWS hizmetlerini boto3 ile birlikte taklit eden bir Python kütüphanesi."
+
+[[tech]]
+id = "locust"
+name = "Locust"
+category = "testing"
+pypi = ["locust"]
+en.beginner = "a tool that simulates many users visiting a website to see how it handles heavy load."
+en.builder = "a Python load testing tool that runs user behavior scripts at scale, with a web interface for live results."
+tr.beginner = "çok sayıda kullanıcıyı simüle ederek sitenin yoğun yükte nasıl davrandığını gösteren bir araç."
+tr.builder = "Kullanıcı davranışlarını Python betikleriyle yürütüp sonuçları canlı izlemeye olanak tanıyan bir yük testi aracı."
+
+# ---- Build, lint and project tooling ----
+
+[[tech]]
+id = "black-py"
+name = "Black"
+category = "build"
+pypi = ["black"]
+en.beginner = "a tool that rewrites Python code into one consistent, tidy style automatically."
+en.builder = "an opinionated Python code formatter that rewrites files in place into one consistent style, with few settings."
+tr.beginner = "Python kodunuzu otomatik olarak tek ve düzenli bir biçime sokan bir araç."
+tr.builder = "Dosyaları yerinde, tek bir tutarlı biçimde yeniden yazan görüşlü bir Python kod biçimlendiricisi."
+
+[[tech]]
+id = "flake8"
+name = "Flake8"
+category = "build"
+pypi = ["flake8"]
+en.beginner = "a tool that scans Python code and points out likely mistakes and style problems."
+en.builder = "a Python linter that combines pyflakes, pycodestyle and mccabe to report errors and complexity."
+tr.beginner = "Python kodunuzu tarayan ve olası hataları ile biçim sorunlarını bildiren bir araç."
+tr.builder = "pyflakes, pycodestyle ve mccabe'i birleştirerek hataları ve karmaşıklığı bildiren bir Python kod denetleyicisi."
+
+[[tech]]
+id = "pylint"
+name = "Pylint"
+category = "build"
+pypi = ["pylint"]
+en.beginner = "a strict tool that checks Python code for bugs, bad habits and unclear names."
+en.builder = "a static analysis linter for Python that reports errors, warnings, refactoring hints and a code score."
+tr.beginner = "Python kodunda hatalar, kötü alışkanlıklar ve belirsiz adlar arayan sıkı bir araç."
+tr.builder = "Hataları, uyarıları, yeniden düzenleme önerilerini ve kod puanını veren bir Python statik analiz aracı."
+
+[[tech]]
+id = "ruff"
+name = "Ruff"
+category = "build"
+pypi = ["ruff"]
+en.beginner = "a very fast tool that finds mistakes and tidies Python code."
+en.builder = "an extremely fast Python linter and formatter written in Rust, replacing many older tools such as flake8 and isort."
+tr.beginner = "Python kodundaki hataları bulan ve kodu düzenleyen, çok hızlı bir araç."
+tr.builder = "Rust ile yazılmış, çok hızlı bir Python denetleyici ve biçimlendirici; flake8 ve isort gibi eski araçların yerini alır."
+
+[[tech]]
+id = "mypy"
+name = "mypy"
+category = "build"
+pypi = ["mypy"]
+en.beginner = "a tool that checks the type hints in Python code and warns about mistakes before you run it."
+en.builder = "a static type checker for Python that verifies type annotations without running the code."
+tr.beginner = "Python kodundaki tür belirtmelerini kontrol edip, çalıştırmadan önce hataları uyaran bir araç."
+tr.builder = "Kodu çalıştırmadan tür açıklamalarını doğrulayan bir Python statik tür denetleyicisi."
+
+[[tech]]
+id = "isort-py"
+name = "isort"
+category = "build"
+pypi = ["isort"]
+en.beginner = "a tool that sorts and groups the import lines at the top of Python files."
+en.builder = "a Python tool that automatically sorts and groups import statements to follow one consistent order."
+tr.beginner = "Python dosyalarının başındaki içe aktarma satırlarını sıralayıp gruplayan bir araç."
+tr.builder = "Python içe aktarma (import) ifadelerini otomatik sıralayan ve tutarlı bir düzene sokan bir araç."
+
+[[tech]]
+id = "pre-commit"
+name = "pre-commit"
+category = "build"
+pypi = ["pre-commit"]
+en.beginner = "a tool that runs quality checks automatically each time you commit code to git."
+en.builder = "a framework that manages git hooks, running configured linters and formatters on staged files before each commit."
+tr.beginner = "Git'e her kayıt göndermeden önce kalite kontrollerini otomatik çalıştıran bir araç."
+tr.builder = "Git kancalarını yöneten; her kayıt öncesi yalnızca değişen dosyalarda denetleyici ve biçimlendiricileri çalıştıran bir çerçeve."
+
+[[tech]]
+id = "setuptools"
+name = "setuptools"
+category = "build"
+pypi = ["setuptools"]
+en.beginner = "a tool that packages a Python project so others can install it with pip."
+en.builder = "the classic Python build backend and packaging tool, configured through setup.py or pyproject.toml metadata."
+tr.beginner = "bir Python projesini başkalarının pip ile kurabilmesi için paketleyen bir araç."
+tr.builder = "Python'un klasik derleme ve paketleme aracı; setup.py veya pyproject.toml ayarlarından paket üretir."
+
+[[tech]]
+id = "wheel-py"
+name = "wheel"
+category = "build"
+pypi = ["wheel"]
+en.beginner = "a tool that turns a Python project into a ready-to-install package file."
+en.builder = "a Python packaging helper that builds wheel (.whl) archives, the standard format for distributing packages."
+tr.beginner = "bir Python projesini hazır kurulabilir bir paket dosyasına çeviren bir araç."
+tr.builder = "Python paketlerini dağıtmak için standart biçim olan wheel (.whl) arşivlerini üreten bir araç."
+
+[[tech]]
+id = "hatchling"
+name = "Hatchling"
+category = "build"
+pypi = ["hatchling"]
+en.beginner = "a modern tool that packages a Python project, with its settings kept in pyproject.toml."
+en.builder = "a modern Python build backend from the Hatch project, configured through pyproject.toml, that builds wheels and sdists."
+tr.beginner = "Python projesini paketleyen, ayarları pyproject.toml dosyasında tutan modern bir araç."
+tr.builder = "Hatch projesinin modern Python derleme aracı; pyproject.toml ile ayarlanır ve wheel ile sdist paketleri üretir."
+
+[[tech]]
+id = "python-dotenv"
+name = "python-dotenv"
+category = "build"
+pypi = ["python-dotenv"]
+en.beginner = "a library that loads secret settings from a .env file into your Python program."
+en.builder = "a small library that reads key=value pairs from a .env file into environment variables."
+tr.beginner = "Gizli ayarları .env dosyasından Python programınıza yükleyen küçük bir kütüphane."
+tr.builder = ".env dosyasındaki anahtar=değer çiftlerini ortam değişkenlerine aktaran küçük bir kütüphane."
+
+[[tech]]
+id = "django-environ"
+name = "django-environ"
+category = "build"
+pypi = ["django-environ"]
+en.beginner = "a helper that reads Django settings, such as the database address, from environment variables."
+en.builder = "a Django helper that parses environment variables and .env files into settings, including database URLs."
+tr.beginner = "Django ayarlarını, örneğin veritabanı adresini, ortam değişkenlerinden okuyan bir yardımcı."
+tr.builder = "Ortam değişkenlerini ve .env dosyalarını Django ayarlarına çeviren, veritabanı adresi desteği olan bir yardımcı."
+
+# ---- Validation ----
+
+[[tech]]
+id = "pydantic"
+name = "Pydantic"
+category = "validation"
+pypi = ["pydantic"]
+en.beginner = "a library that checks that data has the right shape and types before the program uses it."
+en.builder = "a data validation library for Python that uses type annotations to parse, validate and serialize data, with a Rust core."
+tr.beginner = "Verinin doğru yapıda ve türde olduğunu, program kullanmadan önce kontrol eden bir kütüphane."
+tr.builder = "Tür açıklamalarını kullanarak veriyi ayrıştıran, doğrulayan ve dönüştüren bir Python kütüphanesi; çekirdeği Rust ile yazılmıştır."
+
+[[tech]]
+id = "pydantic-settings"
+name = "pydantic-settings"
+category = "validation"
+pypi = ["pydantic-settings"]
+en.beginner = "a library that loads app settings from environment variables and checks their types."
+en.builder = "a settings management library built on Pydantic, reading and validating settings from environment variables and .env files."
+tr.beginner = "Uygulama ayarlarını ortam değişkenlerinden okuyan ve türlerini kontrol eden bir kütüphane."
+tr.builder = "Pydantic üzerine kurulu bir ayar yönetim kütüphanesi; ayarları ortam değişkenlerinden okur ve doğrular."
+
+[[tech]]
+id = "marshmallow"
+name = "marshmallow"
+category = "validation"
+pypi = ["marshmallow"]
+en.beginner = "a library that converts Python objects to plain data and checks incoming data against rules."
+en.builder = "a Python library for serializing, deserializing and validating object data, often used with Flask and SQLAlchemy."
+tr.beginner = "Python nesnelerini düz veriye çeviren ve gelen veriyi kurallara göre kontrol eden bir kütüphane."
+tr.builder = "Nesneleri serileştiren, geri okuyan ve doğrulayan bir Python kütüphanesi; Flask ve SQLAlchemy ile sıkça kullanılır."
+
+[[tech]]
+id = "email-validator"
+name = "email-validator"
+category = "validation"
+pypi = ["email-validator"]
+en.beginner = "a small library that checks whether an email address is written correctly."
+en.builder = "a Python library that validates email address syntax and can check that the domain accepts mail."
+tr.beginner = "Bir e-posta adresinin doğru yazılıp yazılmadığını kontrol eden küçük bir kütüphane."
+tr.builder = "E-posta adresinin biçimini doğrulayan ve alan adının e-posta kabul edip etmediğini kontrol edebilen bir Python kütüphanesi."
+
+# ---- Authentication and security ----
+
+[[tech]]
+id = "bcrypt-py"
+name = "bcrypt"
+category = "auth"
+pypi = ["bcrypt"]
+en.beginner = "a library that scrambles passwords safely so they are not stored as plain text."
+en.builder = "a Python binding for the bcrypt password hashing function, with a salt built into each hash."
+tr.beginner = "Parolaları düz metin olarak saklamadan, güvenli biçimde özetleyen bir kütüphane."
+tr.builder = "bcrypt parola özetleme işlevinin Python bağlantısı; her özete otomatik tuz eklenir."
+
+[[tech]]
+id = "passlib"
+name = "Passlib"
+category = "auth"
+pypi = ["passlib"]
+en.beginner = "a library that hashes and checks user passwords with several proven methods."
+en.builder = "a Python password hashing framework supporting many schemes such as bcrypt and Argon2, with migration helpers."
+tr.beginner = "Kullanıcı parolalarını birkaç kanıtlanmış yöntemle özetleyen ve kontrol eden bir kütüphane."
+tr.builder = "bcrypt ve Argon2 gibi birçok parola özetleme yöntemini destekleyen bir Python çerçevesi."
+
+[[tech]]
+id = "pyjwt"
+name = "PyJWT"
+category = "auth"
+pypi = ["pyjwt"]
+en.beginner = "a library that creates and checks login tokens, the signed codes that prove who a user is."
+en.builder = "a Python library for encoding and decoding JSON Web Tokens (JWT), with signature checks."
+tr.beginner = "Kullanıcının kim olduğunu kanıtlayan, imzalı giriş jetonlarını üreten ve kontrol eden bir kütüphane."
+tr.builder = "JSON Web Token (JWT) değerlerini oluşturan, çözen ve imzasını doğrulayan bir Python kütüphanesi."
+
+[[tech]]
+id = "python-jose"
+name = "python-jose"
+category = "auth"
+pypi = ["python-jose"]
+en.beginner = "a library that creates and checks signed login tokens for Python web apps."
+en.builder = "a JOSE implementation for Python, covering JWT, JWS, JWE and JWK."
+tr.beginner = "Python web uygulamaları için imzalı giriş jetonları üreten ve kontrol eden bir kütüphane."
+tr.builder = "Python için JOSE uygulaması; JWT, JWS, JWE ve JWK standartlarını kapsar."
+
+[[tech]]
+id = "authlib"
+name = "Authlib"
+category = "auth"
+pypi = ["authlib"]
+en.beginner = "a library that lets users sign in with other accounts, such as Google or GitHub."
+en.builder = "a Python library implementing OAuth 1 and 2 and OpenID Connect, as both a client and a server."
+tr.beginner = "Kullanıcıların Google veya GitHub gibi başka hesaplarla giriş yapmasını sağlayan bir kütüphane."
+tr.builder = "OAuth 1 ve 2 ile OpenID Connect'i hem istemci hem sunucu olarak uygulayan bir Python kütüphanesi."
+
+[[tech]]
+id = "cryptography"
+name = "cryptography"
+category = "auth"
+pypi = ["cryptography"]
+en.beginner = "a library that provides safe, standard tools for encrypting data and checking signatures."
+en.builder = "a Python library of cryptographic recipes, with a safe high-level layer and low-level bindings to OpenSSL."
+tr.beginner = "Verileri şifrelemek ve imzaları kontrol etmek için güvenli, standart araçlar sunan bir kütüphane."
+tr.builder = "Şifreleme ilkelerini üst düzey ve güvenli bir katmanda sunan, OpenSSL'i kullanan bir Python kütüphanesi."
+
+[[tech]]
+id = "python-multipart"
+name = "python-multipart"
+category = "other"
+pypi = ["python-multipart"]
+en.beginner = "a library that reads files and form fields sent from a web page's upload forms."
+en.builder = "a streaming parser for multipart form data, used by frameworks such as Starlette and FastAPI for uploads."
+tr.beginner = "Web sayfalarındaki yükleme formlarından gelen dosyaları ve form alanlarını okuyan bir kütüphane."
+tr.builder = "Yüklemeler için çok parçalı form verisini akış hâlinde ayrıştıran; Starlette ve FastAPI gibi çerçevelerde kullanılan bir kütüphane."
+
+[[tech]]
+id = "flask-login"
+name = "Flask-Login"
+category = "auth"
+pypi = ["flask-login"]
+en.beginner = "an add-on that handles user sign-in, sign-out and remembering logged-in users in Flask apps."
+en.builder = "a Flask extension that manages the user session, login state and the current user object."
+tr.beginner = "Flask uygulamalarında kullanıcı girişini, çıkışını ve oturumu hatırlamayı yöneten bir eklenti."
+tr.builder = "Kullanıcı oturumunu, giriş durumunu ve geçerli kullanıcı nesnesini yöneten bir Flask eklentisi."
+
+[[tech]]
+id = "flask-cors"
+name = "Flask-CORS"
+category = "auth"
+pypi = ["flask-cors"]
+en.beginner = "an add-on that lets a Flask app say which other websites may use its data."
+en.builder = "a Flask extension that adds Cross-Origin Resource Sharing (CORS) headers to responses."
+tr.beginner = "Bir Flask uygulamasının verilerini hangi başka sitelerin kullanabileceğini belirlemesini sağlayan bir eklenti."
+tr.builder = "Yanıtlara CORS (Cross-Origin Resource Sharing) başlıkları ekleyen bir Flask eklentisi."
+
+[[tech]]
+id = "django-cors-headers"
+name = "django-cors-headers"
+category = "auth"
+pypi = ["django-cors-headers"]
+en.beginner = "an add-on that lets a Django site say which other websites may use its data."
+en.builder = "a Django app that adds CORS headers to responses, controlling which origins can read them."
+tr.beginner = "Bir Django sitesinin verilerini hangi başka sitelerin kullanabileceğini belirlemesini sağlayan bir eklenti."
+tr.builder = "Yanıtlara CORS başlıkları ekleyen ve hangi kaynakların okuyabileceğini belirleyen bir Django uygulaması."
+
+# ---- Interface, forms and charts ----
+
+[[tech]]
+id = "wtforms"
+name = "WTForms"
+category = "ui"
+pypi = ["wtforms"]
+en.beginner = "a library that builds web forms and checks what users type into them."
+en.builder = "a Python form library that defines form fields, renders HTML and validates submitted data, often with Flask."
+tr.beginner = "Web formları oluşturan ve kullanıcının bu formlara yazdıklarını kontrol eden bir kütüphane."
+tr.builder = "Form alanlarını tanımlayan, HTML üreten ve gönderilen verileri doğrulayan bir Python form kütüphanesi."
+
+[[tech]]
+id = "streamlit"
+name = "Streamlit"
+category = "ui"
+pypi = ["streamlit"]
+en.beginner = "a library that turns a Python script into a simple interactive web page for data."
+en.builder = "a Python framework for building data apps, where widgets rerun the script from top to bottom on each change."
+tr.beginner = "Bir Python betiğini veriler için basit ve etkileşimli bir web sayfasına çeviren bir kütüphane."
+tr.builder = "Veri uygulamaları yapmak için Python çerçevesi; her değişiklikte betiği baştan sona yeniden çalıştırır."
+
+[[tech]]
+id = "gradio-py"
+name = "Gradio"
+category = "ui"
+pypi = ["gradio"]
+en.beginner = "a library that makes a web page where people can try a Python function."
+en.builder = "a Python library for building and sharing machine learning demos with input and output components in a web UI."
+tr.beginner = "İnsanların bir Python işlevini deneyebileceği bir web sayfası hazırlayan kütüphane."
+tr.builder = "Makine öğrenmesi modellerini girdi ve çıktı bileşenleriyle web arayüzünde gösterip paylaşmayı sağlayan bir Python kütüphanesi."
+
+[[tech]]
+id = "dash-py"
+name = "Dash"
+category = "ui"
+pypi = ["dash"]
+en.beginner = "a library for building interactive data dashboards and charts in pure Python."
+en.builder = "a Python framework for analytical web apps, built on Plotly and React, with callbacks that link components."
+tr.beginner = "Saf Python ile etkileşimli veri panoları ve grafikler kurmayı sağlayan bir kütüphane."
+tr.builder = "Plotly ve React üzerine kurulu, bileşenleri geri çağrılarla bağlayan bir Python veri uygulaması çerçevesi."
+
+[[tech]]
+id = "matplotlib"
+name = "Matplotlib"
+category = "ui"
+pypi = ["matplotlib"]
+en.beginner = "a library that draws charts and graphs from Python data, saved as images."
+en.builder = "the classic Python plotting library for static, animated and interactive figures, with a pyplot interface."
+tr.beginner = "Python verilerinden grafikler ve çizimler oluşturup resim olarak kaydedebilen bir kütüphane."
+tr.builder = "Python'un klasik çizim kütüphanesi; sabit, hareketli ve etkileşimli grafikler için pyplot arayüzü sunar."
+
+[[tech]]
+id = "seaborn-py"
+name = "seaborn"
+category = "ui"
+pypi = ["seaborn"]
+en.beginner = "a library that makes good-looking statistical charts from data with short commands."
+en.builder = "a statistical data visualization library built on matplotlib, with distribution, regression and heatmap plots."
+tr.beginner = "Verilerden kısa komutlarla şık istatistik grafikleri çizen bir kütüphane."
+tr.builder = "matplotlib üzerine kurulu; dağılım, regresyon ve ısı haritası grafikleri sunan bir istatistik kütüphanesi."
+
+[[tech]]
+id = "plotly-py"
+name = "Plotly"
+category = "ui"
+pypi = ["plotly"]
+en.beginner = "a library that makes interactive charts you can zoom, hover over and share in a browser."
+en.builder = "a Python graphing library that builds interactive figures on top of plotly.js, usable in notebooks and Dash apps."
+tr.beginner = "Tarayıcıda yakınlaştırılabilen ve üzerine gelindiğinde bilgi gösteren grafikler yapan bir kütüphane."
+tr.builder = "plotly.js üzerine kurulu, Python'dan etkileşimli grafikler üreten; not defterleri ve Dash uygulamalarında kullanılan bir kütüphane."
+
+# ---- Data science and AI ----
+
+[[tech]]
+id = "numpy-py"
+name = "NumPy"
+category = "other"
+pypi = ["numpy"]
+en.beginner = "a library that does fast math on large lists of numbers, the base of most data tools."
+en.builder = "the core Python library for fast n-dimensional arrays and numerical operations, written in C."
+tr.beginner = "Büyük sayı listeleri üzerinde hızlı matematik yapan, çoğu veri aracının temeli olan bir kütüphane."
+tr.builder = "Hızlı çok boyutlu diziler ve sayısal işlemler için temel Python kütüphanesi; C ile yazılmıştır."
+
+[[tech]]
+id = "pandas-py"
+name = "pandas"
+category = "other"
+pypi = ["pandas"]
+en.beginner = "a library that loads, cleans and analyzes tables of data, like spreadsheets, in Python."
+en.builder = "a Python data analysis library built around the DataFrame table, for reading, cleaning, grouping and reshaping data."
+tr.beginner = "Tablo hâlindeki verileri, elektronik tablolar gibi, Python'da yükleyip analiz eden bir kütüphane."
+tr.builder = "DataFrame adı verilen tablolarla veri okuma, temizleme, gruplama ve yeniden biçimlendirme sağlayan bir Python kütüphanesi."
+
+[[tech]]
+id = "scipy"
+name = "SciPy"
+category = "other"
+pypi = ["scipy"]
+en.beginner = "a library of ready-made scientific math tools, such as statistics, optimization and signal work."
+en.builder = "a Python library of scientific algorithms for integration, optimization, interpolation, signal processing and statistics, built on NumPy."
+tr.beginner = "İstatistik, en iyileştirme ve sinyal işleme gibi hazır bilimsel matematik araçları sunan bir kütüphane."
+tr.builder = "Entegrasyon, optimizasyon, enterpolasyon, sinyal işleme ve istatistik için; NumPy üzerine kurulu bir Python kütüphanesi."
+
+[[tech]]
+id = "scikit-learn"
+name = "scikit-learn"
+category = "other"
+pypi = ["scikit-learn"]
+en.beginner = "a library with ready-made machine learning methods for predicting and grouping data."
+en.builder = "a Python machine learning library with a consistent fit and predict API for classification, regression, clustering and preprocessing."
+tr.beginner = "Veri tahmin etmek ve gruplamak için hazır makine öğrenmesi yöntemleri sunan bir kütüphane."
+tr.builder = "Sınıflandırma, regresyon, kümeleme ve ön işleme için tutarlı fit ve predict arayüzü sunan bir Python makine öğrenmesi kütüphanesi."
+
+[[tech]]
+id = "jupyter"
+name = "Jupyter Notebook"
+category = "other"
+pypi = ["notebook"]
+en.beginner = "an interactive notebook where you write Python code, run it and see results and charts inline."
+en.builder = "the Jupyter Notebook package, which runs an interactive Python notebook server in the browser."
+tr.beginner = "Python kodunu yazıp çalıştırabileceğiniz, sonuç ve grafikleri hemen gösteren etkileşimli bir not defteri."
+tr.builder = "Tarayıcıda çalışan etkileşimli Python not defteri sunucusunu kuran Jupyter paketi."
+
+[[tech]]
+id = "ipython"
+name = "IPython"
+category = "other"
+pypi = ["ipython"]
+en.beginner = "an improved interactive Python prompt with color, history and help built in."
+en.builder = "an enhanced interactive Python shell with tab completion and rich help, and the engine behind Jupyter kernels."
+tr.beginner = "Renkli çıktı, geçmiş ve yardım özellikleri olan, geliştirilmiş bir etkileşimli Python komut satırı."
+tr.builder = "Sekme tamamlama ve zengin yardım sunan gelişmiş bir Python kabuğu; Jupyter çekirdeklerinin temelidir."
+
+[[tech]]
+id = "pytorch"
+name = "PyTorch"
+category = "other"
+pypi = ["torch"]
+en.beginner = "a library for building and training AI models, using number arrays that can run on a graphics card."
+en.builder = "an open-source deep learning framework with tensors, automatic differentiation and GPU support, widely used in research."
+tr.beginner = "Yapay zeka modelleri kurup eğitmeye yarayan, grafik kartında da çalışabilen sayı dizileri içeren bir kütüphane."
+tr.builder = "Açık kaynaklı derin öğrenme çerçevesi; tensörler, otomatik türev ve GPU desteği sunar ve araştırmalarda yaygındır."
+
+[[tech]]
+id = "tensorflow-py"
+name = "TensorFlow"
+category = "other"
+pypi = ["tensorflow"]
+en.beginner = "a large library for building and training AI models, developed by Google."
+en.builder = "Google's open-source machine learning platform for deep learning, with Keras included, for training and serving models at scale."
+tr.beginner = "Google tarafından geliştirilen, yapay zeka modelleri kurup eğitmek için büyük bir kütüphane."
+tr.builder = "Google'ın açık kaynaklı derin öğrenme platformu; Keras'ı içerir ve modelleri ölçekli olarak eğitip sunmaya yarar."
+
+[[tech]]
+id = "keras-py"
+name = "Keras"
+category = "other"
+pypi = ["keras"]
+en.beginner = "a simple high-level library for designing and training neural network models."
+en.builder = "a high-level deep learning API for Python that runs on TensorFlow, JAX or PyTorch backends."
+tr.beginner = "Sinir ağı modellerini basitçe tasarlayıp eğitmeyi sağlayan, üst düzey bir kütüphane."
+tr.builder = "Python için üst düzey derin öğrenme arayüzü; TensorFlow, JAX veya PyTorch üzerinde çalışabilir."
+
+[[tech]]
+id = "transformers-py"
+name = "Transformers"
+category = "other"
+pypi = ["transformers"]
+en.beginner = "a library that gives ready-to-use AI models for text, images and speech."
+en.builder = "Hugging Face's library of pretrained transformer models for text, vision and audio, with PyTorch, TensorFlow and JAX support."
+tr.beginner = "Metin, görsel ve ses için hazır yapay zeka modelleri sunan bir kütüphane."
+tr.builder = "Metin, görüntü ve ses için önceden eğitilmiş dönüştürücü (transformer) modelleri sunan Hugging Face kütüphanesi."
+
+[[tech]]
+id = "llama-index"
+name = "LlamaIndex"
+category = "other"
+pypi = ["llama-index"]
+en.beginner = "a library that connects a language AI model to your own documents, so it can answer from them."
+en.builder = "a data framework for building LLM applications that index private documents and query them with retrieval."
+tr.beginner = "Yapay zeka modelini kendi belgelerinize bağlayan ve cevapları bu belgelerden vermesini sağlayan bir kütüphane."
+tr.builder = "Özel belgeleri indeksleyip geri getirme yöntemiyle sorgulayan, büyük dil modeli uygulamaları için bir veri çerçevesi."
+
+[[tech]]
+id = "tiktoken-py"
+name = "tiktoken"
+category = "other"
+pypi = ["tiktoken"]
+en.beginner = "a library that counts the pieces of text an AI model reads, to estimate cost and limits."
+en.builder = "OpenAI's fast byte-pair encoding tokenizer library, used to count and split text into the tokens of GPT models."
+tr.beginner = "Yapay zeka modelinin okuduğu metin parçalarını sayan ve maliyeti tahmin etmeye yarayan kütüphane."
+tr.builder = "OpenAI'ın hızlı bayt çifti kodlama (BPE) tokenleştiricisi; metni GPT modellerinin parçalarına ayırıp sayar."
+
+[[tech]]
+id = "huggingface-hub"
+name = "Hugging Face Hub"
+category = "other"
+pypi = ["huggingface-hub"]
+en.beginner = "a library that downloads and uploads AI models and datasets from the Hugging Face website."
+en.builder = "the Python client for the Hugging Face Hub, for downloading, caching and publishing model and dataset repositories."
+tr.beginner = "Hugging Face sitesinden yapay zeka modelleri ve veri setleri indirip yükleyen bir kütüphane."
+tr.builder = "Hugging Face Hub için Python istemcisi; model ve veri seti depolarını indirir, önbelleğe alır ve yayımlar."
+
+[[tech]]
+id = "pillow"
+name = "Pillow"
+category = "other"
+pypi = ["pillow"]
+en.beginner = "a library that opens, edits and saves image files from Python code."
+en.builder = "the friendly fork of the Python Imaging Library (PIL), for reading, resizing, converting and drawing on images."
+tr.beginner = "Python kodundan resim dosyalarını açan, düzenleyen ve kaydeden bir kütüphane."
+tr.builder = "Python Imaging Library (PIL) kütüphanesinin devamı; resimleri okuma, yeniden boyutlandırma, dönüştürme ve çizme işlevleri sunar."
+
+[[tech]]
+id = "opencv"
+name = "OpenCV"
+category = "other"
+pypi = ["opencv-python"]
+en.beginner = "a library that finds faces, shapes and objects in pictures and video."
+en.builder = "the Python binding of OpenCV, a library for image processing, video analysis and camera input."
+tr.beginner = "Resimlerde ve videolarda yüzleri, şekilleri ve nesneleri bulan bir kütüphane."
+tr.builder = "OpenCV'nin Python bağlantısı; resim işleme, video analizi ve kamera girdisi için bilgisayarla görme kütüphanesi."
+
+[[tech]]
+id = "networkx"
+name = "NetworkX"
+category = "other"
+pypi = ["networkx"]
+en.beginner = "a library for building and studying networks, such as social links or road maps, in Python."
+en.builder = "a Python package for creating, analyzing and drawing graphs and networks, with many classic algorithms."
+tr.beginner = "Sosyal bağlantılar veya yol haritaları gibi ağları Python'da kurup inceleyen bir kütüphane."
+tr.builder = "Çizgeler ve ağlar oluşturup analiz eden, birçok klasik algoritma içeren bir Python paketi."
+
+[[tech]]
+id = "sympy-py"
+name = "SymPy"
+category = "other"
+pypi = ["sympy"]
+en.beginner = "a library that does symbolic math, solving equations and simplifying formulas with exact answers."
+en.builder = "a pure-Python computer algebra system for symbolic mathematics, including calculus, algebra and LaTeX output."
+tr.beginner = "Denklemleri çözen ve formülleri tam sonuçlarla sadeleştiren, sembolik matematik yapan bir kütüphane."
+tr.builder = "Saf Python ile yazılmış bilgisayar cebir sistemi; kalkülüs, cebir ve LaTeX çıktısı içeren sembolik matematik paketi."
+
+[[tech]]
+id = "statsmodels"
+name = "statsmodels"
+category = "other"
+pypi = ["statsmodels"]
+en.beginner = "a library for statistical tests and models, such as regression, with detailed summaries."
+en.builder = "a Python library for statistical modeling and hypothesis testing, with regression, time series and detailed result tables."
+tr.beginner = "Regresyon gibi istatistiksel model ve testleri, ayrıntılı özetleriyle birlikte sunan bir kütüphane."
+tr.builder = "Regresyon, zaman serileri ve ayrıntılı sonuç tabloları sunan, istatistiksel modelleme için bir Python kütüphanesi."
+
+[[tech]]
+id = "xgboost"
+name = "XGBoost"
+category = "other"
+pypi = ["xgboost"]
+en.beginner = "a fast library for building prediction models from tables of data."
+en.builder = "a gradient boosting library with optimized tree algorithms, supporting CPU, GPU and distributed training."
+tr.beginner = "Veri tablolarından tahmin modelleri kuran, hızlı bir kütüphane."
+tr.builder = "Optimize edilmiş karar ağaçlarıyla gradyan artırma yapan; CPU, GPU ve dağıtık eğitimi destekleyen bir kütüphane."
+
+[[tech]]
+id = "lightgbm"
+name = "LightGBM"
+category = "other"
+pypi = ["lightgbm"]
+en.beginner = "a fast library for building prediction models from tables, using less memory and time."
+en.builder = "a Microsoft gradient boosting framework that uses histogram-based tree learning, for large tabular data."
+tr.beginner = "Veri tablolarından tahmin modeli kurarken daha az bellek ve zaman kullanan hızlı bir kütüphane."
+tr.builder = "Microsoft'un histogram tabanlı karar ağacı öğrenmesi kullanan gradyan artırma çerçevesi; büyük tablo verilerine uygundur."
+
+[[tech]]
+id = "polars-py"
+name = "Polars"
+category = "other"
+pypi = ["polars"]
+en.beginner = "a fast library for working with large tables of data in Python."
+en.builder = "a DataFrame library written in Rust with a Python API, using lazy queries and multi-threaded execution."
+tr.beginner = "Python'da büyük veri tablolarıyla çalışmak için hızlı bir kütüphane."
+tr.builder = "Rust ile yazılmış, Python arayüzü olan bir DataFrame kütüphanesi; tembel sorgular ve çok iş parçacıklı çalışma sunar."
+
+[[tech]]
+id = "pyarrow"
+name = "PyArrow"
+category = "other"
+pypi = ["pyarrow"]
+en.beginner = "a library for quickly reading and writing large data files, such as Parquet."
+en.builder = "the Python bindings for Apache Arrow, a columnar in-memory format, with Parquet and CSV support."
+tr.beginner = "Parquet gibi büyük veri dosyalarını hızla okuyup yazan bir kütüphane."
+tr.builder = "Apache Arrow'un Python bağlantısı; sütun tabanlı bellek biçimini ve Parquet, CSV desteğini sunar."
+
+[[tech]]
+id = "dask"
+name = "Dask"
+category = "other"
+pypi = ["dask"]
+en.beginner = "a library that runs big data jobs in Python by splitting them into smaller parts."
+en.builder = "a parallel computing library that scales NumPy, pandas and scikit-learn workloads with lazy task graphs."
+tr.beginner = "Büyük veri işlerini küçük parçalara bölüp Python'da paralel çalıştıran bir kütüphane."
+tr.builder = "NumPy, pandas ve scikit-learn iş yüklerini tembel görev grafikleriyle ölçekleyen bir paralel hesaplama kütüphanesi."
+
+[[tech]]
+id = "openpyxl"
+name = "openpyxl"
+category = "other"
+pypi = ["openpyxl"]
+en.beginner = "a library that reads and writes Excel spreadsheets (.xlsx files) from Python."
+en.builder = "a Python library to read and write Excel xlsx and xlsm files, with formulas, styles and charts."
+tr.beginner = "Python ile Excel tablolarını (.xlsx dosyalarını) okuyup yazan bir kütüphane."
+tr.builder = "Excel xlsx ve xlsm dosyalarını okuyup yazan; formül, stil ve grafik desteği olan bir Python kütüphanesi."
+
+[[tech]]
+id = "reportlab"
+name = "ReportLab"
+category = "other"
+pypi = ["reportlab"]
+en.beginner = "a library that creates PDF documents, such as invoices and reports, from Python code."
+en.builder = "a Python toolkit for generating PDFs with precise layout, text, tables, charts and barcodes."
+tr.beginner = "Python kodundan fatura ve rapor gibi PDF belgeleri üreten bir kütüphane."
+tr.builder = "Hassas yerleşim, metin, tablo, grafik ve barkod ile PDF üretmek için bir Python araç seti."
+
+[[tech]]
+id = "nltk"
+name = "NLTK"
+category = "other"
+pypi = ["nltk"]
+en.beginner = "a library for working with human language in Python, such as splitting text into words."
+en.builder = "the Natural Language Toolkit, a Python library with corpora, tokenizers, taggers and parsers for teaching and research."
+tr.beginner = "Python'da metni kelimelere ayırmak gibi, insan dilini işleyen bir kütüphane."
+tr.builder = "Doğal dil işleme için Python araç seti; metin derlemleri, ayrıştırıcılar ve etiketleyiciler içerir."
+
+[[tech]]
+id = "spacy"
+name = "spaCy"
+category = "other"
+pypi = ["spacy"]
+en.beginner = "a fast library that reads text and finds its parts, such as names, places and word types."
+en.builder = "an industrial-strength natural language processing library for Python, with pretrained pipelines for entities and parsing."
+tr.beginner = "Metni okuyup isimleri, yerleri ve kelime türlerini bulan hızlı bir kütüphane."
+tr.builder = "Python için endüstriyel düzeyde doğal dil işleme kütüphanesi; varlık ve ayrıştırma için önceden eğitilmiş boru hatları sunar."
+
+# ---- Remaining utilities and docs ----
+
+[[tech]]
+id = "click-py"
+name = "Click"
+category = "other"
+pypi = ["click"]
+en.beginner = "a library that makes command-line tools in Python easy to write, with options and help text."
+en.builder = "a Python library for building composable command-line interfaces with decorators, options, arguments and subcommands."
+tr.beginner = "Python ile komut satırı araçlarını kolayca yazmanızı sağlayan; seçenek ve yardım metni içeren bir kütüphane."
+tr.builder = "Dekoratörler, seçenekler, argümanlar ve alt komutlarla bileşik komut satırı arayüzleri kuran bir Python kütüphanesi."
+
+[[tech]]
+id = "typer"
+name = "Typer"
+category = "other"
+pypi = ["typer"]
+en.beginner = "a library that builds command-line tools from ordinary Python functions, using type hints."
+en.builder = "a command-line framework built on Click that creates commands and options from function signatures and type hints."
+tr.beginner = "Sıradan Python fonksiyonlarından komut satırı araçları yapan, tür ipuçlarını kullanan bir kütüphane."
+tr.builder = "Click üzerine kurulu bir komut satırı çerçevesi; komutları ve seçenekleri fonksiyon imzalarından üretir."
+
+[[tech]]
+id = "rich-py"
+name = "Rich"
+category = "other"
+pypi = ["rich"]
+en.beginner = "a library that adds colors, tables and progress bars to text output in the terminal."
+en.builder = "a Python library for rich text and formatted output in terminals, with tables, markdown, syntax highlighting and logs."
+tr.beginner = "Terminaldeki yazı çıktısına renk, tablo ve ilerleme çubuğu ekleyen bir kütüphane."
+tr.builder = "Terminalde zengin metin ve biçimli çıktı için; tablo, markdown, sözdizimi renklendirme ve günlük desteği sunar."
+
+[[tech]]
+id = "tqdm-py"
+name = "tqdm"
+category = "other"
+pypi = ["tqdm"]
+en.beginner = "a tiny library that shows a progress bar for loops and long-running tasks."
+en.builder = "a progress bar library for Python that wraps iterables and works in terminals, scripts and notebooks."
+tr.beginner = "Döngüler ve uzun süren işler için ilerleme çubuğu gösteren küçük bir kütüphane."
+tr.builder = "Python için ilerleme çubuğu kütüphanesi; yinelenebilir nesneleri sarar ve terminal, betik ve not defterlerinde çalışır."
+
+[[tech]]
+id = "pyyaml"
+name = "PyYAML"
+category = "other"
+pypi = ["pyyaml"]
+en.beginner = "a library that reads and writes YAML settings files, a simple text format for data."
+en.builder = "a YAML parser and emitter for Python, with safe loading and dumping helpers."
+tr.beginner = "Basit bir metin biçiminde yazılmış YAML ayar dosyalarını okuyup yazan bir kütüphane."
+tr.builder = "Python için YAML ayrıştırıcı ve yazıcı; güvenli yükleme ve dökme fonksiyonları içerir."
+
+[[tech]]
+id = "tomli"
+name = "tomli"
+category = "other"
+pypi = ["tomli"]
+en.beginner = "a small library that reads TOML settings files, the format used by pyproject.toml."
+en.builder = "a TOML parser for Python that follows the TOML standard, and the basis of the standard library's tomllib."
+tr.beginner = "pyproject.toml gibi TOML ayar dosyalarını okuyan küçük bir kütüphane."
+tr.builder = "TOML standardına uyan, Python için hızlı bir ayrıştırıcı; standart kütüphanedeki tomllib'in temelidir."
+
+[[tech]]
+id = "orjson"
+name = "orjson"
+category = "other"
+pypi = ["orjson"]
+en.beginner = "a very fast library for turning Python data into JSON text and back."
+en.builder = "a fast JSON library for Python, written in Rust, with native support for dataclasses, datetimes and NumPy arrays."
+tr.beginner = "Python verilerini JSON metnine ve geri çeviren, çok hızlı bir kütüphane."
+tr.builder = "Rust ile yazılmış hızlı bir JSON kütüphanesi; veri sınıfları, tarih ve NumPy dizilerini doğrudan destekler."
+
+[[tech]]
+id = "structlog"
+name = "structlog"
+category = "other"
+pypi = ["structlog"]
+en.beginner = "a logging library that writes program messages as structured data, easy to search."
+en.builder = "a structured logging library for Python that adds context to log events and renders them as JSON or text."
+tr.beginner = "Program mesajlarını aranabilir, yapılandırılmış veri olarak yazan bir günlük kütüphanesi."
+tr.builder = "Günlük olaylarına bağlam ekleyen ve bunları JSON ya da metin olarak yazan, yapılandırılmış bir Python günlük kütüphanesi."
+
+[[tech]]
+id = "loguru"
+name = "Loguru"
+category = "other"
+pypi = ["loguru"]
+en.beginner = "a simple library for writing program logs, with almost no setup needed."
+en.builder = "a Python logging library with one ready-made logger, colored output, file rotation and exception tracebacks."
+tr.beginner = "Neredeyse hiç ayar gerektirmeden program günlükleri yazmanızı sağlayan basit bir kütüphane."
+tr.builder = "Hazır bir günlükçü, renkli çıktı, dosya döndürme ve hata izleri sunan bir Python günlük kütüphanesi."
+
+[[tech]]
+id = "arrow-py"
+name = "Arrow"
+category = "other"
+pypi = ["arrow"]
+en.beginner = "a library that makes working with dates and times in Python easier."
+en.builder = "a Python date and time library with a friendlier API, timezone handling and human-readable time formatting."
+tr.beginner = "Python'da tarih ve saatlerle çalışmayı kolaylaştıran bir kütüphane."
+tr.builder = "Daha anlaşılır bir arayüze sahip Python tarih ve saat kütüphanesi; saat dilimi ve insan dostu biçimlendirme sunar."
+
+[[tech]]
+id = "pendulum-py"
+name = "Pendulum"
+category = "other"
+pypi = ["pendulum"]
+en.beginner = "a library for dates, times and time zones that is easier to use."
+en.builder = "a Python datetime library with timezone-aware objects, human-friendly arithmetic and period handling."
+tr.beginner = "Tarih, saat ve saat dilimleriyle çalışmayı daha kolay hâle getiren bir kütüphane."
+tr.builder = "Saat dilimini bilen tarih nesneleri, kolay zaman aritmetiği ve dönem işlemleri sunan bir Python kütüphanesi."
+
+[[tech]]
+id = "python-dateutil"
+name = "python-dateutil"
+category = "other"
+pypi = ["python-dateutil"]
+en.beginner = "a library that does the hard parts of Python dates, such as parsing text and adding months."
+en.builder = "an extension to the standard datetime module, with a flexible date parser, relative deltas and recurrence rules."
+tr.beginner = "Python'da yazıdan tarih okumak veya aylar eklemek gibi zor tarih işlerini yapan bir kütüphane."
+tr.builder = "Standart datetime modülünü genişletir; esnek tarih ayrıştırıcı, göreli farklar ve tekrar kuralları sunar."
+
+[[tech]]
+id = "pytz"
+name = "pytz"
+category = "other"
+pypi = ["pytz"]
+en.beginner = "a library that supplies world time zone data for Python date and time code."
+en.builder = "a Python library providing the Olson time zone database, for converting datetimes between zones."
+tr.beginner = "Python'daki tarih ve saat kodu için dünya saat dilimi bilgilerini sağlayan bir kütüphane."
+tr.builder = "Olson saat dilimi veritabanını Python'a getiren kütüphane; tarihleri saat dilimleri arasında çevirir."
+
+[[tech]]
+id = "attrs-py"
+name = "attrs"
+category = "other"
+pypi = ["attrs"]
+en.beginner = "a library that writes the repetitive parts of Python classes, such as setup and comparison, for you."
+en.builder = "a Python library for declaring classes with attributes, generating __init__, comparison and repr methods automatically."
+tr.beginner = "Python sınıflarındaki tekrarlayan kodları, örneğin kurucu ve karşılaştırma kodlarını, sizin yerinize yazan bir kütüphane."
+tr.builder = "Niteliklerle sınıf tanımlamayı sağlayan; __init__, karşılaştırma ve repr metotlarını otomatik üreten bir Python kütüphanesi."
+
+[[tech]]
+id = "mkdocs"
+name = "MkDocs"
+category = "other"
+pypi = ["mkdocs"]
+en.beginner = "a tool that turns simple text files into a documentation website."
+en.builder = "a static site generator for project documentation written in Markdown, with a YAML configuration file."
+tr.beginner = "Basit metin dosyalarını bir dokümantasyon sitesine çeviren bir araç."
+tr.builder = "Markdown ile yazılmış proje belgelerinden statik site üreten; YAML ayar dosyası kullanan bir araç."
+
+[[tech]]
+id = "mkdocs-material"
+name = "Material for MkDocs"
+category = "other"
+pypi = ["mkdocs-material"]
+en.beginner = "a polished theme for MkDocs that makes documentation sites look modern and easy to search."
+en.builder = "a Material Design theme for MkDocs, adding search, dark mode, navigation tabs and admonition boxes."
+tr.beginner = "MkDocs ile yapılan dokümantasyon sitelerini modern ve kolay aranabilir gösteren bir tema."
+tr.builder = "MkDocs için Material Design teması; arama, karanlık mod, gezinme sekmeleri ve uyarı kutuları ekler."
+
+[[tech]]
+id = "sphinx"
+name = "Sphinx"
+category = "other"
+pypi = ["sphinx"]
+en.beginner = "a tool that builds documentation websites and PDFs from text files, often for Python code."
+en.builder = "a documentation generator, widely used for Python projects, that builds HTML and PDF from reStructuredText sources."
+tr.beginner = "Metin dosyalarından dokümantasyon sitesi ve PDF belgeleri üreten bir araç; çoğunlukla Python projelerinde kullanılır."
+tr.builder = "Python projelerinde yaygın bir belge üretici; reStructuredText kaynaklarından HTML ve PDF çıktısı verir."
