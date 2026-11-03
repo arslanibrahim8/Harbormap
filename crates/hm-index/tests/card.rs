@@ -281,3 +281,80 @@ fn manifest_and_import_queries_answer_per_root() {
             .any(|i| i.package == "axios" && i.root.is_empty())
     );
 }
+
+#[test]
+fn imports_are_counted_for_the_nearest_manifest_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    for root in ["apps/web", "apps/webshop", "apps/web/packages/ui"] {
+        write(
+            &format!("{root}/package.json"),
+            r#"{"name":"x","dependencies":{"zod":"3.0.0"}}"#,
+        );
+    }
+    let uses_zod = "import { z } from 'zod';\nexport const a = z.string();\n";
+    write("apps/web/a.ts", uses_zod);
+    write("apps/web/b.ts", uses_zod);
+    write("apps/webshop/a.ts", uses_zod);
+    write("apps/web/packages/ui/a.ts", uses_zod);
+    write("apps/web/packages/ui/b.ts", uses_zod);
+    write("apps/web/packages/ui/c.ts", uses_zod);
+    write("loose.ts", uses_zod);
+
+    let ix = common::fresh_index_of(dir.path());
+    let counts = |root: &str| import_counts(ix.store(), root).unwrap().get("zod").copied();
+    // `apps/web` is not a prefix of `apps/webshop`, and the nested root keeps its own.
+    assert_eq!(counts("apps/web"), Some(2));
+    assert_eq!(counts("apps/webshop"), Some(1));
+    assert_eq!(counts("apps/web/packages/ui"), Some(3));
+    assert_eq!(counts(""), Some(1)); // the file no manifest covers
+    assert_eq!(counts("apps"), None);
+
+    let roots: Vec<(String, String)> = external_imports(ix.store())
+        .unwrap()
+        .into_iter()
+        .map(|i| (i.file, i.root))
+        .collect();
+    let root_of = |file: &str| roots.iter().find(|(f, _)| f == file).unwrap().1.clone();
+    assert_eq!(root_of("apps/web/a.ts"), "apps/web");
+    assert_eq!(root_of("apps/webshop/a.ts"), "apps/webshop");
+    assert_eq!(root_of("apps/web/packages/ui/b.ts"), "apps/web/packages/ui");
+    assert_eq!(root_of("loose.ts"), "");
+}
+
+#[test]
+fn a_route_is_found_from_the_file_of_its_handler() {
+    let (ix, _dir) = indexed("express-api");
+    let handler_file = hm_core::ids::file_id("src/orders.ts");
+    let found = routes_for_file(ix.store(), &handler_file).unwrap();
+    let list = found
+        .iter()
+        .find(|r| r.method == "GET" && r.pattern == "/api/orders")
+        .unwrap_or_else(|| panic!("GET /api/orders in {found:?}"));
+    // Declared in one file, handled in another.
+    assert_eq!(list.file, "src/routes/orders.ts");
+    assert_eq!(list.handler.as_deref(), Some("src/orders.ts#listOrders"));
+    let card = file_card(ix.store(), "src/orders.ts").unwrap().unwrap();
+    assert!(card.routes.iter().any(|r| r.id == list.id));
+}
+
+#[test]
+fn a_bin_script_shows_its_command() {
+    let dir = common::copy_fixture("client-hops");
+    std::fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"shop","bin":{"shop":"./cli.js"}}"#,
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("cli.js"), "console.log('shop');\n").unwrap();
+    let ix = common::fresh_index_of(dir.path());
+    let card = file_card(ix.store(), "cli.js").unwrap().unwrap();
+    let labels: Vec<&str> = card.routes.iter().map(|r| r.label.as_str()).collect();
+    assert_eq!(labels, ["Command · shop"]);
+    assert_eq!(card.routes[0].handler.as_deref(), Some("cli.js"));
+    assert_eq!(card.routes[0].file, "package.json");
+}

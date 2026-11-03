@@ -250,11 +250,21 @@ fn render_routes(out: &mut String, report: &IndexReport, routes: &[RouteRow]) {
         line(out, &format!("Routes: {}", kinds.join(" · ")));
     }
 
-    let entries = |method: &str| routes.iter().filter(|r| r.method == method).count() as u32;
+    // Counted by entry kind; the method only picks the words for a `main` entry.
+    let entries =
+        |wanted: fn(&RouteRow) -> bool| routes.iter().filter(|r| wanted(r)).count() as u32;
     let entries: Vec<String> = [
-        (entries("START"), "start script", "start scripts"),
-        (entries("BIN"), "command", "commands"),
-        (entries("MAIN"), "main file", "main files"),
+        (
+            entries(|r| r.entry_kind == "main" && r.method == "START"),
+            "start script",
+            "start scripts",
+        ),
+        (entries(|r| r.entry_kind == "cli"), "command", "commands"),
+        (
+            entries(|r| r.entry_kind == "main" && r.method != "START"),
+            "main file",
+            "main files",
+        ),
     ]
     .iter()
     .filter(|(n, _, _)| *n > 0)

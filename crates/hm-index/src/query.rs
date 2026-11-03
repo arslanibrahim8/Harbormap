@@ -264,12 +264,13 @@ pub fn routes(store: &Store) -> Result<Vec<RouteRow>> {
     route_query(store, "", &[])
 }
 
-/// The routes a file declares and those handled by a symbol that lives in it, sorted
-/// as [`routes`] is, each once.
+/// The routes a file declares, those handled by a symbol that lives in it and those
+/// whose handler is the file itself (a `bin` script), sorted as [`routes`] is, each
+/// once.
 pub fn routes_for_file(store: &Store, file_id: &str) -> Result<Vec<RouteRow>> {
     route_query(
         store,
-        "WHERE r.file_id = ?1 OR hs.file_id = ?1",
+        "WHERE r.file_id = ?1 OR hs.file_id = ?1 OR r.handler_id = ?1",
         &[&file_id],
     )
 }
@@ -341,7 +342,8 @@ fn middleware_is_unevaluated(entry_kind: &str, detail: Option<&str>) -> bool {
 /// What a route is called in plain words: `API · POST /api/auth/login`,
 /// `Page · /orders/{id}`, `Server action · placeOrder`, `Runs before /account/:path*`,
 /// `Command · shop`, `Start script · npm start`, `Entry · index.js`. A middleware
-/// without a path of its own (`/*`) runs before many routes.
+/// without a path of its own (`/*`) runs before many routes. A middleware with several
+/// matchers is named by the first one, which is its route pattern.
 pub fn role_label(entry_kind: &str, method: &str, pattern: &str) -> String {
     match (entry_kind, method) {
         ("http", _) => format!("API · {method} {pattern}"),
@@ -386,8 +388,9 @@ pub struct ManifestRow {
     pub scripts: Vec<(String, String, u32)>,
 }
 
-/// The `detail` column of `manifest`; a field that is missing or of the wrong type is
-/// left empty.
+/// The `detail` column of `manifest`. A missing field is left empty; a field of the
+/// wrong type (only the indexer writes the column, so this is not expected) makes the
+/// whole value unreadable and empties `bin`, `main` and `scripts` together.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 struct ManifestDetail {
