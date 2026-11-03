@@ -1,7 +1,5 @@
 //! The read module the panel uses (`hm_index::view`): map facts, indexed files, search.
 
-mod common;
-
 use std::fs;
 
 use hm_index::index::Indexer;
@@ -252,4 +250,81 @@ fn empty_and_blank_queries_find_nothing() {
     let (ix, _dir) = project(&[("src/cart.ts", "export const x = 1;\n")]);
     assert!(search(ix.store(), "", 10).unwrap().is_empty());
     assert!(search(ix.store(), "  \t", 10).unwrap().is_empty());
+}
+
+#[test]
+fn file_ranking_tiers_beat_path_length() {
+    let (ix, _dir) = project(&[
+        // Exact name on the longest path.
+        ("src/deep/nested/cart.ts", "export const a = 1;\n"),
+        // Prefix hits: `cart.test.ts` is not an exact match (its extension is `test.ts`).
+        ("src/cart-view.ts", "export const b = 1;\n"),
+        ("src/cart.test.ts", "export const c = 1;\n"),
+        // A substring hit on the shortest path.
+        ("src/mycart.ts", "export const d = 1;\n"),
+    ]);
+    let got: Vec<String> = search(ix.store(), "cart", 10)
+        .unwrap()
+        .into_iter()
+        .map(|h| h.path)
+        .collect();
+    assert_eq!(
+        got,
+        [
+            "src/deep/nested/cart.ts",
+            "src/cart-view.ts",
+            "src/cart.test.ts",
+            "src/mycart.ts"
+        ]
+    );
+}
+
+#[test]
+fn symbol_ranking_tiers_beat_path_length_and_name_order() {
+    let (ix, _dir) = project(&[
+        ("src/deep/nested/a.ts", "export function cart() {}\n"),
+        ("src/e/order.ts", "export class Order { cart() {} }\n"),
+        ("src/b.ts", "export function cartSize() {}\n"),
+        ("src/c.ts", "export function myCart() {}\n"),
+    ]);
+    let got: Vec<(String, String)> = search(ix.store(), "cart", 10)
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.kind == "symbol")
+        .map(|h| (h.path, h.symbol.unwrap()))
+        .collect();
+    let want = |p: &str, n: &str| (p.to_string(), n.to_string());
+    assert_eq!(
+        got,
+        [
+            // Exact (the bare name of a method counts), shorter path first.
+            want("src/e/order.ts", "Order.cart"),
+            want("src/deep/nested/a.ts", "cart"),
+            // Prefix, then substring.
+            want("src/b.ts", "cartSize"),
+            want("src/c.ts", "myCart"),
+        ]
+    );
+}
+
+#[test]
+fn identical_symbol_hits_are_listed_once() {
+    // Two declarations of one name in a file are two symbols but one hit.
+    let (ix, _dir) = project(&[(
+        "src/a.ts",
+        "export function cartSize() { return 1; }\nfunction cartSize() { return 2; }\n",
+    )]);
+    let n: i64 = ix
+        .store()
+        .conn()
+        .query_row(
+            "SELECT count(*) FROM symbol WHERE name = 'cartSize'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 2, "the fixture must hold two symbols");
+    let hits = search(ix.store(), "cartSize", 10).unwrap();
+    let symbols = hits.iter().filter(|h| h.kind == "symbol").count();
+    assert_eq!(symbols, 1, "{hits:?}");
 }

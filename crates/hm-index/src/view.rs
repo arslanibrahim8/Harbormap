@@ -175,7 +175,8 @@ pub struct Hit {
 ///
 /// Files rank by file name: the whole name (or the name without its last extension)
 /// equal to the query, then names that start with it, then shorter paths, then path
-/// order. Symbols rank the same way by symbol name, then by their file's path.
+/// order. Symbols rank the same way by symbol name, then by their file's path. A name
+/// declared twice in one file is listed once.
 pub fn search(store: &Store, query: &str, limit: usize) -> Result<Vec<Hit>> {
     let query = query.trim();
     if query.is_empty() || limit == 0 {
@@ -227,12 +228,13 @@ pub fn search(store: &Store, query: &str, limit: usize) -> Result<Vec<Hit>> {
                  FROM symbol s JOIN file f ON f.id = s.file_id)
              SELECT path, qn FROM s
               WHERE lower(qn) LIKE ?1 ESCAPE '\\'
-              ORDER BY CASE
+              GROUP BY path, qn
+              ORDER BY MIN(CASE
                          WHEN lower(qn) = ?2 OR lower(name) = ?2 THEN 0
                          WHEN lower(qn) LIKE ?3 ESCAPE '\\'
                               OR lower(name) LIKE ?3 ESCAPE '\\' THEN 1
-                         ELSE 2 END,
-                       length(path), path, qn, l0, id
+                         ELSE 2 END),
+                       length(path), path, qn, MIN(l0)
               LIMIT ?4",
         )?;
         let rows = stmt.query_map(params![contains, plain, prefix, left], |row| {
