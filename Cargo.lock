@@ -1460,13 +1460,17 @@ dependencies = [
  "hm-core",
  "hm-doctor",
  "hm-index",
+ "hm-layout",
  "hm-probe",
  "hm-project",
+ "hm-serve",
  "hm-store",
  "predicates",
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
+ "ureq",
 ]
 
 [[package]]

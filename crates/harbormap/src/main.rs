@@ -3,6 +3,7 @@
 mod card;
 mod cli;
 mod index;
+mod learn;
 mod source;
 mod status;
 mod why;
@@ -35,5 +36,6 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         // The code map reads the project, not the machine: no probe.
         Command::Index(args) => index::run(&args, cli.json),
         Command::Card(args) => card::run(&args, cli.json),
+        Command::Learn(args) => learn::run(&args, cli.json),
     }
 }
