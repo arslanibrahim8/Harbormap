@@ -119,12 +119,20 @@ pub struct PyProject<'a> {
     pub modules: &'a PyModules,
 }
 
+/// A `name_in` lookup: `(module, name, submodules, hops)`.
+type NameKey = (ModuleKey, String, bool, u32);
+
 /// The lookups of one file's resolution. They note every file whose facts they read,
-/// so the file's `reverse_import` rows name every file whose change can reach it.
+/// so the file's `reverse_import` rows name every file whose change can reach it,
+/// and remember each name lookup in a module, so a star-import graph is searched
+/// once per name, not once per path through it.
 struct Look<'a> {
     facts: &'a BTreeMap<String, FileFacts>,
     modules: &'a PyModules,
     read: RefCell<BTreeSet<String>>,
+    names: RefCell<HashMap<NameKey, Option<Named>>>,
+    /// The module files whose star imports are being searched, outermost first.
+    star_path: RefCell<Vec<String>>,
 }
 
 /// What a name stands for.
@@ -138,7 +146,7 @@ enum Named {
 }
 
 /// A `PyModule` that can be ordered, to tell star-import hits apart.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct ModuleKey {
     file: Option<String>,
     package_dir: Option<String>,
@@ -224,6 +232,8 @@ impl<'a> Look<'a> {
             facts: p.facts,
             modules: p.modules,
             read: RefCell::new(BTreeSet::new()),
+            names: RefCell::new(HashMap::new()),
+            star_path: RefCell::new(Vec::new()),
         }
     }
 
@@ -304,6 +314,23 @@ impl<'a> Look<'a> {
         if hops > MAX_HOPS {
             return None;
         }
+        let key = (m.clone(), name.to_string(), submodules, hops);
+        if let Some(known) = self.names.borrow().get(&key) {
+            return known.clone();
+        }
+        let found = self.name_in_module(m, name, hops, submodules);
+        self.names.borrow_mut().insert(key, found.clone());
+        found
+    }
+
+    /// [`name_in`](Self::name_in) without the memo.
+    fn name_in_module(
+        &self,
+        m: &ModuleKey,
+        name: &str,
+        hops: u32,
+        submodules: bool,
+    ) -> Option<Named> {
         let file = m.file.as_deref().and_then(|f| Some((f, self.get(f)?)));
         if let Some((rel, facts)) = file {
             if let Some(i) = last_top_level(facts, name) {
@@ -324,22 +351,32 @@ impl<'a> Look<'a> {
     }
 
     /// The one thing the star imports of `rel` offer for `name`; `None` when none or
-    /// two different ones do. A name that starts with `_` is never carried.
+    /// two different ones do. A name that starts with `_` is never carried. A module
+    /// whose star imports are already being searched further out is skipped: going
+    /// round a star-import cycle offers nothing that search does not.
     fn star_hit(&self, rel: &str, facts: &FileFacts, name: &str, hops: u32) -> Option<Named> {
         if name.starts_with('_') {
             return None;
         }
+        self.star_path.borrow_mut().push(rel.to_string());
         let mut hits = BTreeSet::new();
         for i in &facts.imports {
             if !i.names.iter().any(|n| n.local == "*") {
                 continue;
             }
-            if let Some(Named::Module(m)) = target_named(self.modules.resolve(rel, &i.specifier))
-                && let Some(hit) = self.name_in(&m, name, hops + 1, false)
-            {
+            let Some(Named::Module(m)) = target_named(self.modules.resolve(rel, &i.specifier))
+            else {
+                continue;
+            };
+            let on_path = m
+                .file
+                .as_deref()
+                .is_some_and(|f| self.star_path.borrow().iter().any(|p| p == f));
+            if !on_path && let Some(hit) = self.name_in(&m, name, hops + 1, false) {
                 hits.insert(hit);
             }
         }
+        self.star_path.borrow_mut().pop();
         let mut hits = hits.into_iter();
         match (hits.next(), hits.next()) {
             (Some(hit), None) => Some(hit),

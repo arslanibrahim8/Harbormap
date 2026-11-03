@@ -640,3 +640,50 @@ fn an_aliased_dotted_import_binds_the_full_module() {
     );
     assert!(n.refs.is_empty(), "{:#?}", n.refs);
 }
+
+#[test]
+fn a_dense_star_import_graph_resolves_quickly_and_stays_correct() {
+    // 30 modules that each star-import 5 siblings, all star-imported by the package,
+    // and a caller with 200 calls to names that nothing binds: every lookup searches
+    // the whole graph. Without memoising it takes seconds per file.
+    const N: usize = 30;
+    const F: usize = 5;
+    let mut files: Vec<(String, String)> = Vec::new();
+    let init: String = (1..=N).map(|k| format!("from .m{k} import *\n")).collect();
+    files.push(("pkg/__init__.py".into(), init));
+    for k in 1..=N {
+        let mut src: String = (1..=F)
+            .map(|d| format!("from .m{} import *\n", (k + d - 1) % N + 1))
+            .collect();
+        src.push_str(&format!("\n\ndef f{k}():\n    pass\n"));
+        // Two modules define `dup`: a call to it has two hits.
+        if k <= 2 {
+            src.push_str("\n\ndef dup():\n    pass\n");
+        }
+        files.push((format!("pkg/m{k}.py"), src));
+    }
+    let mut app = String::from("from pkg import *\n\n\ndef main(cb, items):\n");
+    for i in 0..200 {
+        app.push_str(&format!("    cb{}(items)\n", i % 20));
+    }
+    app.push_str("    f3(items)\n    dup(items)\n");
+    files.push(("app.py".into(), app));
+    let files: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(r, t)| (r.as_str(), t.as_str()))
+        .collect();
+
+    let start = std::time::Instant::now();
+    let n = named_for(&files);
+    let took = start.elapsed();
+    assert!(took.as_millis() < 1000, "resolving took {took:?}");
+    n.assert_edge(
+        "calls",
+        "app.py#main",
+        "pkg/m3.py#f3",
+        "py.call.import",
+        false,
+    );
+    n.assert_ref("app.py", "call", "dup", "unresolved");
+    n.assert_ref("app.py", "call", "cb7", "unresolved");
+}
