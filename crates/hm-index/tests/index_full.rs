@@ -446,3 +446,72 @@ fn manifest_and_route_notes_join_the_report_notes() {
         ]
     );
 }
+
+#[test]
+fn the_store_holds_exactly_what_derive_finds_on_every_fixture() {
+    for name in [
+        "client-hops",
+        "express-api",
+        "nest-api",
+        "next-app",
+        "next-mono",
+        "next-pages",
+        "npm-locks",
+        "patterns-ts",
+        "ts-basic",
+    ] {
+        let (ix, dir) = indexed(name);
+        assert_eq!(
+            stored_derived(ix.store()),
+            derived_lines(&derive_tree(dir.path())),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn rows_with_the_same_store_key_are_derived_once() {
+    // Two calls on one line from two symbols share a `client_call` key; a `fetch` and an
+    // axios call on one line share an `http_calls` edge key. The store keeps one row of
+    // each key; so does `derive`, the first in sorted order.
+    let dir = tempfile::tempdir().unwrap();
+    for (rel, text) in [
+        (
+            "package.json",
+            r#"{ "name": "shop", "dependencies": { "next": "15.2.0" } }"#,
+        ),
+        (
+            "app/api/orders/route.ts",
+            "export async function GET() { return Response.json([]) }\n",
+        ),
+        (
+            "lib/c.ts",
+            "import axios from 'axios'\n\
+             export const a = () => fetch('/api/orders'), b = () => fetch('/api/orders')\n\
+             export function both() { fetch('/api/orders'); return axios.get('/api/orders') }\n",
+        ),
+    ] {
+        let path = dir.path().join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, text).unwrap();
+    }
+    let derived = derive_tree(dir.path());
+    let calls_on = |line: u32| {
+        derived
+            .client_calls
+            .iter()
+            .filter(|c| c.line == line && c.rule == "ts.client.fetch")
+            .count()
+    };
+    assert_eq!(calls_on(2), 1, "{:#?}", derived.client_calls);
+    let edges_on_3 = derived
+        .edges
+        .iter()
+        .filter(|e| e.kind == "http_calls" && e.line == 3)
+        .count();
+    assert_eq!(edges_on_3, 1, "{:#?}", derived.edges);
+    assert_eq!(
+        stored_derived(fresh_index_of(dir.path()).store()),
+        derived_lines(&derived)
+    );
+}

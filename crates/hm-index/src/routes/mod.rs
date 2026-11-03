@@ -6,8 +6,9 @@
 //! middleware), `entries` (`package.json` `bin`, `main`, `scripts.start`), `express`,
 //! `nest`, `hops` (client calls and mediated edges) and `patterns`.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
+use std::hash::Hash;
 use std::path::Path;
 
 use hm_core::ids::route_id;
@@ -85,6 +86,8 @@ pub struct Pattern {
     pub rule: String,
     pub conf: String,
     pub term: Option<String>,
+    /// A JSON object or plain text with what the rule adds; for `env_read`, the names of
+    /// the variables read, sorted and joined by `,` (`DATABASE_URL,NODE_ENV`).
     pub detail: Option<String>,
 }
 
@@ -138,7 +141,36 @@ pub fn derive(inputs: &Inputs) -> Derived {
     out.gaps.sort();
     out.notes.sort();
     out.notes.dedup();
+    // One row per store primary key, the first in sorted order, as the store keeps it.
+    keep_first(&mut out.client_calls, |c| {
+        (
+            c.file.clone(),
+            c.line,
+            c.method.clone(),
+            c.url.clone(),
+            c.rule.clone(),
+        )
+    });
+    keep_first(&mut out.edges, |e| {
+        (e.kind.clone(), e.src_id.clone(), e.dst_id.clone(), e.line)
+    });
+    keep_first(&mut out.patterns, |p| {
+        (
+            p.file.clone(),
+            p.subject_id.clone(),
+            p.kind.clone(),
+            p.line,
+            p.rule.clone(),
+        )
+    });
+    keep_first(&mut out.gaps, |g| (g.file.clone(), g.kind.clone(), g.line));
     out
+}
+
+/// Keeps the first item of each `key`, in order.
+fn keep_first<T, K: Eq + Hash>(items: &mut Vec<T>, key: impl Fn(&T) -> K) {
+    let mut seen = HashSet::new();
+    items.retain(|item| seen.insert(key(item)));
 }
 
 /// Keeps the first route of each id in `(file, line)` order; each later one is a note.
