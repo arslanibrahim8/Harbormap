@@ -514,17 +514,16 @@ fn unknown_languages_are_listed_by_name() {
 #[test]
 fn dev_only_items_rank_after_equal_scores() {
     let mut input = input();
-    input.declared = vec![dep(Ecosystem::Npm, "pkg-03", true, ""), npm("pkg-01", "")];
-    input.declared.push(dep(Ecosystem::Npm, "pkg-02", true, ""));
-    input.declared.push(npm("pkg-02", ""));
+    // Same score and category; the dev-only item sorts first by name, so only the dev flag
+    // puts it last.
+    input.declared = vec![dep(Ecosystem::Npm, "pkg-01", true, ""), npm("pkg-02", "")];
     let list = build(&catalog(), &input);
     let other: Vec<_> = list.roots[0]
         .items
         .iter()
         .map(|item| item.name.as_str())
         .collect();
-    // pkg-02 is also declared as a runtime dependency, so it is not dev-only.
-    assert_eq!(other, ["Tool 01", "Tool 02", "Tool 03"]);
+    assert_eq!(other, ["Tool 02", "Tool 01"]);
 }
 
 #[test]
