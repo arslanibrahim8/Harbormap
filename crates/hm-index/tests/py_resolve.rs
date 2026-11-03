@@ -7,7 +7,7 @@ use common::fixture;
 use hm_core::ids::file_id;
 use hm_index::facts::FileFacts;
 use hm_index::py::modules::{PyModule, PyModules, PyTarget};
-use hm_index::py::resolve::{PyProject, forwards, resolve_file};
+use hm_index::py::resolve::{PyProject, resolve_file};
 use hm_index::query::display_name;
 use hm_index::ts::resolve::symbol_ids;
 
@@ -484,36 +484,61 @@ fn super_cls_static_external_and_builtin_receivers() {
     );
 }
 
-#[test]
-fn forwards_follows_imports_to_their_module_files() {
-    let walked = hm_index::walk::walk(&fixture("py-basic")).expect("walk the fixture");
-    let known: BTreeSet<String> = walked.files.iter().map(|f| f.rel.clone()).collect();
-    let facts: BTreeMap<String, FileFacts> = walked
-        .files
+/// `imports_files` of each file in `files`, resolved together.
+fn read_sets(files: &[(&str, &str)]) -> BTreeMap<String, BTreeSet<String>> {
+    let facts: BTreeMap<String, FileFacts> = files
         .iter()
-        .filter(|f| is_python(&f.rel))
-        .map(|f| {
-            let src = fs::read_to_string(&f.abs).expect("read a fixture file");
-            (f.rel.clone(), hm_index::py::extract(&src))
-        })
+        .map(|(rel, src)| (rel.to_string(), hm_index::py::extract(src)))
         .collect();
-    let modules = PyModules::new(known);
+    let modules = PyModules::new(files.iter().map(|(rel, _)| rel.to_string()).collect());
     let p = PyProject {
         facts: &facts,
         modules: &modules,
     };
-    for (rel, target, want) in [
-        ("src/shop/api.py", "src/shop/__init__.py", true),
-        ("src/shop/api.py", "src/shop/models.py", true),
-        ("src/shop/api.py", "src/shop/fast.pyi", true),
-        ("src/shop/service.py", "src/shop/models.py", true),
-        ("src/shop/__init__.py", "src/shop/service.py", true),
-        ("tests/test_service.py", "src/shop/service.py", true),
-        ("src/shop/service.py", "src/shop/api.py", false),
-        ("src/shop/api.py", "src/shop/service.py", false),
-    ] {
-        assert_eq!(forwards(&p, rel, target), want, "forwards({rel}, {target})");
-    }
+    facts
+        .keys()
+        .map(|rel| (rel.clone(), resolve_file(&p, rel).imports_files))
+        .collect()
+}
+
+#[test]
+fn imports_files_name_every_file_the_resolution_read() {
+    let sets = read_sets(&[
+        ("a/__init__.py", ""),
+        ("a/b.py", "from x.y import f\n"),
+        ("a/c.py", ""),
+        ("x/__init__.py", ""),
+        ("x/y.py", "def f():\n    pass\n"),
+        ("main.py", "import a.c\n\na.b.f()\n"),
+        ("k/__init__.py", "from .base import Base\n"),
+        (
+            "k/base.py",
+            "from k2 import Root\n\n\nclass Base(Root):\n    pass\n",
+        ),
+        ("k2/__init__.py", "from .root import Root\n"),
+        (
+            "k2/root.py",
+            "class Root:\n    def m(self):\n        pass\n",
+        ),
+        (
+            "sub.py",
+            "from k import Base\n\n\nclass S(Base):\n    def go(self):\n        self.m()\n",
+        ),
+    ]);
+    // `a.b.f()` reads `a/b.py` and, through its binding, `x/y.py`: neither is imported.
+    let want =
+        |files: &[&str]| -> BTreeSet<String> { files.iter().map(|f| f.to_string()).collect() };
+    assert_eq!(
+        sets["main.py"],
+        want(&["a/__init__.py", "a/b.py", "a/c.py", "x/y.py"])
+    );
+    // The base chain reads every `__init__` and class file on the way to `Root.m`.
+    assert_eq!(
+        sets["sub.py"],
+        want(&["k/__init__.py", "k/base.py", "k2/__init__.py", "k2/root.py"])
+    );
+    // A file never lists itself.
+    assert!(sets.iter().all(|(rel, read)| !read.contains(rel)));
 }
 
 #[test]

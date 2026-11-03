@@ -634,12 +634,7 @@ impl Indexer {
             let resolve: BTreeSet<String> = if rebuilt.is_some() {
                 facts.keys().cloned().collect()
             } else {
-                // Files that read a seed with no row to it count as seeds too.
-                let readers = langs::implicit_readers(&project, &seeds);
-                let mut sources = seeds.clone();
-                sources.extend(readers.iter().cloned());
-                let mut resolve = dependents(tx, &project, &sources)?;
-                resolve.extend(readers);
+                let mut resolve = dependents(tx, &project, &seeds)?;
                 for rel in &seeds {
                     resolve.extend(langs::implicit_dependents(&project, rel));
                 }
@@ -1331,13 +1326,14 @@ fn dependents(
 }
 
 /// Whether resolving a name exported by `rel` can lead on into `target`: `rel`
-/// re-exports from it, or exports a name that it imports from it. A Python file does
-/// when one of its imports leads to `target`; a Go package hands no names on.
+/// re-exports from it, or exports a name that it imports from it. A Go package hands
+/// no names on, and a Python file's rows already name every file its resolution read.
 fn forwards(w: &Workspace, rel: &str, target: &str) -> bool {
-    match Lang::from_path(Path::new(rel)) {
-        Some(Lang::Python) => return crate::py::resolve::forwards(&w.py(), rel, target),
-        Some(Lang::Go) => return false,
-        _ => {}
+    if matches!(
+        Lang::from_path(Path::new(rel)),
+        Some(Lang::Python | Lang::Go)
+    ) {
+        return false;
     }
     let p = w.ts();
     let Some(facts) = p.facts.get(rel) else {

@@ -66,6 +66,9 @@ struct Export {
     name: String,
     alias: String,
     is_class: bool,
+    /// The lower package whose `__init__.py` hands it on, for a name re-exported
+    /// from one `__init__.py` to another.
+    via: Option<usize>,
 }
 
 fn module_path(i: usize) -> String {
@@ -89,11 +92,14 @@ fn read(dir: &Path, rel: &str) -> String {
 
 /// Writes a deterministic Python project into `dir`: a `pyproject.toml` and, under
 /// `src/synth/`, `files` modules in packages `p0`, `p1`, … of 10. Each package's
-/// `__init__.py` re-exports some names of its modules, some under another name.
-/// Modules define functions and one class; a class may extend a class of another
-/// module, call inherited methods through `self`, and set `self.x = K()` to call
-/// `self.x.m()`. Imports are absolute (`synth.pN.mod`, `synth.pN`) and relative
-/// (`.mod`, `..pN`), and some bind a module that is then called through.
+/// `__init__.py` re-exports some names of its modules, some under another name, and
+/// some names of a lower package's `__init__.py`, so chains of `__init__` files hand
+/// names on. Modules define functions and one class; a class may extend a class of
+/// another module, call inherited methods through `self` (also of bases several
+/// classes up), and set `self.x = K()` to call `self.x.m()`. Imports are absolute
+/// (`synth.pN.mod`, `synth.pN`) and relative (`.mod`, `..pN`), and some bind a module
+/// that is then called through, or bind `synth` for dotted calls such as
+/// `synth.p1.m0012.f12_0()` that walk to modules no import names.
 pub fn project(dir: &Path, seed: u64, files: u32) {
     let n = files as usize;
     let mut rng = Rng(seed);
@@ -140,6 +146,7 @@ pub fn project(dir: &Path, seed: u64, files: u32) {
                     name,
                     alias,
                     is_class: false,
+                    via: None,
                 });
             }
             if rng.chance(50) {
@@ -153,6 +160,26 @@ pub fn project(dir: &Path, seed: u64, files: u32) {
                     name: m.class.clone(),
                     alias,
                     is_class: true,
+                    via: None,
+                });
+            }
+        }
+        // Names handed on from a lower package's `__init__.py`.
+        let lower: Vec<usize> = (0..pk).filter(|&p| !vis[p].is_empty()).collect();
+        if !lower.is_empty() && rng.chance(60) {
+            let pj = lower[rng.range(0, lower.len() - 1)];
+            let idx: Vec<usize> = (0..vis[pj].len()).collect();
+            for k in rng.pick_upto(&idx, 1, 2) {
+                let e = &vis[pj][k];
+                if exports.iter().any(|x: &Export| x.alias == e.alias) {
+                    continue;
+                }
+                exports.push(Export {
+                    module: e.module,
+                    name: e.alias.clone(),
+                    alias: e.alias.clone(),
+                    is_class: e.is_class,
+                    via: Some(pj),
                 });
             }
         }
@@ -163,22 +190,81 @@ pub fn project(dir: &Path, seed: u64, files: u32) {
         write_file(
             dir,
             &format!("src/synth/p{pk}/__init__.py"),
-            &render_init(exports),
+            &render_init(pk, exports),
         );
     }
+    let mut done = Vec::new();
     for i in 0..n {
-        write_file(dir, &module_path(i), &render(&mods, &vis, i, &mut rng));
+        let src = render(&mods, &vis, i, &mut done, &mut rng);
+        write_file(dir, &module_path(i), &src);
     }
+    tower(dir);
 }
 
-fn render_init(exports: &[Export]) -> String {
+/// How many classes the tower stacks.
+const TOWER: usize = 4;
+
+/// A sparse corner beside the random packages, where a file reads others many
+/// files away and through none of its imports: `src/towerapp.py`'s `App` extends
+/// `B1`, which extends `B2`, and so on to `B4`, each in its own package `twN` and
+/// handed on by that package's `__init__.py`; `App` calls `B4`'s method through
+/// `self`. It also binds `walk` with `import walk.c` and calls `walk.b.wf()`, which
+/// `walk/b.py` imports from `tw4/base.py`.
+fn tower(dir: &Path) {
+    for n in 1..=TOWER {
+        write_file(
+            dir,
+            &format!("src/tw{n}/__init__.py"),
+            &format!("from .base import B{n}\n"),
+        );
+        let mut base = String::new();
+        if n < TOWER {
+            base.push_str(&format!(
+                "from tw{next} import B{next}\n\n\nclass B{n}(B{next}):\n",
+                next = n + 1
+            ));
+        } else {
+            base.push_str(
+                "def wf(a, b):\n    total = a + len(b)\n    return total\n\n\nclass B4:\n",
+            );
+        }
+        base.push_str(&format!(
+            "    def __init__(self, a):\n        self.a = a\n\n    def mt{n}(self, a, b):\n        total = a\n        return total\n"
+        ));
+        write_file(dir, &format!("src/tw{n}/base.py"), &base);
+    }
+    write_file(dir, "src/walk/__init__.py", "# Binds nothing.\n");
+    write_file(
+        dir,
+        "src/walk/c.py",
+        "def wc(a, b):\n    total = a + len(b)\n    return total\n",
+    );
+    write_file(
+        dir,
+        "src/walk/b.py",
+        "from tw4.base import wf\n\n\ndef wb(a, b):\n    total = a + len(b)\n    total += wf(a, b)\n    return total\n",
+    );
+    write_file(
+        dir,
+        "src/towerapp.py",
+        &format!(
+            "import walk.c\nfrom tw1 import B1\n\n\ndef run(a, b):\n    total = a + len(b)\n    total += walk.b.wf(a, b)\n    return total\n\n\nclass App(B1):\n    def go(self, a, b):\n        total = a\n        total += self.mt{TOWER}(a, b)\n        total += self.mt2(a, b)\n        return total\n"
+        ),
+    );
+}
+
+fn render_init(pk: usize, exports: &[Export]) -> String {
     let mut out = String::new();
-    let mut from: Vec<usize> = exports.iter().map(|e| e.module).collect();
+    let mut from: Vec<usize> = exports
+        .iter()
+        .filter(|e| e.via.is_none())
+        .map(|e| e.module)
+        .collect();
     from.dedup();
     for m in from {
         let names: Vec<String> = exports
             .iter()
-            .filter(|e| e.module == m)
+            .filter(|e| e.module == m && e.via.is_none())
             .map(|e| {
                 if e.alias == e.name {
                     e.name.clone()
@@ -188,6 +274,23 @@ fn render_init(exports: &[Export]) -> String {
             })
             .collect();
         out.push_str(&format!("from .m{m:04} import {}\n", names.join(", ")));
+    }
+    let mut via: Vec<usize> = exports.iter().filter_map(|e| e.via).collect();
+    via.sort();
+    via.dedup();
+    for pj in via {
+        let names: Vec<&str> = exports
+            .iter()
+            .filter(|e| e.via == Some(pj))
+            .map(|e| e.alias.as_str())
+            .collect();
+        // Relative and absolute in turn.
+        let spec = if pk.is_multiple_of(2) {
+            format!("..p{pj}")
+        } else {
+            format!("synth.p{pj}")
+        };
+        out.push_str(&format!("from {spec} import {}\n", names.join(", ")));
     }
     if out.is_empty() {
         out.push_str("# Nothing is re-exported.\n");
@@ -203,17 +306,35 @@ struct Bound {
     is_class: bool,
 }
 
-fn render(mods: &[Module], vis: &[Vec<Export>], i: usize, rng: &mut Rng) -> String {
+/// What a rendered module binds that later modules build on.
+struct Done {
+    /// The module of the class its class extends.
+    base: Option<usize>,
+    /// The functions it imports, by local name.
+    imported: Vec<String>,
+}
+
+/// The source of module `i`. `done` holds what each earlier module binds; `i`'s is
+/// pushed.
+fn render(
+    mods: &[Module],
+    vis: &[Vec<Export>],
+    i: usize,
+    done: &mut Vec<Done>,
+    rng: &mut Rng,
+) -> String {
     let me = &mods[i];
     let first = me.pkg * PACKAGE_SIZE;
     let mut lines: Vec<String> = Vec::new();
     let mut names: Vec<Bound> = Vec::new();
     // Modules bound by `from . import m` and the like.
     let mut modules: Vec<(String, usize)> = Vec::new();
+    // Calls that walk from `synth` once `import synth.pN.mod` binds it.
+    let mut dotted_calls: Vec<String> = Vec::new();
     let taken = |names: &[Bound], local: &str| names.iter().any(|b| b.local == local);
 
     for _ in 0..rng.range(1, 4) {
-        let way = rng.range(0, 9);
+        let way = rng.range(0, 10);
         match way {
             // `from synth.pN.mod import a, b`, or `from .mod import a, b` in the package.
             0..=1 | 6..=7 => {
@@ -301,6 +422,42 @@ fn render(mods: &[Module], vis: &[Vec<Export>], i: usize, rng: &mut Rng) -> Stri
                 lines.push(format!("from . import {local}"));
                 modules.push((local, j));
             }
+            // `import synth.pN.mod`: binds `synth`, then calls walk to other modules
+            // and to what a package's `__init__.py` hands on.
+            10 => {
+                if i == 0 || !dotted_calls.is_empty() {
+                    continue;
+                }
+                // `from synth import pN`, then `pN.mod.f()` where `mod` imports `f`
+                // from elsewhere: the call reads a file outside `pN`.
+                let with_imports: Vec<usize> =
+                    (0..i).filter(|&k| !done[k].imported.is_empty()).collect();
+                if !with_imports.is_empty() && rng.chance(50) {
+                    let k = with_imports[rng.range(0, with_imports.len() - 1)];
+                    let pk = mods[k].pkg;
+                    let f = &done[k].imported[rng.range(0, done[k].imported.len() - 1)];
+                    lines.push(format!("from synth import p{pk}"));
+                    dotted_calls.push(format!("p{pk}.m{k:04}.{f}(a, b)"));
+                    continue;
+                }
+                let j = rng.range(0, i - 1);
+                lines.push(format!("import {}", module_name(j)));
+                for _ in 0..2 {
+                    let k = rng.range(0, i - 1);
+                    let f = &mods[k].funcs[rng.range(0, mods[k].funcs.len() - 1)];
+                    dotted_calls.push(format!("synth.p{}.m{k:04}.{f}(a, b)", mods[k].pkg));
+                }
+                let funcs: Vec<(usize, &Export)> = vis
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(p, ex)| ex.iter().map(move |e| (p, e)))
+                    .filter(|(_, e)| !e.is_class)
+                    .collect();
+                if !funcs.is_empty() {
+                    let (p, e) = funcs[rng.range(0, funcs.len() - 1)];
+                    dotted_calls.push(format!("synth.p{p}.{}(a, b)", e.alias));
+                }
+            }
             // `from synth.pN import mod`: a module of a lower package.
             _ => {
                 if me.pkg == 0 {
@@ -321,9 +478,9 @@ fn render(mods: &[Module], vis: &[Vec<Export>], i: usize, rng: &mut Rng) -> Stri
     let classes_in: Vec<&Bound> = names.iter().filter(|b| b.is_class).collect();
     // A call from a function or a method: `total += ...`.
     let call = |rng: &mut Rng| -> Option<String> {
-        let start = rng.range(0, 3);
-        for step in 0..4 {
-            match (start + step) % 4 {
+        let start = rng.range(0, 4);
+        for step in 0..5 {
+            match (start + step) % 5 {
                 0 if !funcs_in.is_empty() => {
                     let b = funcs_in[rng.range(0, funcs_in.len() - 1)];
                     return Some(format!("total += {}(a, b)", b.local));
@@ -344,6 +501,10 @@ fn render(mods: &[Module], vis: &[Vec<Export>], i: usize, rng: &mut Rng) -> Stri
                     let ms = &mods[b.module].methods;
                     let m = &ms[rng.range(0, ms.len() - 1)];
                     return Some(format!("total += {}(a).{m}(a, b)", b.local));
+                }
+                4 if !dotted_calls.is_empty() && rng.chance(25) => {
+                    let c = &dotted_calls[rng.range(0, dotted_calls.len() - 1)];
+                    return Some(format!("total += {c}"));
                 }
                 _ => {}
             }
@@ -385,6 +546,20 @@ fn render(mods: &[Module], vis: &[Vec<Export>], i: usize, rng: &mut Rng) -> Stri
         .then(|| classes_in[rng.range(0, classes_in.len() - 1)]);
     let attr = (!classes_in.is_empty() && rng.chance(60))
         .then(|| classes_in[rng.range(0, classes_in.len() - 1)]);
+    done.push(Done {
+        base: base.map(|b| b.module),
+        imported: funcs_in.iter().map(|b| b.local.clone()).collect(),
+    });
+    // The bases of the base, nearest first: a method of one is called through `self`.
+    let mut ancestors: Vec<usize> = Vec::new();
+    let mut up = base.and_then(|b| done[b.module].base);
+    while let Some(a) = up {
+        if ancestors.contains(&a) {
+            break;
+        }
+        ancestors.push(a);
+        up = done[a].base;
+    }
     match base {
         Some(b) => out.push_str(&format!("class {}({}):\n", me.class, b.local)),
         None => out.push_str(&format!("class {}:\n", me.class)),
@@ -418,6 +593,12 @@ fn render(mods: &[Module], vis: &[Vec<Export>], i: usize, rng: &mut Rng) -> Stri
                 let m = &ms[rng.range(0, ms.len() - 1)];
                 out.push_str(&format!("        total += super().{m}(a, b)\n"));
             }
+        }
+        if !ancestors.is_empty() && rng.chance(60) {
+            let a = ancestors[rng.range(0, ancestors.len() - 1)];
+            let ms = &mods[a].methods;
+            let m = &ms[rng.range(0, ms.len() - 1)];
+            out.push_str(&format!("        total += self.{m}(a, b)\n"));
         }
         if let Some(k) = attr
             && rng.chance(70)

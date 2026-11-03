@@ -320,3 +320,94 @@ fn go_and_python_body_edits_reach_no_other_file() {
     assert!(d.reresolved.is_empty(), "{d:?}");
     assert_cold(&ix, dir.path());
 }
+
+/// A copy of `files` in a new folder, indexed into an in-memory store. The `TempDir`
+/// comes last, as in `common::indexed`.
+fn indexed_tree(files: &[(&str, &str)]) -> (Indexer, tempfile::TempDir) {
+    let dir = tempfile::tempdir().expect("make a temp dir");
+    for (rel, text) in files {
+        let path = dir.path().join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, text).unwrap();
+    }
+    let store = hm_store::Store::open_in_memory().expect("open a store");
+    let mut ix = Indexer::open(dir.path(), store).expect("open the indexer");
+    ix.full().expect("index the tree");
+    (ix, dir)
+}
+
+#[test]
+fn a_python_method_four_bases_away_through_package_inits_stays_cold_equal() {
+    // `A` -> `B1` -> `B2` -> `B3` -> `B4`, each base in its own package and handed
+    // on by that package's `__init__`: more files than any forwarding walk follows.
+    let mut files = vec![
+        ("app/__init__.py".to_string(), String::new()),
+        (
+            "app/a.py".to_string(),
+            "from lib1 import B1\n\n\nclass A(B1):\n    def go(self):\n        return self.m()\n"
+                .to_string(),
+        ),
+    ];
+    for n in 1..=4 {
+        files.push((
+            format!("lib{n}/__init__.py"),
+            format!("from .base import B{n}\n"),
+        ));
+        let base = if n < 4 {
+            format!(
+                "from lib{next} import B{next}\n\n\nclass B{n}(B{next}):\n    pass\n",
+                next = n + 1
+            )
+        } else {
+            "class B4:\n    def m(self):\n        pass\n".to_string()
+        };
+        files.push((format!("lib{n}/base.py"), base));
+    }
+    let files: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(r, t)| (r.as_str(), t.as_str()))
+        .collect();
+    let (mut ix, dir) = indexed_tree(&files);
+    assert_eq!(
+        evidence(&ix, "calls", "app/a.py#A.go", "lib4/base.py#B4.m"),
+        ev("py.call.inherited", "inferred", "probably")
+    );
+
+    edit(dir.path(), "lib4/base.py", "def m(", "def n(");
+    let d = ix.apply(&set(["lib4/base.py"])).unwrap();
+    assert!(d.reresolved.contains(&"app/a.py".to_string()), "{d:?}");
+    assert!(
+        !section(&ix, "edge")
+            .iter()
+            .any(|e| e.starts_with("calls | app/a.py#A.go ->")),
+        "{:#?}",
+        section(&ix, "edge")
+    );
+    assert!(has_ref(&ix, "app/a.py", "self.m", "unresolved"));
+    assert_cold(&ix, dir.path());
+}
+
+#[test]
+fn a_dotted_call_through_a_submodule_binding_elsewhere_stays_cold_equal() {
+    // `a.b.f()` walks into `a/b.py`, which binds `f` from `x/y.py`: `main.py` reads
+    // `x/y.py` with no import of it and no package walk over its folder.
+    let (mut ix, dir) = indexed_tree(&[
+        ("a/__init__.py", ""),
+        ("a/b.py", "from x.y import f\n"),
+        ("a/c.py", ""),
+        ("x/__init__.py", ""),
+        ("x/y.py", "def f():\n    pass\n"),
+        ("main.py", "import a.c\n\na.b.f()\n"),
+    ]);
+    assert_eq!(
+        evidence(&ix, "calls", "main.py", "x/y.py#f"),
+        ev("py.call.module", "parsed", "sure")
+    );
+
+    edit(dir.path(), "x/y.py", "def f(", "def g(");
+    let d = ix.apply(&set(["x/y.py"])).unwrap();
+    assert!(d.reresolved.contains(&"main.py".to_string()), "{d:?}");
+    assert!(!has_edge(&ix, "calls", "main.py", "x/y.py#f"));
+    assert!(has_ref(&ix, "main.py", "a.b.f", "unresolved"));
+    assert_cold(&ix, dir.path());
+}

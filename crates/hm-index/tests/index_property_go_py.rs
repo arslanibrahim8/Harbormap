@@ -233,6 +233,48 @@ fn the_python_project_has_every_edge_kind_the_property_test_needs() {
         through_init,
         "no call resolved through an aliased re-export"
     );
+    // What a forwarding walk of a few files would miss (they need exact read sets).
+    let edges = section(&text, "edge");
+    let class_of = |id: &str| {
+        id.rsplit_once('.')
+            .map_or(id, |(class, _)| class)
+            .to_string()
+    };
+    let direct: BTreeSet<(String, String)> = edges
+        .iter()
+        .filter(|e| e.starts_with("extends | "))
+        .filter_map(|e| {
+            let (src, dst) = e.split(" | ").nth(1)?.split_once(" -> ")?;
+            Some((src.to_string(), dst.to_string()))
+        })
+        .collect();
+    // A method of a base's base, called through `self`.
+    let grand_base = edges_with(&text, "py.call.inherited").iter().any(|cols| {
+        let (src, dst) = cols[1].split_once(" -> ").unwrap();
+        !direct.contains(&(class_of(src), class_of(dst)))
+    });
+    assert!(grand_base, "no inherited call to a base's base");
+    // An `__init__.py` that hands on a name of another package's `__init__.py`.
+    let files = tree(dir.path());
+    let init_chain = files.iter().any(|(rel, src)| {
+        rel.ends_with("/__init__.py")
+            && String::from_utf8_lossy(src)
+                .lines()
+                .any(|l| l.starts_with("from ..p") || l.starts_with("from synth.p"))
+    });
+    assert!(init_chain, "no __init__.py re-exports from another one");
+    // A dotted call that walks from `synth` to a module no import names.
+    let dotted = edges.iter().any(|e| {
+        let cols: Vec<&str> = e.split(" | ").collect();
+        cols[4] == "py.call.module" && {
+            let src = String::from_utf8_lossy(&files[cols[2]]).into_owned();
+            let line: usize = cols[3].parse().unwrap();
+            src.lines()
+                .nth(line - 1)
+                .is_some_and(|l| l.contains("+= synth.p"))
+        }
+    });
+    assert!(dotted, "no dotted call from `synth` resolved");
 }
 
 /// The files each edit changes are exactly the files whose bytes changed, and the

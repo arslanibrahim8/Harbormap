@@ -3,6 +3,7 @@
 //! type, and `extends` by base class. A reference that does not name exactly one
 //! target becomes a ref, never an edge; a call to a builtin becomes neither.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use hm_core::ids::file_id;
@@ -118,6 +119,14 @@ pub struct PyProject<'a> {
     pub modules: &'a PyModules,
 }
 
+/// The lookups of one file's resolution. They note every file whose facts they read,
+/// so the file's `reverse_import` rows name every file whose change can reach it.
+struct Look<'a> {
+    facts: &'a BTreeMap<String, FileFacts>,
+    modules: &'a PyModules,
+    read: RefCell<BTreeSet<String>>,
+}
+
 /// What a name stands for.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Named {
@@ -209,9 +218,31 @@ fn callable(kind: SymbolKind) -> bool {
     )
 }
 
-impl PyProject<'_> {
+impl<'a> Look<'a> {
+    fn new(p: &PyProject<'a>) -> Look<'a> {
+        Look {
+            facts: p.facts,
+            modules: p.modules,
+            read: RefCell::new(BTreeSet::new()),
+        }
+    }
+
+    /// The facts of `rel`, noted as read.
+    fn get(&self, rel: &str) -> Option<&'a FileFacts> {
+        let facts = self.facts.get(rel)?;
+        if !self.read.borrow().contains(rel) {
+            self.read.borrow_mut().insert(rel.to_string());
+        }
+        Some(facts)
+    }
+
+    /// The facts of `rel`, which a lookup already found, noted as read.
+    fn at(&self, rel: &str) -> &'a FileFacts {
+        self.get(rel).expect("a file a lookup found has facts")
+    }
+
     fn kind(&self, file: &str, symbol: usize) -> SymbolKind {
-        self.facts[file].symbols[symbol].kind
+        self.at(file).symbols[symbol].kind
     }
 
     /// The last import of `rel` that binds `name`. `from . import name` in a package's
@@ -273,10 +304,7 @@ impl PyProject<'_> {
         if hops > MAX_HOPS {
             return None;
         }
-        let file = m
-            .file
-            .as_deref()
-            .and_then(|f| Some((f, self.facts.get(f)?)));
+        let file = m.file.as_deref().and_then(|f| Some((f, self.get(f)?)));
         if let Some((rel, facts)) = file {
             if let Some(i) = last_top_level(facts, name) {
                 return Some(Named::Symbol(rel.to_string(), i));
@@ -346,7 +374,7 @@ impl PyProject<'_> {
 
     /// The dotted path `a.b.C` as seen in file `rel`.
     fn path_in(&self, rel: &str, path: &str) -> Option<Named> {
-        let facts = self.facts.get(rel)?;
+        let facts = self.get(rel)?;
         let segs: Vec<&str> = path.split('.').collect();
         if !segs.iter().all(|s| is_ident(s)) {
             return None;
@@ -365,7 +393,7 @@ impl PyProject<'_> {
 
     /// The last method `name` of class `class` (a top-level symbol of `file`).
     fn method_of(&self, file: &str, class: usize, name: &str) -> Option<usize> {
-        let facts = &self.facts[file];
+        let facts = self.at(file);
         let owner = &facts.symbols[class].name;
         facts
             .symbols
@@ -375,7 +403,7 @@ impl PyProject<'_> {
 
     /// The bases of a class that resolve to classes, left to right.
     fn bases(&self, file: &str, class: usize) -> Vec<(String, usize)> {
-        let facts = &self.facts[file];
+        let facts = self.at(file);
         let name = &facts.symbols[class].name;
         facts
             .heritage
@@ -420,7 +448,7 @@ impl PyProject<'_> {
     /// decides must name that same class: one that names no class, or another one,
     /// leaves the type unsure.
     fn attr_type(&self, file: &str, class: usize, attr: &str, depth: u32) -> AttrType {
-        let facts = &self.facts[file];
+        let facts = self.at(file);
         let name = &facts.symbols[class].name;
         let stated: Vec<&str> = facts
             .attrs
@@ -508,8 +536,9 @@ pub fn resolve_file(p: &PyProject, rel: &str) -> ResolvedFile {
     let Some(facts) = p.facts.get(rel) else {
         return ResolvedFile::default();
     };
+    let look = Look::new(p);
     let mut r = Resolver {
-        p,
+        p: &look,
         rel,
         facts,
         file: file_id(rel),
@@ -607,42 +636,15 @@ pub fn resolve_file(p: &PyProject, rel: &str) -> ResolvedFile {
                 status,
             })
             .collect(),
-        imports_files,
+        imports_files: {
+            // Every file whose facts the resolution read: a change to one can change
+            // the result. The files the imports point to are among them.
+            let mut read = look.read.take();
+            read.extend(imports_files);
+            read.remove(rel);
+            read
+        },
     }
-}
-
-/// Whether resolving a name in `rel` can lead on into `target`: one of its imports
-/// resolves to it. `import a.b.c` counts each of `a`, `a.b` and `a.b.c`, since a name
-/// walks through them; `from m import n` counts `m` and the submodule `n`.
-pub fn forwards(p: &PyProject, rel: &str, target: &str) -> bool {
-    let Some(facts) = p.facts.get(rel) else {
-        return false;
-    };
-    let is_target =
-        |t: PyTarget| matches!(t, PyTarget::Module(m) if m.file.as_deref() == Some(target));
-    facts.imports.iter().any(|i| {
-        if is_plain_import(i) {
-            let mut prefix = String::new();
-            return i.specifier.split('.').any(|seg| {
-                if !prefix.is_empty() {
-                    prefix.push('.');
-                }
-                prefix.push_str(seg);
-                is_target(p.modules.resolve(rel, &prefix))
-            });
-        }
-        let PyTarget::Module(m) = p.modules.resolve(rel, &i.specifier) else {
-            return false;
-        };
-        m.file.as_deref() == Some(target)
-            || m.package_dir.as_deref().is_some_and(|dir| {
-                i.names.iter().any(|n| {
-                    p.modules
-                        .submodule(dir, &n.imported)
-                        .is_some_and(|s| s.file.as_deref() == Some(target))
-                })
-            })
-    })
 }
 
 /// `receiver.callee`, or `callee` without a receiver.
@@ -656,7 +658,7 @@ fn call_text(c: &CallFact) -> String {
 type EdgeKey = (&'static str, String, String, u32);
 
 struct Resolver<'a, 'p> {
-    p: &'a PyProject<'p>,
+    p: &'a Look<'p>,
     rel: &'a str,
     facts: &'a FileFacts,
     file: String,
@@ -690,7 +692,6 @@ impl Resolver<'_, '_> {
         if !self.ids.contains_key(rel) {
             let ids = self
                 .p
-                .facts
                 .get(rel)
                 .map(|f| symbol_ids(rel, f))
                 .unwrap_or_default();
@@ -712,7 +713,7 @@ impl Resolver<'_, '_> {
         if is_plain_import(i) {
             return m.file.into_iter().map(Ok).collect();
         }
-        let own = m.file.as_deref().and_then(|f| Some((f, p.facts.get(f)?)));
+        let own = m.file.as_deref().and_then(|f| Some((f, p.get(f)?)));
         let mut out = Vec::new();
         for n in &i.names {
             let bound = n.imported == "*"

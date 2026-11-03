@@ -1,6 +1,7 @@
 //! Picks the extractor and the resolver of each file by its language, and says what
 //! a change to one file can reach in files that hold no `reverse_import` row to it:
-//! Go package siblings, Go method-name callers and Python package walks.
+//! Go package siblings and Go method-name callers. A Python file needs neither: its
+//! rows name every file its resolution read.
 
 use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -12,7 +13,7 @@ use crate::go::resolve::{
     GoProject, MethodIndex, calls_any_method, method_names, package_siblings,
 };
 use crate::lang::Lang;
-use crate::py::modules::{PyModules, PyTarget};
+use crate::py::modules::PyModules;
 use crate::py::resolve::PyProject;
 use crate::ts::resolve::{ModuleResolver, Project, ResolvedFile, symbol_ids};
 use crate::ts::tsconfig::load_tsconfigs;
@@ -178,96 +179,4 @@ pub fn inferred_changes(
         .symmetric_difference(&named(new))
         .map(|(name, _)| name.clone())
         .collect()
-}
-
-/// The Python files whose resolution can read the facts of one of `seeds` with no
-/// `reverse_import` row to it: those that import names from a package (they read its
-/// `__init__` even when the name is a submodule), and those that bind a package (a
-/// dotted call such as `a.b.f()` after `import a.c` walks to submodules that no import
-/// names). Their importers can read those facts in turn.
-pub fn implicit_readers(w: &Workspace, seeds: &[String]) -> BTreeSet<String> {
-    let seeds: Vec<&str> = seeds
-        .iter()
-        .map(String::as_str)
-        .filter(|rel| lang_of(rel) == Some(Lang::Python))
-        .collect();
-    if seeds.is_empty() {
-        return BTreeSet::new();
-    }
-    let modules = &w.resolvers.py;
-    w.facts
-        .iter()
-        .filter(|(rel, _)| lang_of(rel) == Some(Lang::Python))
-        .filter(|(rel, facts)| {
-            let reach = py_reach(modules, rel, facts);
-            seeds.iter().any(|seed| reach.holds(seed))
-        })
-        .map(|(rel, _)| rel.clone())
-        .collect()
-}
-
-/// What a Python file's resolution can read besides the files its imports point to.
-#[derive(Default)]
-struct Reach {
-    files: BTreeSet<String>,
-    /// Package folders: every file below one can be read.
-    folders: BTreeSet<String>,
-}
-
-impl Reach {
-    fn holds(&self, rel: &str) -> bool {
-        self.files.contains(rel)
-            || self.folders.iter().any(|dir| {
-                dir.is_empty()
-                    || rel
-                        .strip_prefix(dir.as_str())
-                        .is_some_and(|rest| rest.starts_with('/'))
-            })
-    }
-}
-
-fn py_reach(modules: &PyModules, rel: &str, facts: &FileFacts) -> Reach {
-    let mut reach = Reach::default();
-    for i in &facts.imports {
-        match &i.names[..] {
-            // `from m import *` reads `m`'s file only, which it points to.
-            [n] if n.local == "*" => {}
-            // `import a.b` binds `a`; `import a.b as c` binds `a.b`.
-            [n] if n.imported == "*" => {
-                let first = i.specifier.split('.').next().unwrap_or(&i.specifier);
-                let spec = if n.local == first {
-                    first
-                } else {
-                    &i.specifier
-                };
-                if let PyTarget::Module(m) = modules.resolve(rel, spec)
-                    && let Some(dir) = m.package_dir
-                {
-                    reach.folders.insert(dir);
-                }
-            }
-            // `from pkg import n`: `pkg`'s `__init__`, and the submodule `n`.
-            names => {
-                let PyTarget::Module(m) = modules.resolve(rel, &i.specifier) else {
-                    continue;
-                };
-                let Some(dir) = m.package_dir else {
-                    continue;
-                };
-                reach.files.extend(m.file);
-                for n in names {
-                    let Some(sub) = modules.submodule(&dir, &n.imported) else {
-                        continue;
-                    };
-                    match sub.package_dir {
-                        Some(sub_dir) => {
-                            reach.folders.insert(sub_dir);
-                        }
-                        None => reach.files.extend(sub.file),
-                    }
-                }
-            }
-        }
-    }
-    reach
 }

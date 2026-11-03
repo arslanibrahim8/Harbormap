@@ -223,7 +223,9 @@ pub struct RefRow {
 pub struct ResolvedFile {
     pub edges: Vec<EdgeRow>,
     pub refs: Vec<RefRow>,
-    /// The files this one imports (of any import kind), as relative paths.
+    /// The files this one imports (of any import kind), as relative paths. For a
+    /// Python file, every file whose facts its resolution read; the files its
+    /// `imports` edges point to are among them.
     pub imports_files: BTreeSet<String>,
 }
 
