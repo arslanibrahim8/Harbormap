@@ -11,3 +11,17 @@ url = "https://github.com/fastapi/full-stack-fastapi-template"
 commit = "f4bcfaba7c85be3c6332cc74a20819f586dcdbc6"
 licence = "MIT"
 subdir = "frontend"
+
+[[repo]]
+name = "wtf"
+url = "https://github.com/benbjohnson/wtf"
+commit = "05bc90c940d5f9e2490fc93cf467d9e8aa48ad63"
+licence = "MIT"
+subdir = ""
+
+[[repo]]
+name = "fastapi-template"
+url = "https://github.com/fastapi/full-stack-fastapi-template"
+commit = "f4bcfaba7c85be3c6332cc74a20819f586dcdbc6"
+licence = "MIT"
+subdir = "backend"
