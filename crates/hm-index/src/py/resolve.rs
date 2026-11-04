@@ -438,7 +438,9 @@ impl<'a> Look<'a> {
             .rposition(|s| s.kind == SymbolKind::Method && s.owner == *owner && s.name == name)
     }
 
-    /// The bases of a class that resolve to classes, left to right.
+    /// The bases of a class that resolve to classes of the project, left to right, up
+    /// to the first that does not: Python's method order reaches that one first, and
+    /// it may hold any name, so the bases after it decide nothing.
     fn bases(&self, file: &str, class: usize) -> Vec<(String, usize)> {
         let facts = self.at(file);
         let name = &facts.symbols[class].name;
@@ -446,7 +448,7 @@ impl<'a> Look<'a> {
             .heritage
             .iter()
             .filter(|h| h.class == *name)
-            .filter_map(|h| self.class_in(file, &h.extends))
+            .map_while(|h| self.class_in(file, &h.extends))
             .collect()
     }
 

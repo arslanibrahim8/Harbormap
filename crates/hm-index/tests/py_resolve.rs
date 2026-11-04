@@ -687,3 +687,95 @@ fn a_dense_star_import_graph_resolves_quickly_and_stays_correct() {
     n.assert_ref("app.py", "call", "dup", "unresolved");
     n.assert_ref("app.py", "call", "cb7", "unresolved");
 }
+
+#[test]
+fn requirements_pipfile_and_manage_py_mark_package_roots() {
+    for marker in [
+        "requirements.txt",
+        "requirements-dev.txt",
+        "requirements_test.txt",
+        "Pipfile",
+        "manage.py",
+    ] {
+        let marker_path = format!("backend/{marker}");
+        let n = named_for(&[
+            (marker_path.as_str(), ""),
+            ("backend/app/__init__.py", ""),
+            ("backend/app/y.py", "def z():\n    pass\n"),
+            ("backend/app/x.py", "from app.y import z\n\nz()\n"),
+        ]);
+        assert!(
+            n.has_edge(
+                "calls",
+                "backend/app/x.py",
+                "backend/app/y.py#z",
+                "py.call.import",
+                false
+            ),
+            "{marker}: {:#?} {:#?}",
+            n.edges,
+            n.refs
+        );
+    }
+    // The `src/` folder of such a root is a root too.
+    let n = named_for(&[
+        ("svc/requirements.txt", ""),
+        ("svc/src/core/__init__.py", "def run():\n    pass\n"),
+        ("svc/src/main.py", "from core import run\n\nrun()\n"),
+    ]);
+    n.assert_edge(
+        "calls",
+        "svc/src/main.py",
+        "svc/src/core/__init__.py#run",
+        "py.call.import",
+        false,
+    );
+}
+
+#[test]
+fn a_base_from_outside_hides_the_bases_after_it() {
+    let n = named_for(&[
+        (
+            "lib.py",
+            "class Repo:\n    def save(self):\n        pass\n\n\nclass LocalMixin:\n    def __init__(self):\n        self.repo = Repo()\n\n    def dispatch(self):\n        pass\n",
+        ),
+        (
+            "v.py",
+            "from external import ExternalBase\nfrom lib import LocalMixin\n\n\nclass V(ExternalBase, LocalMixin):\n    def go(self):\n        self.dispatch()\n        self.repo.save()\n\n\nclass W(LocalMixin, ExternalBase):\n    def go(self):\n        self.dispatch()\n        self.repo.save()\n\n\nclass U(ExternalBase, LocalMixin):\n    def dispatch(self):\n        pass\n\n    def go(self):\n        self.dispatch()\n",
+        ),
+    ]);
+    // Python's method order reaches `ExternalBase` first: it may hold either name.
+    for dst in ["lib.py#LocalMixin.dispatch", "lib.py#Repo.save"] {
+        assert!(
+            !n.edges
+                .iter()
+                .any(|(_, src, d, _, _)| src == "v.py#V.go" && d == dst),
+            "{:#?}",
+            n.edges
+        );
+    }
+    n.assert_ref("v.py", "call", "self.dispatch", "unresolved");
+    n.assert_ref("v.py", "call", "self.repo.save", "unresolved");
+    // A project base before it, or the class's own method, still decides.
+    n.assert_edge(
+        "calls",
+        "v.py#W.go",
+        "lib.py#LocalMixin.dispatch",
+        "py.call.inherited",
+        true,
+    );
+    n.assert_edge(
+        "calls",
+        "v.py#W.go",
+        "lib.py#Repo.save",
+        "py.call.attr",
+        true,
+    );
+    n.assert_edge(
+        "calls",
+        "v.py#U.go",
+        "v.py#U.dispatch",
+        "py.call.self",
+        false,
+    );
+}

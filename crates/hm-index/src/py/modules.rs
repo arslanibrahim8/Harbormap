@@ -1,12 +1,26 @@
 //! Finds the Python module a dotted import names, from the file layout alone: the
 //! package roots are the repository root, each folder with a `pyproject.toml`,
-//! `setup.py` or `setup.cfg`, and the `src/` folder of each of these. The contents of
-//! those files are not read.
+//! `setup.py`, `setup.cfg`, `requirements*.txt`, `Pipfile` or `manage.py`, and the
+//! `src/` folder of each of these. The contents of those files are not read.
 
 use std::collections::{BTreeSet, HashSet};
 
-/// The files that make a folder a package root.
-const ROOT_MARKERS: &[&str] = &["pyproject.toml", "setup.py", "setup.cfg"];
+/// The files that make a folder a package root, besides `requirements*.txt`.
+const ROOT_MARKERS: &[&str] = &[
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "Pipfile",
+    "manage.py",
+];
+
+/// Whether a file named `name` makes its folder a package root.
+fn is_root_marker(name: &str) -> bool {
+    ROOT_MARKERS.contains(&name)
+        || name
+            .strip_prefix("requirements")
+            .is_some_and(|rest| rest.ends_with(".txt"))
+}
 
 /// A module or package: its file (`a/b.py`, `a/b/__init__.py`) and, for a package, its
 /// folder. A namespace package has a folder and no file.
@@ -75,7 +89,7 @@ impl PyModules {
         let mut bases: BTreeSet<String> = BTreeSet::from([String::new()]);
         for rel in &known {
             let name = rel.rsplit('/').next().unwrap_or(rel);
-            if ROOT_MARKERS.contains(&name) {
+            if is_root_marker(name) {
                 bases.insert(parent(rel).to_string());
             }
         }
