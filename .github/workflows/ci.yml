@@ -67,6 +67,30 @@ jobs:
         with:
           arguments: --all-features --locked
 
+  ui:
+    # The Learn panel (ui/learn): type-check, pure-module tests, and a rebuild that
+    # must reproduce the committed dist/ byte for byte. Needs no Rust toolchain.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ui/learn
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/learn/package-lock.json
+      # npm ci installs exactly package-lock.json and fails if it disagrees with
+      # package.json.
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run verify
+
   e2e:
     # Starts real dev servers, so it runs only after the unit tests pass.
     needs: test

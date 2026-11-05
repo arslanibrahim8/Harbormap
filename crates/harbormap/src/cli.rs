@@ -35,6 +35,8 @@ pub enum Command {
     Index(IndexArgs),
     /// Show what the map knows about a file or a symbol.
     Card(CardArgs),
+    /// Open the map of this project in your browser, and keep it current while you work.
+    Learn(LearnArgs),
 }
 
 #[derive(Debug, Default, Args)]
@@ -64,6 +66,17 @@ pub struct IndexArgs {
 pub struct CardArgs {
     /// A file (`src/orders/service.ts`) or a symbol in it (`src/orders/service.ts#placeOrder`).
     pub target: String,
+}
+
+/// Run the panel for the project at `path` (the current folder when left out).
+#[derive(Debug, Args)]
+pub struct LearnArgs {
+    /// The project folder; the current folder when left out.
+    pub path: Option<PathBuf>,
+
+    /// Print the link and do not open a browser.
+    #[arg(long)]
+    pub no_open: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
