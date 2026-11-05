@@ -49,6 +49,15 @@ impl ModuleResolver {
             .collect()
     }
 
+    /// True when a known file lies under folder `dir` (relative, without a trailing `/`).
+    pub(crate) fn has_file_under(&self, dir: &str) -> bool {
+        let prefix = format!("{dir}/");
+        self.known
+            .range(prefix.clone()..)
+            .next()
+            .is_some_and(|rel| rel.starts_with(&prefix))
+    }
+
     /// Resolves `specifier` as imported from the file `from_rel`.
     pub fn resolve(&self, from_rel: &str, specifier: &str) -> ModuleTarget {
         let from_dir = from_rel.rsplit_once('/').map_or("", |(dir, _)| dir);
@@ -212,7 +221,7 @@ pub struct RefRow {
     pub kind: &'static str,
     pub text: String,
     pub line: u32,
-    /// `unresolved` or `external`.
+    /// `unresolved`, `external`, `builtin` or `local`.
     pub status: &'static str,
 }
 
@@ -224,6 +233,78 @@ pub struct ResolvedFile {
     /// The files this one imports (of any import kind), as relative paths.
     pub imports_files: BTreeSet<String>,
 }
+
+/// Names that the language, the browser or Node provide without an import, sorted for
+/// binary search (byte order). A call on one of them that nothing in the file binds is
+/// a `builtin` ref.
+const JS_GLOBALS: &[&str] = &[
+    "AbortController",
+    "Array",
+    "BigInt",
+    "Blob",
+    "Boolean",
+    "Buffer",
+    "Date",
+    "Error",
+    "File",
+    "FormData",
+    "Headers",
+    "Intl",
+    "JSON",
+    "Map",
+    "Math",
+    "Number",
+    "Object",
+    "Promise",
+    "Proxy",
+    "Reflect",
+    "RegExp",
+    "Request",
+    "Response",
+    "Set",
+    "String",
+    "Symbol",
+    "TextDecoder",
+    "TextEncoder",
+    "URL",
+    "URLSearchParams",
+    "WeakMap",
+    "WeakSet",
+    "__dirname",
+    "__filename",
+    "alert",
+    "clearInterval",
+    "clearTimeout",
+    "confirm",
+    "console",
+    "crypto",
+    "decodeURIComponent",
+    "document",
+    "encodeURIComponent",
+    "exports",
+    "fetch",
+    "global",
+    "globalThis",
+    "history",
+    "isFinite",
+    "isNaN",
+    "localStorage",
+    "location",
+    "module",
+    "navigator",
+    "parseFloat",
+    "parseInt",
+    "performance",
+    "process",
+    "queueMicrotask",
+    "requestAnimationFrame",
+    "require",
+    "sessionStorage",
+    "setInterval",
+    "setTimeout",
+    "structuredClone",
+    "window",
+];
 
 /// How many re-exports are followed before a name counts as unresolved (spec §6.2).
 const MAX_EXPORT_HOPS: u32 = 5;
@@ -400,6 +481,93 @@ fn binding_of(
         })
 }
 
+/// The index of the symbol that holds a fact at `line` with enclosing `owner`. The fact
+/// gives `(owner, name)` only, so of several symbols with that pair (a getter and a
+/// setter, a merged `interface` and `class`) the one that can hold calls and spans the
+/// line is the one. Of two such, the smaller; when the smallest span is shared (a
+/// one-line getter and setter) nothing says which one holds the fact, so it goes to
+/// the file rather than to a guess.
+pub(crate) fn holder(
+    facts: &FileFacts,
+    owner: Option<&(String, String)>,
+    line: u32,
+) -> Option<usize> {
+    let (owner, name) = owner?;
+    let holders: Vec<(usize, u32)> = facts
+        .symbols
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| {
+            s.owner == *owner
+                && s.name == *name
+                && matches!(
+                    s.kind,
+                    SymbolKind::Function | SymbolKind::Method | SymbolKind::Class
+                )
+                && s.l0 <= line
+                && line <= s.l1
+        })
+        .map(|(i, s)| (i, s.l1 - s.l0))
+        .collect();
+    let smallest = holders.iter().map(|&(_, span)| span).min();
+    let mut tightest = holders.iter().filter(|&&(_, span)| Some(span) == smallest);
+    match (tightest.next(), tightest.next()) {
+        (Some(&(i, _)), None) => Some(i),
+        _ => None,
+    }
+}
+
+/// The id of the symbol that holds a fact of `facts` (a call, a route call, a client
+/// call) at `line` with enclosing `owner`, or the file id at top level and when no one
+/// symbol can be named. This is the one place that decides it.
+pub fn source_id(
+    rel: &str,
+    facts: &FileFacts,
+    owner: Option<&(String, String)>,
+    line: u32,
+) -> String {
+    match holder(facts, owner, line) {
+        Some(i) => symbol_ids(rel, facts).swap_remove(i),
+        None => file_id(rel),
+    }
+}
+
+/// The symbol that `receiver.callee` (or `callee`) names as seen from `rel`, outside any
+/// symbol: `Some((file, index into its symbols))` only when the name resolves to exactly
+/// one symbol. A member receiver such as `UsersService` finds a static method.
+pub fn resolve_callee(
+    p: &Project,
+    rel: &str,
+    receiver: Option<&str>,
+    callee: &str,
+) -> Option<(String, usize)> {
+    let facts = p.facts.get(rel)?;
+    let mut r = Resolver {
+        p,
+        rel,
+        facts,
+        file: file_id(rel),
+        ids: HashMap::new(),
+        edges: BTreeMap::new(),
+        refs: BTreeSet::new(),
+    };
+    match r.resolve_name(receiver, callee, false, None, false) {
+        Outcome::Edge { file, symbol, .. } => Some((file, symbol)),
+        Outcome::Ref { .. } => None,
+    }
+}
+
+/// `(package, imported name)` when `local` is bound in `rel` by an import (or `require`)
+/// of an external package; `imported` is `"default"`, `"*"` or the exported name.
+pub fn binding_package(p: &Project, rel: &str, local: &str) -> Option<(String, String)> {
+    let facts = p.facts.get(rel)?;
+    let binding = binding_of(p, rel, facts, local, false)?;
+    match binding.target {
+        ModuleTarget::External(package) => Some((package, binding.imported)),
+        _ => None,
+    }
+}
+
 /// What a call or `extends` resolved to.
 enum Outcome {
     Edge {
@@ -470,11 +638,15 @@ pub fn resolve_file(p: &Project, rel: &str) -> ResolvedFile {
     for h in &facts.heritage {
         // No top-level class spans the line (`const K = class extends B {}`): there
         // is no source symbol, so the heritage stays a ref rather than a file edge.
+        let (receiver, callee) = split_path(&h.extends);
         let Some(src) = r.class_id(&h.class, h.line) else {
-            r.reference("extends", h.extends.clone(), h.line, "unresolved");
+            let status = match r.resolve_name(receiver, callee, false, None, true) {
+                Outcome::Ref { status } => status,
+                Outcome::Edge { .. } => "unresolved",
+            };
+            r.reference("extends", h.extends.clone(), h.line, status);
             continue;
         };
-        let (receiver, callee) = split_path(&h.extends);
         match r.resolve_name(receiver, callee, false, None, true) {
             Outcome::Edge { file, symbol, .. } => {
                 let dst = r.symbol_id_of(&file, symbol);
@@ -587,38 +759,12 @@ impl Resolver<'_, '_> {
         self.ids[rel][index].clone()
     }
 
-    /// The id of the symbol that holds a call, or the file id at top level. The call
-    /// fact gives `(owner, name)` only, so of several symbols with that pair (a getter
-    /// and a setter, a merged `interface` and `class`) the one that can hold calls and
-    /// spans the line is the one. Of two such, the smaller; when the smallest span is
-    /// shared (a one-line getter and setter) nothing says which one holds the call, so
-    /// it goes to the file rather than to a guess.
+    /// The id of the symbol that holds a call, or the file id at top level; see
+    /// `source_id`.
     fn call_source(&mut self, c: &CallFact) -> String {
-        let Some((owner, name)) = &c.owner else {
-            return self.file.clone();
-        };
-        let holders: Vec<(usize, u32)> = self
-            .facts
-            .symbols
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| {
-                s.owner == *owner
-                    && s.name == *name
-                    && matches!(
-                        s.kind,
-                        SymbolKind::Function | SymbolKind::Method | SymbolKind::Class
-                    )
-                    && s.l0 <= c.line
-                    && c.line <= s.l1
-            })
-            .map(|(i, s)| (i, s.l1 - s.l0))
-            .collect();
-        let smallest = holders.iter().map(|&(_, span)| span).min();
-        let mut tightest = holders.iter().filter(|&&(_, span)| Some(span) == smallest);
-        match (tightest.next(), tightest.next()) {
-            (Some(&(i, _)), None) => self.symbol_id_of(self.rel, i),
-            _ => self.file.clone(),
+        match holder(self.facts, c.owner.as_ref(), c.line) {
+            Some(i) => self.symbol_id_of(self.rel, i),
+            None => self.file.clone(),
         }
     }
 
@@ -638,6 +784,65 @@ impl Resolver<'_, '_> {
     /// enclosing symbol of a call, for `this`. With `heritage` set the name is the
     /// operand of `extends`, so a class's static members do not apply.
     fn resolve_name(
+        &mut self,
+        receiver: Option<&str>,
+        callee: &str,
+        jsx: bool,
+        owner: Option<&(String, String)>,
+        heritage: bool,
+    ) -> Outcome {
+        match self.pin_name(receiver, callee, jsx, owner, heritage) {
+            Outcome::Ref {
+                status: "unresolved",
+            } => Outcome::Ref {
+                status: self.noise_status(receiver, callee),
+            },
+            outcome => outcome,
+        }
+    }
+
+    /// Whether `name` is bound at module level: a top-level symbol, an import or
+    /// `require` binding (a type-only import too), a name some other top-level statement
+    /// binds (`module_names`) or a recorded module-level binding.
+    fn module_bound(&self, name: &str) -> bool {
+        let (p, rel, facts) = (self.p, self.rel, self.facts);
+        facts
+            .symbols
+            .iter()
+            .any(|s| s.owner.is_empty() && s.name == name)
+            || binding_of(p, rel, facts, name, true).is_some()
+            || facts
+                .module_names
+                .binary_search_by(|n| n.as_str().cmp(name))
+                .is_ok()
+            || facts
+                .web
+                .bindings
+                .iter()
+                .any(|b| b.owner.is_none() && b.name == name)
+    }
+
+    /// The status of a ref that pinned to nothing: `unresolved` when its root name is
+    /// bound at module level (the target is just not pinned), else `builtin` for a
+    /// known global and `local` for anything else (a parameter, a local variable, a
+    /// nested function). `this`, `super` and a root that is no identifier (`"a".trim()`,
+    /// `[].concat()`) name nothing here, so they stay `unresolved`. There is no scope
+    /// tracking: a function-scope local that shadows a global (`function f(process) {
+    /// process.exit() }`) is labelled `builtin`.
+    fn noise_status(&self, receiver: Option<&str>, callee: &str) -> &'static str {
+        let root = root_ident(receiver.unwrap_or(callee));
+        if root.is_empty() || matches!(root, "this" | "super") || self.module_bound(root) {
+            "unresolved"
+        } else if JS_GLOBALS.binary_search(&root).is_ok() {
+            "builtin"
+        } else {
+            "local"
+        }
+    }
+
+    /// Pins `receiver.callee` (or `callee`) to one symbol, else says why it is a ref.
+    /// Names that are bound nowhere in the module are told apart by `resolve_name`.
+    fn pin_name(
         &mut self,
         receiver: Option<&str>,
         callee: &str,
@@ -790,6 +995,26 @@ impl Resolver<'_, '_> {
             }
             ModuleTarget::External(_) => Outcome::Ref { status: "external" },
             _ => UNRESOLVED,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::JS_GLOBALS;
+
+    #[test]
+    fn the_globals_table_is_sorted_and_whole() {
+        assert!(JS_GLOBALS.windows(2).all(|w| w[0] < w[1]), "{JS_GLOBALS:?}");
+        for name in [
+            "JSON",
+            "Date",
+            "console",
+            "setTimeout",
+            "process",
+            "document",
+        ] {
+            assert!(JS_GLOBALS.binary_search(&name).is_ok(), "{name}");
         }
     }
 }

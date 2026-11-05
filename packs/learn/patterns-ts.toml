@@ -1,0 +1,358 @@
+# Patterns of TypeScript and JavaScript libraries (Learn spec section 7.3). Licensed CC0-1.0.
+#
+# One [[rule]] per row; the rule id of a row is "ts.pattern.<id>".
+#
+#   id              unique name of the row.
+#   kind            orm_read orm_write transaction validation caching retry di queue
+#                   password_hash token_session.
+#   package         the npm package, or a subpath of it ("next/cache"). Empty for "global".
+#   scope           "import": the file imports the package (or a subpath of it);
+#                   "manifest": the package.json that governs the file declares it;
+#                   "global": no package, the call is on one of `receiver_names`.
+#   callees         call names. A call made through an import also matches under its
+#                   imported name (`import { hash as h }`); "default" stands for a bare
+#                   call of the package's default export, under any local name.
+#   decorators      decorator names, an alternative to (or next to) `callees`.
+#   receiver        "any": any receiver, bare or not; "package": the call is made through
+#                   the package (the receiver root, or the bare callee, is bound by an
+#                   import of it); "none": a bare call.
+#   receiver_depth  the receiver must have at least this many dotted parts (`db.order` is
+#                   two); keeps `params.delete()` from being an ORM write.
+#   min_args        the call has at least this many arguments (`db.delete(table)` takes the
+#                   table; a zero-argument `searchParams.delete()` is not an ORM write).
+#   receiver_names  "global" only: the exact receiver text.
+#   term            glossary slug.
+#
+# A call whose receiver root (or bare callee) is bound by an import of another package is
+# never a match. conf is "sure" when the name is bound to `package`, else "probably".
+#
+# Checked against the official documentation while building: next/cache (`revalidateTag`,
+# `updateTag`, `unstable_cache`), next/headers `cookies`, p-retry (default export), BullMQ
+# `Queue`, bcryptjs, argon2 (`hash`, `verify`), jsonwebtoken (`sign`, `verify`), jose
+# `SignJWT`, Drizzle (`select`, `selectDistinct`) and the Prisma client methods. The other
+# names come from knowledge of the libraries and were not checked against their docs:
+# TypeORM, Mongoose, zod, yup, joi, class-validator, `cacheTag`, `cacheLife`, `jwtVerify`,
+# `EncryptJWT`, `jwtDecrypt`, `FlowProducer`, Auth.js, react `cache` and the `sql` tag of
+# postgres and @vercel/postgres.
+#
+# Overlaps are intended: with no types, `updateMany` and `deleteMany` match both Prisma and
+# Mongoose, `transaction` both Drizzle and TypeORM, and an unbound `sql` both postgres rows
+# when a manifest declares both; each rule then reports its own row.
+
+# Prisma. The client is usually built in a local file, so these are mostly "probably".
+[[rule]]
+id = "prisma.read"
+kind = "orm_read"
+package = "@prisma/client"
+scope = "manifest"
+callees = [
+  "findMany", "findUnique", "findFirst", "findUniqueOrThrow", "findFirstOrThrow",
+  "count", "aggregate", "groupBy",
+]
+receiver = "any"
+receiver_depth = 2
+term = "orm"
+
+[[rule]]
+id = "prisma.write"
+kind = "orm_write"
+package = "@prisma/client"
+scope = "manifest"
+callees = [
+  "create", "update", "upsert", "delete", "createMany", "createManyAndReturn",
+  "updateMany", "updateManyAndReturn", "deleteMany",
+]
+receiver = "any"
+receiver_depth = 2
+term = "orm"
+
+[[rule]]
+id = "prisma.transaction"
+kind = "transaction"
+package = "@prisma/client"
+scope = "manifest"
+callees = ["$transaction"]
+receiver = "any"
+term = "transaction"
+
+# Drizzle. `db` comes from a local file, so the file must import drizzle-orm.
+[[rule]]
+id = "drizzle.read"
+kind = "orm_read"
+package = "drizzle-orm"
+scope = "import"
+callees = ["select", "selectDistinct"]
+receiver = "any"
+receiver_depth = 1
+term = "orm"
+
+[[rule]]
+id = "drizzle.write"
+kind = "orm_write"
+package = "drizzle-orm"
+scope = "import"
+callees = ["insert", "update", "delete"]
+receiver = "any"
+receiver_depth = 1
+min_args = 1
+term = "orm"
+
+[[rule]]
+id = "drizzle.transaction"
+kind = "transaction"
+package = "drizzle-orm"
+scope = "import"
+callees = ["transaction"]
+receiver = "any"
+receiver_depth = 1
+term = "transaction"
+
+# TypeORM. Only names that other code rarely uses (`find`, `remove` and `delete` are left out).
+[[rule]]
+id = "typeorm.read"
+kind = "orm_read"
+package = "typeorm"
+scope = "manifest"
+callees = [
+  "findOneBy", "findOneByOrFail", "findOneOrFail", "findBy", "findAndCount",
+  "getMany", "getOne", "getManyAndCount", "getRawMany", "getRawOne", "createQueryBuilder",
+]
+receiver = "any"
+receiver_depth = 1
+term = "orm"
+
+[[rule]]
+id = "typeorm.write"
+kind = "orm_write"
+package = "typeorm"
+scope = "manifest"
+callees = ["save", "upsert", "softDelete", "softRemove"]
+receiver = "any"
+receiver_depth = 2
+term = "orm"
+
+[[rule]]
+id = "typeorm.transaction"
+kind = "transaction"
+package = "typeorm"
+scope = "manifest"
+callees = ["transaction", "startTransaction"]
+receiver = "any"
+receiver_depth = 1
+term = "transaction"
+
+# Mongoose. `find` and `create` are left out: `Array.find` is everywhere, and `create` is
+# Prisma's.
+[[rule]]
+id = "mongoose.read"
+kind = "orm_read"
+package = "mongoose"
+scope = "manifest"
+callees = ["findOne", "findById", "countDocuments", "estimatedDocumentCount"]
+receiver = "any"
+receiver_depth = 1
+term = "orm"
+
+[[rule]]
+id = "mongoose.write"
+kind = "orm_write"
+package = "mongoose"
+scope = "manifest"
+callees = [
+  "insertMany", "bulkWrite", "updateOne", "updateMany", "replaceOne", "findByIdAndUpdate",
+  "findOneAndUpdate", "findOneAndReplace", "findByIdAndDelete", "findOneAndDelete",
+  "deleteOne", "deleteMany",
+]
+receiver = "any"
+receiver_depth = 1
+term = "orm"
+
+# Raw SQL tags: sql`select ...` is a call with no receiver. The text is not read, so the
+# kind says "read" for every query; the term says it is plain SQL.
+[[rule]]
+id = "postgres.sql"
+kind = "orm_read"
+package = "postgres"
+scope = "manifest"
+callees = ["sql"]
+receiver = "none"
+term = "sql"
+
+[[rule]]
+id = "vercel-postgres.sql"
+kind = "orm_read"
+package = "@vercel/postgres"
+scope = "manifest"
+callees = ["sql"]
+receiver = "none"
+term = "sql"
+
+# Validation.
+[[rule]]
+id = "zod.parse"
+kind = "validation"
+package = "zod"
+scope = "manifest"
+callees = ["parse", "safeParse", "parseAsync", "safeParseAsync"]
+receiver = "any"
+receiver_depth = 1
+term = "validation"
+
+[[rule]]
+id = "yup.validate"
+kind = "validation"
+package = "yup"
+scope = "import"
+callees = ["validate", "validateSync", "isValid", "isValidSync"]
+receiver = "any"
+receiver_depth = 1
+term = "validation"
+
+[[rule]]
+id = "joi.validate"
+kind = "validation"
+package = "joi"
+scope = "import"
+callees = ["validate", "validateAsync", "attempt", "assert"]
+receiver = "any"
+receiver_depth = 1
+term = "validation"
+
+# class-validator: its decorators sit on properties, which are not facts yet, so the
+# decorator names only match on a class or a method; the calls are the usual way in.
+[[rule]]
+id = "class-validator.validate"
+kind = "validation"
+package = "class-validator"
+scope = "import"
+callees = ["validate", "validateSync", "validateOrReject"]
+decorators = [
+  "IsString", "IsEmail", "IsNumber", "IsInt", "IsBoolean", "IsNotEmpty", "IsOptional",
+  "IsArray", "IsDate", "IsEnum", "IsUUID", "IsUrl", "Length", "Min", "Max", "MinLength",
+  "MaxLength", "Matches", "ValidateNested",
+]
+receiver = "package"
+term = "validation"
+
+# Caching.
+[[rule]]
+id = "next-cache.revalidate"
+kind = "caching"
+package = "next/cache"
+scope = "import"
+callees = ["unstable_cache", "revalidatePath", "revalidateTag", "updateTag", "cacheTag", "cacheLife"]
+receiver = "package"
+term = "cache"
+
+[[rule]]
+id = "react.cache"
+kind = "caching"
+package = "react"
+scope = "import"
+callees = ["cache"]
+receiver = "package"
+term = "cache"
+
+# Retry and timeout.
+[[rule]]
+id = "p-retry.retry"
+kind = "retry"
+package = "p-retry"
+scope = "import"
+callees = ["default"]
+receiver = "package"
+term = "retry"
+
+[[rule]]
+id = "abort-signal.timeout"
+kind = "retry"
+scope = "global"
+callees = ["timeout"]
+receiver_names = ["AbortSignal"]
+term = "timeout"
+
+# Dependency injection.
+[[rule]]
+id = "di"
+kind = "di"
+package = "@nestjs/common"
+scope = "manifest"
+decorators = ["Injectable"]
+term = "dependency_injection"
+
+# Queues and background jobs. `queue.add()` is not matched: the receiver's type is unknown.
+[[rule]]
+id = "bullmq.queue"
+kind = "queue"
+package = "bullmq"
+scope = "manifest"
+callees = ["Queue", "Worker", "FlowProducer"]
+receiver = "package"
+term = "job_queue"
+
+# Password hashing.
+[[rule]]
+id = "bcrypt.hash"
+kind = "password_hash"
+package = "bcrypt"
+scope = "import"
+callees = ["hash", "hashSync", "compare", "compareSync"]
+receiver = "package"
+term = "password_hash"
+
+[[rule]]
+id = "bcryptjs.hash"
+kind = "password_hash"
+package = "bcryptjs"
+scope = "import"
+callees = ["hash", "hashSync", "compare", "compareSync"]
+receiver = "package"
+term = "password_hash"
+
+[[rule]]
+id = "argon2.hash"
+kind = "password_hash"
+package = "argon2"
+scope = "import"
+callees = ["hash", "verify"]
+receiver = "package"
+term = "password_hash"
+
+# Tokens and sessions.
+[[rule]]
+id = "jsonwebtoken.token"
+kind = "token_session"
+package = "jsonwebtoken"
+scope = "import"
+callees = ["sign", "verify"]
+receiver = "package"
+term = "token"
+
+[[rule]]
+id = "jose.token"
+kind = "token_session"
+package = "jose"
+scope = "import"
+callees = ["SignJWT", "jwtVerify", "EncryptJWT", "jwtDecrypt"]
+receiver = "package"
+term = "token"
+
+# Auth.js / NextAuth: `auth` and `signIn` often come from the app's own auth file, so
+# the manifest is the scope and the match is "probably" there.
+[[rule]]
+id = "next-auth.session"
+kind = "token_session"
+package = "next-auth"
+scope = "manifest"
+callees = ["signIn", "signOut", "auth", "getServerSession"]
+receiver = "none"
+term = "session"
+
+[[rule]]
+id = "next-headers.cookies"
+kind = "token_session"
+package = "next/headers"
+scope = "import"
+callees = ["cookies"]
+receiver = "package"
+term = "cookie"

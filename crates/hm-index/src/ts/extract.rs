@@ -18,6 +18,8 @@ use crate::facts::{
 use crate::hash::{body_hash, empty_body_hash, hash_parts};
 use crate::lang::Lang;
 
+use super::web;
+
 const SYMBOLS_SCM: &str = include_str!("queries/symbols.scm");
 const IMPORTS_SCM: &str = include_str!("queries/imports.scm");
 const CALLS_SCM: &str = include_str!("queries/calls.scm");
@@ -40,7 +42,7 @@ struct Queries {
 }
 
 /// The part of a query file that applies to `lang`; see the `;;@` markers in the files.
-fn query_source(scm: &str, lang: Lang) -> String {
+pub(crate) fn query_source(scm: &str, lang: Lang) -> String {
     let ts = matches!(lang, Lang::TypeScript | Lang::Tsx);
     let jsx = matches!(lang, Lang::Tsx | Lang::JavaScript);
     let mut on = true;
@@ -121,9 +123,22 @@ pub fn extract(src: &str, lang: Lang) -> FileFacts {
         symbols: Vec::new(),
     };
     let heritage = ex.collect_symbols(q, root);
+    ex.push_callbacks(web::route_callbacks(root, bytes, lang));
     let (imports, mut exports) = ex.collect_imports(q, root);
     ex.mark_locally_exported(&exports);
     let calls = ex.collect_calls(q, root);
+    let spans: Vec<web::Span> = ex
+        .symbols
+        .iter()
+        .map(|s| web::Span {
+            start: s.start,
+            end: s.end,
+            owner: s.fact.owner.clone(),
+            name: s.fact.name.clone(),
+        })
+        .collect();
+    let web = web::extract_web(root, bytes, lang, &spans);
+    let module_names = ex.module_names(root);
     exports.sort_by_key(|(start, _)| *start);
 
     FileFacts {
@@ -137,6 +152,8 @@ pub fn extract(src: &str, lang: Lang) -> FileFacts {
         exports: exports.into_iter().map(|(_, e)| e).collect(),
         calls,
         heritage,
+        module_names,
+        web,
     }
 }
 
@@ -323,6 +340,16 @@ impl<'s> Extractor<'s> {
         heritage
     }
 
+    /// Adds the inline route handlers as symbols, so a call inside one has it as owner.
+    fn push_callbacks(&mut self, callbacks: Vec<web::Callback>) {
+        self.symbols.extend(callbacks.into_iter().map(|c| Sym {
+            fact: c.fact,
+            start: c.start,
+            end: c.end,
+        }));
+        self.symbols.sort_by_key(|s| s.start);
+    }
+
     /// The statement-level wrapper of a declaration: `(export_statement, exported,
     /// default)`, or the node itself.
     fn wrapper<'t>(&self, decl: Node<'t>) -> (Node<'t>, bool, bool) {
@@ -460,6 +487,118 @@ impl<'s> Extractor<'s> {
         );
         if let Some(last) = self.symbols.last_mut() {
             last.fact.body_hash = body_hash(node, self.src);
+        }
+    }
+
+    /// Every name a top-level statement binds that is not a top-level symbol, sorted
+    /// and without duplicates; see `FileFacts::module_names`.
+    fn module_names(&self, root: Node) -> Vec<String> {
+        let mut names = Vec::new();
+        let mut cursor = root.walk();
+        for statement in root.named_children(&mut cursor) {
+            self.statement_names(statement, &mut names);
+        }
+        names.retain(|n| {
+            !self
+                .symbols
+                .iter()
+                .any(|s| s.fact.owner.is_empty() && s.fact.name == *n)
+        });
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    /// The names a top-level statement binds, looking through `export` and `declare`.
+    fn statement_names(&self, node: Node, out: &mut Vec<String>) {
+        let mut cursor = node.walk();
+        match node.kind() {
+            "lexical_declaration" | "variable_declaration" => {
+                for d in node.named_children(&mut cursor) {
+                    if let Some(name) = d.child_by_field_name("name") {
+                        self.pattern_names(name, out);
+                    }
+                }
+            }
+            "export_statement" => {
+                if let Some(declaration) = node.child_by_field_name("declaration") {
+                    self.statement_names(declaration, out);
+                }
+            }
+            "ambient_declaration" | "expression_statement" => {
+                for child in node.named_children(&mut cursor) {
+                    self.statement_names(child, out);
+                }
+            }
+            "enum_declaration"
+            | "function_signature"
+            | "function_declaration"
+            | "generator_function_declaration"
+            | "class_declaration"
+            | "abstract_class_declaration"
+            | "interface_declaration"
+            | "type_alias_declaration" => {
+                if let Some(name) = node.child_by_field_name("name") {
+                    out.push(self.text(name).to_string());
+                }
+            }
+            // `namespace A.B {}` binds `A`; `module "x" {}` binds nothing.
+            "internal_module" | "module" => {
+                let first = node.child_by_field_name("name").and_then(|name| {
+                    let mut at = name;
+                    while at.kind() == "nested_identifier" {
+                        at = at.named_child(0)?;
+                    }
+                    Some(at)
+                });
+                if let Some(name) = first.filter(|n| n.kind() == "identifier") {
+                    out.push(self.text(name).to_string());
+                }
+            }
+            // `import x = require('y')` and `import x = A.B`.
+            "import_statement" | "import_alias" => {
+                if let Some(clause) = node
+                    .named_children(&mut cursor)
+                    .find(|c| c.kind() == "import_require_clause")
+                    .or_else(|| (node.kind() == "import_alias").then_some(node))
+                {
+                    let mut inner = clause.walk();
+                    let name = clause
+                        .named_children(&mut inner)
+                        .find(|c| c.kind() == "identifier");
+                    if let Some(name) = name {
+                        out.push(self.text(name).to_string());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Every name a binding pattern introduces: identifiers, object and array
+    /// destructuring with defaults and rest.
+    fn pattern_names(&self, node: Node, out: &mut Vec<String>) {
+        match node.kind() {
+            "identifier" | "shorthand_property_identifier_pattern" => {
+                out.push(self.text(node).to_string());
+            }
+            "pair_pattern" => {
+                if let Some(value) = node.child_by_field_name("value") {
+                    self.pattern_names(value, out);
+                }
+            }
+            "assignment_pattern" | "object_assignment_pattern" => {
+                if let Some(left) = node.child_by_field_name("left") {
+                    self.pattern_names(left, out);
+                }
+            }
+            "object_pattern" | "array_pattern" | "rest_pattern" => {
+                let mut cursor = node.walk();
+                for child in node.named_children(&mut cursor) {
+                    self.pattern_names(child, out);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -849,7 +988,7 @@ fn collect_comments(node: Node, limit: usize, out: &mut Vec<(usize, usize)>) {
 }
 
 /// `if`, loops, `case`, `catch`, `?:`, `&&` and `||` inside `node`.
-fn count_branches(node: Node) -> u32 {
+pub(crate) fn count_branches(node: Node) -> u32 {
     let mut count = match node.kind() {
         "if_statement" | "for_statement" | "for_in_statement" | "while_statement"
         | "do_statement" | "switch_case" | "catch_clause" | "ternary_expression" => 1,

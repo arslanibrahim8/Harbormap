@@ -1,0 +1,14 @@
+{
+  "name": "@shop/web",
+  "bin": {
+    "shop": "./bin/shop.js"
+  },
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^15.0.0"
+  }
+}

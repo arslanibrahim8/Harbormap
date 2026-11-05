@@ -207,6 +207,10 @@ pub fn dump(store: &hm_store::Store) -> String {
             }
         }
     }
+    // Route ids read as `METHOD pattern@root`, so edges into and out of routes are legible.
+    for row in col("SELECT id, method, pattern, root FROM route") {
+        names.insert(row[0].clone(), format!("{} {}@{}", row[1], row[2], row[3]));
+    }
     let name = |id: &str| names.get(id).cloned().unwrap_or_else(|| format!("?{id}"));
     let path = |id: &str| paths.get(id).cloned().unwrap_or_else(|| format!("?{id}"));
 
@@ -289,6 +293,121 @@ pub fn dump(store: &hm_store::Store) -> String {
         ),
     ));
 
+    sections.push((
+        "route",
+        sorted(
+            col("SELECT id, root, entry_kind, method, pattern, handler_id, file_id, line, rule, prov, conf, detail FROM route")
+                .iter()
+                .map(|r| {
+                    let handler = if r[5] == "-" { "-".to_string() } else { name(&r[5]) };
+                    format!(
+                        "{} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {}",
+                        r[0],
+                        r[1],
+                        r[2],
+                        r[3],
+                        r[4],
+                        handler,
+                        path(&r[6]),
+                        r[7],
+                        r[8],
+                        r[9],
+                        r[10],
+                        r[11]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "client_call",
+        sorted(
+            col("SELECT file_id, src_id, line, method, url, rule FROM client_call")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        name(&r[1]),
+                        r[2],
+                        r[3],
+                        r[4],
+                        r[5]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "manifest",
+        sorted(
+            col("SELECT file_id, root, kind, name, lockfile, detail FROM manifest")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        r[1],
+                        r[2],
+                        r[3],
+                        r[4],
+                        r[5]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "dependency",
+        sorted(
+            col("SELECT file_id, section, name, declared, resolved, dev, line FROM dependency")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        r[1],
+                        r[2],
+                        r[3],
+                        r[4],
+                        r[5],
+                        r[6]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "pattern",
+        sorted(
+            col("SELECT file_id, subject_id, kind, line, rule, conf, term, detail FROM pattern")
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{} | {} | {} | {} | {} | {} | {} | {}",
+                        path(&r[0]),
+                        name(&r[1]),
+                        r[2],
+                        r[3],
+                        r[4],
+                        r[5],
+                        r[6],
+                        r[7]
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    sections.push((
+        "gap",
+        sorted(
+            col("SELECT file_id, subject_id, kind, line FROM gap")
+                .iter()
+                .map(|r| format!("{} | {} | {} | {}", path(&r[0]), name(&r[1]), r[2], r[3]))
+                .collect(),
+        ),
+    ));
+
     let mut out = String::new();
     for (title, rows) in sections {
         out.push_str(&format!("[{title}] {}\n", rows.len()));
@@ -297,6 +416,118 @@ pub fn dump(store: &hm_store::Store) -> String {
             out.push('\n');
         }
     }
+    out
+}
+
+/// The rows `derive` owns in the store (routes, client calls, inferred edges, patterns
+/// and gaps), one line each with files as paths, sorted; compare with [`derived_lines`].
+pub fn stored_derived(store: &hm_store::Store) -> Vec<String> {
+    let conn = store.conn();
+    let mut out = Vec::new();
+    for sql in [
+        "SELECT 'route', r.id, r.root, r.entry_kind, r.method, r.pattern,
+                coalesce(r.handler_id, '-'), f.path, r.line, r.rule, r.prov, r.conf,
+                coalesce(r.detail, '-')
+         FROM route r JOIN file f ON f.id = r.file_id",
+        "SELECT 'client_call', f.path, c.src_id, c.line, c.method, c.url, c.rule
+         FROM client_call c JOIN file f ON f.id = c.file_id",
+        "SELECT 'edge', e.kind, e.src_id, e.dst_id, f.path, e.line, e.rule, e.conf
+         FROM edge e JOIN file f ON f.id = e.file_id WHERE e.prov = 'inferred'",
+        "SELECT 'pattern', f.path, p.subject_id, p.kind, p.line, p.rule, p.conf,
+                coalesce(p.term, '-'), coalesce(p.detail, '-')
+         FROM pattern p JOIN file f ON f.id = p.file_id",
+        "SELECT 'gap', f.path, g.subject_id, g.kind, g.line FROM gap g JOIN file f ON f.id = g.file_id",
+    ] {
+        let mut stmt = conn.prepare(sql).expect("prepare");
+        let n = stmt.column_count();
+        let rows = stmt
+            .query_map([], |row| {
+                (0..n)
+                    .map(|i| {
+                        Ok(match row.get_ref(i)? {
+                            rusqlite::types::ValueRef::Integer(v) => v.to_string(),
+                            other => String::from_utf8_lossy(other.as_bytes()?).into_owned(),
+                        })
+                    })
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .expect("query");
+        for row in rows {
+            out.push(row.expect("row").join(" | "));
+        }
+    }
+    out.sort();
+    out
+}
+
+/// What [`stored_derived`] reads, as `derived` says it should be stored.
+pub fn derived_lines(derived: &hm_index::routes::Derived) -> Vec<String> {
+    let opt = |v: &Option<String>| v.clone().unwrap_or_else(|| "-".to_string());
+    let mut out = Vec::new();
+    for r in &derived.routes {
+        out.push(
+            [
+                "route",
+                &r.id,
+                &r.root,
+                &r.entry_kind,
+                &r.method,
+                &r.pattern,
+                &opt(&r.handler_id),
+                &r.file,
+                &r.line.to_string(),
+                &r.rule,
+                &r.prov,
+                &r.conf,
+                &opt(&r.detail),
+            ]
+            .join(" | "),
+        );
+    }
+    for c in &derived.client_calls {
+        let line = c.line.to_string();
+        out.push(
+            [
+                "client_call",
+                &c.file,
+                &c.src_id,
+                &line,
+                &c.method,
+                &c.url,
+                &c.rule,
+            ]
+            .join(" | "),
+        );
+    }
+    for e in &derived.edges {
+        let line = e.line.to_string();
+        out.push(
+            [
+                "edge", &e.kind, &e.src_id, &e.dst_id, &e.file, &line, &e.rule, "probably",
+            ]
+            .join(" | "),
+        );
+    }
+    for p in &derived.patterns {
+        out.push(
+            [
+                "pattern",
+                &p.file,
+                &p.subject_id,
+                &p.kind,
+                &p.line.to_string(),
+                &p.rule,
+                &p.conf,
+                &opt(&p.term),
+                &opt(&p.detail),
+            ]
+            .join(" | "),
+        );
+    }
+    for g in &derived.gaps {
+        out.push(["gap", &g.file, &g.subject_id, &g.kind, &g.line.to_string()].join(" | "));
+    }
+    out.sort();
     out
 }
 

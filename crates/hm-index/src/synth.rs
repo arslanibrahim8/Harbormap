@@ -12,6 +12,12 @@ const FOLDER_SIZE: usize = 20;
 const BARREL_EVERY: usize = 10;
 /// Barrel chains longer than this are not followed when scanning a tree.
 const MAX_HOPS: usize = 12;
+/// The project's `package.json`.
+const MANIFEST: &str = "package.json";
+/// The `next` version the manifest declares at first.
+const NEXT_VERSION: &str = "15.2.0";
+/// Mixed into the seed for the Next.js part, so the modules stay what they were.
+const WEB_SALT: u64 = 0x7765_6200_0000_0000;
 
 /// A splitmix64 generator: small, fast and the same on every platform.
 struct Rng(u64);
@@ -96,6 +102,12 @@ fn write_file(dir: &Path, rel: &str, content: &str) {
 /// relative or an `@/` specifier. Every 10th module is a barrel that re-exports
 /// from the modules after it, and often from the next barrel as well, so
 /// re-exports chain over several hops; other modules import through barrels.
+///
+/// It is also a Next.js app: a root `package.json` declares `next`, and
+/// `2 + files / 20` route files `app/api/r<k>/route.ts` export `GET` and maybe
+/// `POST`, each calling a module function. `1 + files / 40` pages
+/// `app/p<k>/page.tsx` call one too. One or two modules per route gain an
+/// `export async function load_r<k>()` that fetches `/api/r<k>`.
 pub fn project(dir: &Path, seed: u64, files: u32) {
     let n = files as usize;
     let mut rng = Rng(seed);
@@ -103,6 +115,14 @@ pub fn project(dir: &Path, seed: u64, files: u32) {
         dir,
         "tsconfig.json",
         "{\n  \"compilerOptions\": { \"paths\": { \"@/*\": [\"src/*\"] } }\n}\n",
+    );
+    write_file(
+        dir,
+        MANIFEST,
+        &render_manifest(&BTreeMap::from([(
+            "next".to_string(),
+            NEXT_VERSION.to_string(),
+        )])),
     );
 
     // Plan first: a module's imports depend on what the barrels re-export.
@@ -153,14 +173,121 @@ pub fn project(dir: &Path, seed: u64, files: u32) {
         vis[i] = names;
     }
 
-    for (i, m) in mods.iter().enumerate() {
-        let source = if is_barrel(i) {
-            render_barrel(m, i)
-        } else {
-            render_module(m, &vis, i, &mut rng)
-        };
-        write_file(dir, &module_path(i), &source);
+    let mut sources: Vec<String> = mods
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            if is_barrel(i) {
+                render_barrel(m, i)
+            } else {
+                render_module(m, &vis, i, &mut rng)
+            }
+        })
+        .collect();
+    write_web(dir, seed, &mods, &mut sources);
+    for (i, source) in sources.iter().enumerate() {
+        write_file(dir, &module_path(i), source);
     }
+}
+
+/// The route file of route `k`.
+fn route_path(k: usize) -> String {
+    format!("app/api/r{k}/route.ts")
+}
+
+fn is_route_file(rel: &str) -> bool {
+    rel.starts_with("app/api/") && rel.ends_with("/route.ts")
+}
+
+/// The declaration line that starts a `POST` handler.
+const POST_DECL: &str = "export async function POST(";
+
+/// One route handler; it calls `callee` when there is one.
+fn render_handler(verb: &str, callee: Option<&str>) -> String {
+    let value = callee.map_or("true".to_string(), |c| format!("{c}(1, request.url)"));
+    format!(
+        "export async function {verb}(request: Request): Promise<Response> {{\n  \
+         return Response.json({{ value: {value} }});\n}}\n"
+    )
+}
+
+/// Writes the route files and pages, and appends the client calls of each route to
+/// the `sources` of the modules that make them.
+fn write_web(dir: &Path, seed: u64, mods: &[Module], sources: &mut [String]) {
+    let n = mods.len();
+    let mut rng = Rng(seed ^ WEB_SALT);
+    let plain: Vec<usize> = (0..n).filter(|&i| !mods[i].funcs.is_empty()).collect();
+    // An import of one module function, and its name.
+    let pick_callee = |rng: &mut Rng| -> Option<(String, String)> {
+        if plain.is_empty() {
+            return None;
+        }
+        let j = plain[rng.range(0, plain.len() - 1)];
+        let name = mods[j].funcs[rng.range(0, mods[j].funcs.len() - 1)].clone();
+        let import = format!("import {{ {name} }} from \"{}\";\n\n", alias_spec(j));
+        Some((import, name))
+    };
+    for k in 0..2 + n / 20 {
+        let callee = pick_callee(&mut rng);
+        let mut out = callee.as_ref().map_or(String::new(), |(i, _)| i.clone());
+        let name = callee.as_ref().map(|(_, n)| n.as_str());
+        out.push_str(&render_handler("GET", name));
+        let post = rng.chance(50);
+        if post {
+            out.push('\n');
+            out.push_str(&render_handler("POST", name));
+        }
+        write_file(dir, &route_path(k), &out);
+
+        let want = rng.range(1, 2);
+        for i in rng.pick_distinct(&plain, want) {
+            let init = if post && rng.chance(50) {
+                ", { method: \"POST\" }"
+            } else {
+                ""
+            };
+            sources[i].push_str(&format!(
+                "export async function load_r{k}(): Promise<unknown> {{\n  \
+                 const res = await fetch(\"/api/r{k}\"{init});\n  return res.json();\n}}\n\n"
+            ));
+        }
+    }
+    for k in 0..1 + n / 40 {
+        let body = match pick_callee(&mut rng) {
+            Some((import, name)) => format!(
+                "{import}export default function Page() {{\n  \
+                 return <main>{{{name}(1, \"page\")}}</main>;\n}}\n"
+            ),
+            None => "export default function Page() {\n  return <main />;\n}\n".to_string(),
+        };
+        write_file(dir, &format!("app/p{k}/page.tsx"), &body);
+    }
+}
+
+/// A `package.json` that declares `deps` under `dependencies`.
+fn render_manifest(deps: &BTreeMap<String, String>) -> String {
+    let lines: Vec<String> = deps
+        .iter()
+        .map(|(name, version)| format!("    \"{name}\": \"{version}\""))
+        .collect();
+    let deps = if lines.is_empty() {
+        "{}".to_string()
+    } else {
+        format!("{{\n{}\n  }}", lines.join(",\n"))
+    };
+    format!("{{\n  \"name\": \"synth\",\n  \"private\": true,\n  \"dependencies\": {deps}\n}}\n")
+}
+
+/// The dependencies of a manifest that [`render_manifest`] wrote.
+fn parse_manifest(src: &str) -> BTreeMap<String, String> {
+    src.lines()
+        .filter_map(|l| {
+            let (name, version) = l.trim().trim_end_matches(',').split_once("\": \"")?;
+            let name = name.strip_prefix('"')?;
+            let version = version.strip_suffix('"')?;
+            (name != "name").then(|| (name.to_string(), version.to_string()))
+        })
+        .collect()
 }
 
 fn render_barrel(m: &Module, i: usize) -> String {
@@ -262,6 +389,11 @@ pub enum Edit {
     DeleteFile,
     /// Appends an unterminated function to one module.
     BreakSyntax,
+    /// Changes the `next` version in `package.json`, or adds or removes a dependency
+    /// (`next` included, so the app can stop and start being a Next.js app).
+    EditManifest,
+    /// Adds a `POST` handler to one route file, or removes the one it has.
+    ToggleVerb,
 }
 
 /// Every `.ts` file under `dir`, as sorted `/`-separated relative paths.
@@ -687,6 +819,56 @@ pub fn apply_edit(dir: &Path, seed: u64, edit: Edit) -> BTreeSet<String> {
             write_file(dir, &file, &format!("{src}\nexport function broken( {{\n"));
             changed.insert(file);
         }
+        Edit::EditManifest => {
+            let Ok(src) = fs::read_to_string(dir.join(MANIFEST)) else {
+                return changed;
+            };
+            let mut deps = parse_manifest(&src);
+            let extra = format!("dep{}", seed % 5);
+            // 0: a new `next` version, 1: a new dependency, 2: one dependency less.
+            let pick = rng.range(0, 2);
+            if !deps.contains_key("next") && (pick < 2 || deps.is_empty()) {
+                deps.insert("next".to_string(), NEXT_VERSION.to_string());
+            } else if pick == 0 {
+                let version = format!("15.0.{seed}");
+                if deps.get("next") == Some(&version) {
+                    deps.insert("next".to_string(), format!("16.0.{seed}"));
+                } else {
+                    deps.insert("next".to_string(), version);
+                }
+            } else if pick == 1 && !deps.contains_key(&extra) {
+                deps.insert(extra, "1.0.0".to_string());
+            } else {
+                // Not empty: an empty list gained `next` above.
+                let names: Vec<String> = deps.keys().cloned().collect();
+                deps.remove(&names[rng.range(0, names.len() - 1)]);
+            }
+            if write_if_changed(dir, MANIFEST, &src, &render_manifest(&deps)) {
+                changed.insert(MANIFEST.to_string());
+            }
+        }
+        Edit::ToggleVerb => {
+            let routes: Vec<&String> = files.iter().filter(|f| is_route_file(f)).collect();
+            if routes.is_empty() {
+                return changed;
+            }
+            let file = routes[rng.range(0, routes.len() - 1)].clone();
+            let src = read(dir, &file);
+            let new = match src.find(POST_DECL) {
+                Some(start) => {
+                    // The handler ends at the first line that closes a block.
+                    let end = src[start..]
+                        .find("\n}\n")
+                        .map_or(src.len(), |at| start + at + 3);
+                    let before = src[..start].strip_suffix('\n').unwrap_or(&src[..start]);
+                    format!("{before}{}", &src[end..])
+                }
+                None => format!("{src}\n{}", render_handler("POST", None)),
+            };
+            if write_if_changed(dir, &file, &src, &new) {
+                changed.insert(file);
+            }
+        }
     }
     changed
 }
@@ -702,7 +884,7 @@ mod tests {
     use crate::lang::Lang;
     use crate::ts::extract;
 
-    const ALL_EDITS: [Edit; 8] = [
+    const ALL_EDITS: [Edit; 10] = [
         Edit::BodyChange,
         Edit::SignatureChange,
         Edit::Rename,
@@ -711,6 +893,8 @@ mod tests {
         Edit::AddFile,
         Edit::DeleteFile,
         Edit::BreakSyntax,
+        Edit::EditManifest,
+        Edit::ToggleVerb,
     ];
 
     /// Every file under `dir`: relative path and bytes.
@@ -776,8 +960,9 @@ mod tests {
         project(b.path(), 7, 50);
         let tree_a = tree(a.path());
         assert_eq!(tree_a, tree(b.path()));
-        // 50 modules plus the tsconfig, and every module parses cleanly.
-        assert_eq!(tree_a.len(), 51);
+        // 50 modules, the tsconfig, the manifest, 4 route files and 2 pages, and
+        // every `.ts` file parses cleanly.
+        assert_eq!(tree_a.len(), 58);
         assert_all_parse(a.path());
         let c = TempDir::new().unwrap();
         project(c.path(), 8, 50);
@@ -793,17 +978,49 @@ mod tests {
             .unwrap()
             .full()
             .unwrap();
-        assert_eq!(report.parsed, 50);
+        // 50 modules, 4 route files and 2 pages.
+        assert_eq!(report.parsed, 56);
         assert_eq!(report.parsed_with_errors, 0);
+        assert!(report.routes.get("http").is_some_and(|n| *n >= 4));
+        assert_eq!(report.routes.get("page"), Some(&2));
+        assert_eq!(report.manifests, 1);
     }
 
     #[test]
     fn the_project_has_the_promised_shape() {
         let dir = TempDir::new().unwrap();
         project(dir.path(), 3, 45);
-        let files = ts_files(dir.path());
+        let (files, routes): (Vec<String>, Vec<String>) = ts_files(dir.path())
+            .into_iter()
+            .partition(|f| f.starts_with("src/"));
         assert_eq!(files.len(), 45);
         assert!(files.contains(&"src/d002/m0044.ts".to_string()));
+        assert_eq!(
+            routes,
+            [
+                "app/api/r0/route.ts",
+                "app/api/r1/route.ts",
+                "app/api/r2/route.ts",
+                "app/api/r3/route.ts"
+            ]
+        );
+        for rel in &routes {
+            let src = read(dir.path(), rel);
+            assert!(src.contains("export async function GET("), "{rel}");
+            assert!(src.contains("import { f"), "{rel}");
+        }
+        assert!(dir.path().join("app/p0/page.tsx").is_file());
+        assert!(dir.path().join("app/p1/page.tsx").is_file());
+        let manifest = read(dir.path(), MANIFEST);
+        assert_eq!(
+            parse_manifest(&manifest),
+            BTreeMap::from([("next".to_string(), NEXT_VERSION.to_string())])
+        );
+        let callers = files
+            .iter()
+            .filter(|f| read(dir.path(), f).contains("await fetch(\"/api/r"))
+            .count();
+        assert!(callers >= 4, "{callers} modules fetch a route");
         let barrel = read(dir.path(), "src/d000/m0010.ts");
         assert!(barrel.contains(" from \"./m00"), "{barrel}");
         let mut seen_alias_import = false;
@@ -855,6 +1072,42 @@ mod tests {
             deepest = deepest.max(hops);
         }
         assert!(deepest >= 4, "the longest chain has {deepest} hops");
+    }
+
+    #[test]
+    fn toggle_verb_adds_and_removes_post() {
+        let dir = TempDir::new().unwrap();
+        project(dir.path(), 11, 30);
+        let before = tree(dir.path());
+        let changed = apply_edit(dir.path(), 3, Edit::ToggleVerb);
+        assert_eq!(changed.len(), 1);
+        let rel = changed.iter().next().unwrap();
+        assert!(is_route_file(rel), "{rel}");
+        let had = String::from_utf8(before[rel].clone())
+            .unwrap()
+            .contains(POST_DECL);
+        assert_eq!(read(dir.path(), rel).contains(POST_DECL), !had);
+        assert!(read(dir.path(), rel).contains("export async function GET("));
+        // The same edit again restores the file byte for byte.
+        assert_eq!(apply_edit(dir.path(), 3, Edit::ToggleVerb), changed);
+        assert_eq!(tree(dir.path()), before);
+    }
+
+    #[test]
+    fn edit_manifest_changes_the_dependencies() {
+        let dir = TempDir::new().unwrap();
+        project(dir.path(), 11, 30);
+        let mut seen = BTreeSet::new();
+        for seed in 0..30 {
+            let before = parse_manifest(&read(dir.path(), MANIFEST));
+            let changed = apply_edit(dir.path(), seed, Edit::EditManifest);
+            assert_eq!(changed, BTreeSet::from([MANIFEST.to_string()]), "{seed}");
+            let after = parse_manifest(&read(dir.path(), MANIFEST));
+            assert_ne!(before, after, "{seed}");
+            seen.insert(after.contains_key("next"));
+        }
+        // `next` was dropped and declared again along the way.
+        assert_eq!(seen.len(), 2);
     }
 
     #[test]

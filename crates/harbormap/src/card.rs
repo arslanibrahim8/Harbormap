@@ -198,6 +198,8 @@ pub fn render_file(card: &FileCard) -> String {
             out.push('\n');
         }
     }
+    let labels: Vec<String> = card.routes.iter().map(|r| r.label.clone()).collect();
+    list(&mut out, "Routes", &labels);
     list(&mut out, "Used by", &card.used_by);
     list(&mut out, "Uses", &card.uses);
     if card.unresolved > 0 {
@@ -221,6 +223,9 @@ pub fn render_symbol(card: &SymbolCard) -> String {
     let sig = one_line(&card.sig);
     if !sig.is_empty() {
         out.push_str(&format!("  {sig}\n"));
+    }
+    for role in &card.roles {
+        out.push_str(&format!("  Role: {}\n", printable(role)));
     }
     list(&mut out, "Called from", &card.callers);
     list(&mut out, "Calls", &card.callees);

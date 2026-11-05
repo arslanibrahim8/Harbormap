@@ -4,5 +4,6 @@
 pub mod extract;
 pub mod resolve;
 pub mod tsconfig;
+pub mod web;
 
 pub use extract::extract;

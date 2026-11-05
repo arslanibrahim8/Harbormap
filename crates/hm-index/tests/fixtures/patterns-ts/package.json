@@ -1,0 +1,15 @@
+{
+  "name": "shop-patterns",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@nestjs/common": "11.0.0",
+    "@prisma/client": "6.0.0",
+    "@vercel/postgres": "0.10.0",
+    "bcryptjs": "3.0.0",
+    "bullmq": "5.0.0",
+    "jsonwebtoken": "9.0.0",
+    "next": "15.2.0",
+    "zod": "3.24.0"
+  }
+}

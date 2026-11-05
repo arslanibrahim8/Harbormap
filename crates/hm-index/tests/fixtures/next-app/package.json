@@ -1,0 +1,10 @@
+{
+  "name": "shop-web",
+  "scripts": {
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "15.2.0",
+    "react": "19.0.0"
+  }
+}

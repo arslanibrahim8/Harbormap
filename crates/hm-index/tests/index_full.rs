@@ -1,10 +1,15 @@
 mod common;
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::time::{Duration, SystemTime};
 
-use common::{copy_fixture, dump, edit, fresh_index, fresh_index_of, indexed, indexer_for};
+use common::{
+    copy_fixture, derived_lines, dump, edit, fresh_index, fresh_index_of, indexed, indexer_for,
+    stored_derived,
+};
 use hm_index::index::Indexer;
+use hm_index::routes::derive_tree;
 use hm_store::Store;
 
 fn scalar(store: &Store, sql: &str) -> String {
@@ -358,5 +363,155 @@ fn the_report_names_the_ignore_files_and_the_config_notes() {
             "pkg/tsconfig.json extends @tsconfig/node20/tsconfig.json, which Harbormap \
              does not read"
         ]
+    );
+}
+
+#[test]
+fn report_counts_routes_and_manifests() {
+    let (mut ix, dir) = indexer_for("client-hops");
+    let r = ix.full().unwrap();
+    // GET and POST /api/orders, GET and DELETE /api/orders/{id}.
+    assert_eq!(r.routes.get("http"), Some(&4));
+    assert_eq!(r.routes.values().sum::<u32>(), 4);
+    assert_eq!(r.manifests, 1);
+    // next, axios, @tanstack/react-query and swr.
+    assert_eq!(r.dependencies, 4);
+
+    // The store holds exactly what `derive` finds, and the report counts it.
+    let derived = derive_tree(dir.path());
+    assert_eq!(stored_derived(ix.store()), derived_lines(&derived));
+    assert_eq!(r.client_calls, derived.client_calls.len() as u32);
+    let matched: BTreeSet<(&str, u32)> = derived
+        .edges
+        .iter()
+        .filter(|e| e.kind == "http_calls")
+        .map(|e| (e.file.as_str(), e.line))
+        .collect();
+    assert_eq!(r.client_calls_matched, matched.len() as u32);
+    assert_eq!(r.gaps, derived.gaps.len() as u32);
+    let mut patterns: BTreeMap<String, u32> = BTreeMap::new();
+    for p in &derived.patterns {
+        *patterns.entry(p.kind.clone()).or_default() += 1;
+    }
+    assert_eq!(r.patterns, patterns);
+    assert_eq!(
+        scalar(
+            ix.store(),
+            "SELECT name || ' ' || declared || ' ' || dev FROM dependency WHERE name = 'next'"
+        ),
+        "next 15.2.0 0"
+    );
+    assert_eq!(
+        scalar(
+            ix.store(),
+            "SELECT kind || ' ' || name || ' ' || detail FROM manifest"
+        ),
+        r#"npm client-hops {"bin":[],"main":null,"scripts":[]}"#
+    );
+
+    // A second pass finds the same and writes nothing new.
+    let again = ix.full().unwrap();
+    assert_eq!(
+        (&again.routes, again.manifests, again.dependencies),
+        (&r.routes, r.manifests, r.dependencies)
+    );
+    assert_eq!(dump(ix.store()), dump(fresh_index_of(dir.path()).store()));
+}
+
+#[test]
+fn manifest_and_route_notes_join_the_report_notes() {
+    let (mut ix, dir) = indexer_for("client-hops");
+    // A route group gives the same URL as an existing route file, and the manifest
+    // has a field of the wrong type.
+    fs::create_dir_all(dir.path().join("app/(shop)/api/orders")).unwrap();
+    fs::write(
+        dir.path().join("app/(shop)/api/orders/route.ts"),
+        "export async function GET() {\n  return Response.json([])\n}\n",
+    )
+    .unwrap();
+    edit(
+        dir.path(),
+        "package.json",
+        "\"private\": true,",
+        "\"private\": true,\n  \"main\": 5,",
+    );
+    let r = ix.full().unwrap();
+    assert_eq!(
+        r.notes,
+        vec![
+            // The first in path order is kept.
+            "app/api/orders/route.ts:1: GET /api/orders is also declared at \
+             app/(shop)/api/orders/route.ts:1",
+            "package.json: \"main\" is not a string (line 4)",
+        ]
+    );
+}
+
+#[test]
+fn the_store_holds_exactly_what_derive_finds_on_every_fixture() {
+    for name in [
+        "client-hops",
+        "express-api",
+        "nest-api",
+        "next-app",
+        "next-mono",
+        "next-pages",
+        "npm-locks",
+        "patterns-ts",
+        "ts-basic",
+    ] {
+        let (ix, dir) = indexed(name);
+        assert_eq!(
+            stored_derived(ix.store()),
+            derived_lines(&derive_tree(dir.path())),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn rows_with_the_same_store_key_are_derived_once() {
+    // Two calls on one line from two symbols share a `client_call` key; a `fetch` and an
+    // axios call on one line share an `http_calls` edge key. The store keeps one row of
+    // each key; so does `derive`, the first in sorted order.
+    let dir = tempfile::tempdir().unwrap();
+    for (rel, text) in [
+        (
+            "package.json",
+            r#"{ "name": "shop", "dependencies": { "next": "15.2.0" } }"#,
+        ),
+        (
+            "app/api/orders/route.ts",
+            "export async function GET() { return Response.json([]) }\n",
+        ),
+        (
+            "lib/c.ts",
+            "import axios from 'axios'\n\
+             export const a = () => fetch('/api/orders'), b = () => fetch('/api/orders')\n\
+             export function both() { fetch('/api/orders'); return axios.get('/api/orders') }\n",
+        ),
+    ] {
+        let path = dir.path().join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, text).unwrap();
+    }
+    let derived = derive_tree(dir.path());
+    let calls_on = |line: u32| {
+        derived
+            .client_calls
+            .iter()
+            .filter(|c| c.line == line && c.rule == "ts.client.fetch")
+            .count()
+    };
+    assert_eq!(calls_on(2), 1, "{:#?}", derived.client_calls);
+    let edges_on_3 = derived
+        .edges
+        .iter()
+        .filter(|e| e.kind == "http_calls" && e.line == 3)
+        .count();
+    assert_eq!(edges_on_3, 1, "{:#?}", derived.edges);
+    assert_eq!(
+        stored_derived(fresh_index_of(dir.path()).store()),
+        derived_lines(&derived)
     );
 }

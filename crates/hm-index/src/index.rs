@@ -2,9 +2,11 @@
 //! resolves names across files and writes everything into the facts store in one
 //! transaction (Learn spec §5). After a save, `apply` brings the store in line with
 //! the changed files and with what depends on them, so that it always equals a cold
-//! index of the same tree (spec §5.4).
+//! index of the same tree (spec §5.4). Every pass that changes a file derives routes,
+//! client calls, inferred edges, patterns and gaps of the whole tree again, and writes
+//! them as differences from what is stored.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
 use std::fs;
 use std::io;
@@ -13,12 +15,15 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use hm_core::ids::file_id;
 use hm_store::{Store, StoreError};
-use rusqlite::{OptionalExtension, Transaction, params};
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, Value, ValueRef};
+use rusqlite::{OptionalExtension, Transaction, params, params_from_iter};
 use serde::Serialize;
 
 use crate::facts::{FileFacts, ImportKind, ImportedName, ParseStatus, SymbolKind};
 use crate::hash::{content_hash, facts_hash, interface_hash};
 use crate::lang::Lang;
+use crate::manifest::{LOCKFILES, ManifestCache, Manifests};
+use crate::routes::{Derived, Inputs, derive};
 use crate::ts::resolve::{ModuleResolver, ModuleTarget, Project, resolve_file, symbol_ids};
 use crate::ts::tsconfig::load_tsconfigs;
 use crate::walk::{
@@ -29,6 +34,10 @@ use crate::walk::{
 const PROVENANCE: &str = "parsed";
 /// `Confidence::Sure` as the store spells it (checked by a test).
 const CONF_SURE: &str = "sure";
+/// Where every derived edge comes from, and how sure it is (spec §5.2).
+const INFERRED: &str = "inferred";
+/// `Confidence::Probably` as the store spells it (checked by a test).
+const CONF_PROBABLY: &str = "probably";
 
 #[derive(Debug)]
 pub enum IndexError {
@@ -79,7 +88,8 @@ pub type Result<T> = std::result::Result<T, IndexError>;
 
 /// What one pass saw and did. `files`, `classes`, `skipped`, `not_supported_yet`
 /// describe the tree as walked; `hashed`, `parsed` and `parsed_with_errors` describe
-/// the work of this pass; `symbols`, `edges` and `refs` describe the store after it.
+/// the work of this pass; `symbols`, `edges`, `inferred_edges` and `refs` describe the
+/// store after it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct IndexReport {
     /// File count by language name, `other` for files without one.
@@ -99,16 +109,33 @@ pub struct IndexReport {
     /// Files in a language that L1 recognises but does not parse.
     pub not_supported_yet: u32,
     pub symbols: u32,
-    /// Edge count by kind.
+    /// Count by kind of the edges read from the code (`prov = parsed`).
     pub edges: BTreeMap<String, u32>,
-    /// Ref count by status (`unresolved`, `external`).
+    /// Count by kind of the edges the rules infer (`prov = inferred`): client calls to
+    /// routes, framework-mediated calls and what runs on the way in.
+    pub inferred_edges: BTreeMap<String, u32>,
+    /// Ref count by status (`unresolved`, `external`, `builtin`, `local`).
     pub refs: BTreeMap<String, u32>,
+    /// Route count by entry kind (`page`, `http`, `server_action`, `middleware`, `cli`,
+    /// `main`).
+    pub routes: BTreeMap<String, u32>,
+    /// Client calls stored, matched or not.
+    pub client_calls: u32,
+    /// Distinct (file, line) of client calls that an `http_calls` edge matches.
+    pub client_calls_matched: u32,
+    /// `package.json` manifests, and the dependencies they declare.
+    pub manifests: u32,
+    pub dependencies: u32,
+    /// Pattern count by kind.
+    pub patterns: BTreeMap<String, u32>,
+    pub gaps: u32,
     /// The ignore files the walk applied, `.git/info/exclude` included; relative and
     /// sorted.
     pub ignore_files: Vec<String>,
     /// What the pass could not follow in the project's configuration (a tsconfig
-    /// `extends` that names a package, a config that does not parse), one line each,
-    /// sorted.
+    /// `extends` that names a package, a config that does not parse, a `package.json`
+    /// field of the wrong type) and what the route rules dropped (a route declared
+    /// twice), one line each, sorted.
     pub notes: Vec<String>,
     pub took_ms: u64,
 }
@@ -133,8 +160,12 @@ pub struct Delta {
     pub symbols_body_changed: Vec<String>,
     /// Symbols that kept their id and got a new signature hash.
     pub symbols_sig_changed: Vec<String>,
-    /// Edge rows inserted and deleted. An edge whose rule alone changed counts as one
-    /// removed and one added.
+    /// Route ids that appeared and that went. A route whose row changed (it moved to
+    /// another file with the same id) is in neither, unless its file was removed.
+    pub routes_added: Vec<String>,
+    pub routes_removed: Vec<String>,
+    /// Edge rows inserted and deleted, `parsed` and `inferred` alike. An edge whose rule
+    /// alone changed counts as one removed and one added.
     pub edges_added: u32,
     pub edges_removed: u32,
 }
@@ -187,6 +218,10 @@ pub struct Indexer {
     rules: Option<WalkRules>,
     /// The folders the last walk admitted.
     dirs: Vec<String>,
+    /// What earlier passes parsed of `package.json` files and lockfiles.
+    manifest_cache: ManifestCache,
+    /// The manifests the last derive read; `None` until this indexer has derived.
+    manifests: Option<Manifests>,
 }
 
 impl Indexer {
@@ -202,6 +237,8 @@ impl Indexer {
             resolver: ModuleResolver::new(known, tsconfigs),
             rules: None,
             dirs: Vec::new(),
+            manifest_cache: ManifestCache::default(),
+            manifests: None,
         })
     }
 
@@ -223,7 +260,8 @@ impl Indexer {
     /// Walks the worktree and brings the store in line with it. A file whose size and
     /// mtime match its row is left alone; one that differs is hashed, and parsed only
     /// when its content hash changed too. Every file is resolved again, because an
-    /// edge depends on files other than its own. All writes share one transaction.
+    /// edge depends on files other than its own, and the whole tree is derived again.
+    /// All writes share one transaction.
     pub fn full(&mut self) -> Result<IndexReport> {
         let started = Instant::now();
         let mut walked = walk(&self.root)?;
@@ -336,6 +374,7 @@ impl Indexer {
         report.notes = tsconfigs.notes.clone();
         report.notes.sort();
         let resolver = ModuleResolver::new(known.clone(), tsconfigs);
+        let manifests = Manifests::load(&self.root, &known, &mut self.manifest_cache);
 
         let outcome = self.store.write(|tx| {
             for path in &vanished {
@@ -353,14 +392,24 @@ impl Indexer {
                     replace_resolved(tx, &project, rel)?;
                 }
             }
-            write_meta(tx, &self.root)
+            let derived = derive(&Inputs {
+                project: &project,
+                manifests: &manifests,
+            });
+            sync_derived(tx, &derived, &manifests)?;
+            write_meta(tx, &self.root)?;
+            Ok(derived.notes)
         });
         match outcome {
-            Ok(()) => {
+            Ok(notes) => {
+                report.notes.extend(notes);
+                report.notes.extend(manifests.notes.iter().cloned());
+                report.notes.sort();
                 self.facts = facts;
                 self.resolver = resolver;
                 self.rules = Some(walked.rules);
                 self.dirs = walked.dirs;
+                self.manifests = Some(manifests);
             }
             Err(err) => {
                 // The map was partly rebuilt; the store is the truth. If it cannot be
@@ -374,8 +423,29 @@ impl Indexer {
 
         let conn = self.store.conn();
         report.symbols = conn.query_row("SELECT count(*) FROM symbol", [], |row| row.get(0))?;
-        report.edges = counts(conn, "SELECT kind, count(*) FROM edge GROUP BY kind")?;
+        report.edges = counts(
+            conn,
+            "SELECT kind, count(*) FROM edge WHERE prov = 'parsed' GROUP BY kind",
+        )?;
+        report.inferred_edges = counts(
+            conn,
+            "SELECT kind, count(*) FROM edge WHERE prov = 'inferred' GROUP BY kind",
+        )?;
         report.refs = counts(conn, "SELECT status, count(*) FROM ref GROUP BY status")?;
+        report.routes = counts(
+            conn,
+            "SELECT entry_kind, count(*) FROM route GROUP BY entry_kind",
+        )?;
+        let count = |sql: &str| conn.query_row(sql, [], |row| row.get::<_, u32>(0));
+        report.client_calls = count("SELECT count(*) FROM client_call")?;
+        report.client_calls_matched = count(
+            "SELECT count(*) FROM
+               (SELECT DISTINCT file_id, line FROM edge WHERE kind = 'http_calls')",
+        )?;
+        report.manifests = count("SELECT count(*) FROM manifest")?;
+        report.dependencies = count("SELECT count(*) FROM dependency")?;
+        report.patterns = counts(conn, "SELECT kind, count(*) FROM pattern GROUP BY kind")?;
+        report.gaps = count("SELECT count(*) FROM gap")?;
         report.took_ms = started.elapsed().as_millis() as u64;
         Ok(report)
     }
@@ -471,7 +541,9 @@ impl Indexer {
     /// Reads `files`, removes `gone`, and resolves again what the changes reach, in
     /// one transaction. `stored` holds the rows of the paths that have one. With
     /// `rescan`, any change resolves every file again, as [`full`](Indexer::full)
-    /// does; without it, only the files a change can reach (spec §5.4).
+    /// does; without it, only the files a change can reach (spec §5.4). When a file
+    /// was written or removed, the whole tree is derived again; the manifests are read
+    /// again only when a `package.json` or a lockfile is among the changes.
     fn bring_in_line(
         &mut self,
         files: Vec<WalkedFile>,
@@ -592,9 +664,22 @@ impl Indexer {
             None => !added.is_empty() || !removed.is_empty() || config,
         };
 
-        // 4. One transaction: the files to resolve again, removals, file and symbol
-        // rows, then the resolved rows of those files, written as differences.
+        // 4. Whether the tree is derived again, and whether the manifests are read
+        // again for it. A lockfile the walk skips as too large changes only its stat,
+        // so any write to a manifest file counts.
+        let manifest_changed = writes
+            .iter()
+            .map(|(f, _)| &f.rel)
+            .chain(&removed)
+            .any(|rel| is_manifest_file(rel));
+        let rederive = !rewritten.is_empty() || !removed.is_empty() || manifest_changed;
+        let reload = rederive && (manifest_changed || self.manifests.is_none());
+
+        // 5. One transaction: the files to resolve again, removals, file and symbol
+        // rows, then the resolved rows of those files, written as differences, then
+        // the derived rows of the tree, also written as differences.
         let (root, resolver) = (&self.root, &self.resolver);
+        let (cache, last) = (&mut self.manifest_cache, self.manifests.as_ref());
         let outcome = self.store.write(|tx| {
             let rebuilt = if rebuild {
                 let known = match &rescan {
@@ -635,8 +720,11 @@ impl Indexer {
             };
 
             let mut edges = (0, 0);
+            // The routes a removed file takes along when its row goes.
+            let mut routes_gone = Vec::new();
             for rel in &removed {
                 edges.1 += count_edges(tx, &file_id(rel))?;
+                routes_gone.extend(route_ids_of(tx, &file_id(rel))?);
                 tx.execute("DELETE FROM file WHERE path = ?1", [rel])?;
             }
             for (f, change) in &writes {
@@ -654,12 +742,28 @@ impl Indexer {
                 edges.0 += added;
                 edges.1 += removed;
             }
+            let mut loaded = None;
+            let mut derived = DerivedCounts::default();
+            if rederive {
+                if reload {
+                    loaded = Some(Manifests::load(root, &stored_paths(tx)?, cache));
+                }
+                let manifests = loaded
+                    .as_ref()
+                    .or(last)
+                    .expect("the first derive loads the manifests");
+                let found = derive(&Inputs {
+                    project: &project,
+                    manifests,
+                });
+                derived = sync_derived(tx, &found, manifests)?;
+            }
             if rescan.is_some() {
                 write_meta(tx, root)?;
             }
-            Ok((edges, resolve, rebuilt))
+            Ok((edges, resolve, rebuilt, (derived, routes_gone, loaded)))
         });
-        let ((edges_added, edges_removed), resolve, rebuilt) = match outcome {
+        let ((edges_added, edges_removed), resolve, rebuilt, after) = match outcome {
             Ok(done) => done,
             Err(err) => {
                 // The map was partly rebuilt; the store is the truth (see `full`).
@@ -669,7 +773,11 @@ impl Indexer {
                 return Err(err.into());
             }
         };
+        let (derived, routes_gone, loaded) = after;
         self.facts = facts;
+        if let Some(manifests) = loaded {
+            self.manifests = Some(manifests);
+        }
         if let Some(resolver) = rebuilt {
             self.resolver = resolver;
         }
@@ -683,8 +791,22 @@ impl Indexer {
             .into_iter()
             .filter(|rel| !rewritten.contains(rel))
             .collect();
-        delta.edges_added = edges_added;
-        delta.edges_removed = edges_removed;
+        delta.edges_added = edges_added + derived.edges_added;
+        delta.edges_removed = edges_removed + derived.edges_removed;
+        // A route of a removed file that another file declares too goes with the file's
+        // row and comes back in `sync_derived`: stored before and after, it is in neither
+        // list. Every other id `sync_derived` adds was not stored before, and every id it
+        // removes is not stored after.
+        let gone: BTreeSet<String> = routes_gone.into_iter().collect();
+        let back: BTreeSet<String> = derived.routes_added.into_iter().collect();
+        delta.routes_added = back.difference(&gone).cloned().collect();
+        delta.routes_removed = gone
+            .difference(&back)
+            .cloned()
+            .chain(derived.routes_removed)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
         for list in [
             &mut delta.files_changed,
             &mut delta.files_removed,
@@ -693,6 +815,7 @@ impl Indexer {
             &mut delta.symbols_removed,
             &mut delta.symbols_body_changed,
             &mut delta.symbols_sig_changed,
+            &mut delta.routes_added,
         ] {
             list.sort();
         }
@@ -713,7 +836,7 @@ fn skip_name(skip: Skip) -> &'static str {
 
 /// Whether L1 parses the file: a code file in a supported language, not a doc or an
 /// infrastructure file.
-fn parses(f: &WalkedFile) -> bool {
+pub(crate) fn parses(f: &WalkedFile) -> bool {
     f.skip.is_none()
         && !matches!(f.class, FileClass::Doc | FileClass::Infra)
         && f.lang.is_some_and(|l| l.parsed_in_l1())
@@ -919,7 +1042,8 @@ fn clear_symbols(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// Removes the rows that resolving a file wrote.
+/// Removes the rows that resolving a file wrote, and the inferred edges stored with
+/// it; [`sync_derived`] writes back those that are still derived.
 fn clear_resolved(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
     for sql in [
         "DELETE FROM edge WHERE file_id = ?1",
@@ -1315,22 +1439,379 @@ fn forwards(p: &Project, rel: &str, target: &str) -> bool {
     })
 }
 
+/// The edges stored with the file `id`, `parsed` and `inferred`: what removing or
+/// clearing it deletes.
 fn count_edges(tx: &Transaction, id: &str) -> rusqlite::Result<u32> {
     tx.prepare_cached("SELECT count(*) FROM edge WHERE file_id = ?1")?
         .query_row([id], |row| row.get(0))
 }
 
+/// The ids of the routes the file `id` declares.
+fn route_ids_of(tx: &Transaction, id: &str) -> rusqlite::Result<Vec<String>> {
+    tx.prepare_cached("SELECT id FROM route WHERE file_id = ?1")?
+        .query_map([id], |row| row.get(0))?
+        .collect()
+}
+
+/// Whether `rel` is a file the manifests are read from: a `package.json` or a
+/// lockfile.
+fn is_manifest_file(rel: &str) -> bool {
+    let name = rel.rsplit('/').next().unwrap_or(rel);
+    name == "package.json" || LOCKFILES.contains(&name)
+}
+
+/// What [`sync_derived`] changed.
+#[derive(Default)]
+struct DerivedCounts {
+    /// Route ids that were not stored and are now, and the reverse; a route whose
+    /// row changed in place is in neither.
+    routes_added: Vec<String>,
+    routes_removed: Vec<String>,
+    /// Inferred edge rows inserted and deleted.
+    edges_added: u32,
+    edges_removed: u32,
+}
+
+/// One value of a derived row, ordered, so stored and derived rows compare as sets.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum Cell {
+    Null,
+    Int(i64),
+    Text(String),
+}
+
+impl Cell {
+    fn text(s: &str) -> Cell {
+        Cell::Text(s.to_string())
+    }
+
+    fn opt(s: Option<&str>) -> Cell {
+        s.map_or(Cell::Null, Cell::text)
+    }
+}
+
+impl ToSql for Cell {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::Owned(match self {
+            Cell::Null => Value::Null,
+            Cell::Int(v) => Value::Integer(*v),
+            Cell::Text(t) => Value::Text(t.clone()),
+        }))
+    }
+}
+
+impl FromSql for Cell {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value {
+            ValueRef::Null => Ok(Cell::Null),
+            ValueRef::Integer(v) => Ok(Cell::Int(v)),
+            ValueRef::Text(_) => Ok(Cell::text(value.as_str()?)),
+            _ => Err(FromSqlError::InvalidType),
+        }
+    }
+}
+
+/// A derived row, in the column order of its [`DerivedTable`].
+type Row = Vec<Cell>;
+
+/// A table that holds derived rows.
+struct DerivedTable {
+    name: &'static str,
+    /// Every column; the first `key` are the primary key, and one is `file_id`.
+    columns: &'static [&'static str],
+    key: usize,
+    /// The condition that selects the rows derive owns.
+    owned: &'static str,
+}
+
+const ROUTE_TABLE: DerivedTable = DerivedTable {
+    name: "route",
+    columns: &[
+        "id",
+        "root",
+        "entry_kind",
+        "method",
+        "pattern",
+        "handler_id",
+        "file_id",
+        "line",
+        "rule",
+        "prov",
+        "conf",
+        "detail",
+    ],
+    key: 1,
+    owned: "1",
+};
+
+const CLIENT_CALL_TABLE: DerivedTable = DerivedTable {
+    name: "client_call",
+    columns: &["file_id", "line", "method", "url", "rule", "src_id"],
+    key: 5,
+    owned: "1",
+};
+
+const INFERRED_EDGE_TABLE: DerivedTable = DerivedTable {
+    name: "edge",
+    columns: &[
+        "kind", "src_id", "dst_id", "line", "prov", "file_id", "rule", "conf",
+    ],
+    key: 5,
+    owned: "prov = 'inferred'",
+};
+
+const PATTERN_TABLE: DerivedTable = DerivedTable {
+    name: "pattern",
+    columns: &[
+        "file_id",
+        "subject_id",
+        "kind",
+        "line",
+        "rule",
+        "conf",
+        "term",
+        "detail",
+    ],
+    key: 5,
+    owned: "1",
+};
+
+const GAP_TABLE: DerivedTable = DerivedTable {
+    name: "gap",
+    columns: &["file_id", "kind", "line", "subject_id"],
+    key: 3,
+    owned: "1",
+};
+
+const MANIFEST_TABLE: DerivedTable = DerivedTable {
+    name: "manifest",
+    columns: &["file_id", "root", "kind", "name", "lockfile", "detail"],
+    key: 1,
+    owned: "1",
+};
+
+const DEPENDENCY_TABLE: DerivedTable = DerivedTable {
+    name: "dependency",
+    columns: &[
+        "file_id", "section", "name", "declared", "resolved", "dev", "line",
+    ],
+    key: 3,
+    owned: "1",
+};
+
+/// Brings the rows derive owns in line with `derived` and `manifests`: for `route`,
+/// `client_call`, `pattern`, `gap`, `manifest`, `dependency` and the `inferred` edges,
+/// the stored rows that are no longer derived are deleted and the derived rows that
+/// are not stored are inserted, so a pass that derives the same writes nothing. Runs
+/// after the files are resolved, in the same transaction.
+fn sync_derived(
+    tx: &Transaction,
+    derived: &Derived,
+    manifests: &Manifests,
+) -> rusqlite::Result<DerivedCounts> {
+    let files: HashSet<String> = tx
+        .prepare_cached("SELECT id FROM file")?
+        .query_map([], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    let text = Cell::text;
+    let int = |n: u32| Cell::Int(n.into());
+
+    let routes = derived.routes.iter().map(|r| {
+        vec![
+            text(&r.id),
+            text(&r.root),
+            text(&r.entry_kind),
+            text(&r.method),
+            text(&r.pattern),
+            Cell::opt(r.handler_id.as_deref()),
+            Cell::Text(file_id(&r.file)),
+            int(r.line),
+            text(&r.rule),
+            text(&r.prov),
+            text(&r.conf),
+            Cell::opt(r.detail.as_deref()),
+        ]
+    });
+    let (added, removed) = sync_table(tx, &ROUTE_TABLE, routes, &files)?;
+    let ids = |rows: &[Row]| -> BTreeSet<String> {
+        rows.iter()
+            .filter_map(|row| match &row[0] {
+                Cell::Text(id) => Some(id.clone()),
+                _ => None,
+            })
+            .collect()
+    };
+    let (added, removed) = (ids(&added), ids(&removed));
+    let mut counts = DerivedCounts {
+        routes_added: added.difference(&removed).cloned().collect(),
+        routes_removed: removed.difference(&added).cloned().collect(),
+        ..DerivedCounts::default()
+    };
+
+    let calls = derived.client_calls.iter().map(|c| {
+        vec![
+            Cell::Text(file_id(&c.file)),
+            int(c.line),
+            text(&c.method),
+            text(&c.url),
+            text(&c.rule),
+            text(&c.src_id),
+        ]
+    });
+    sync_table(tx, &CLIENT_CALL_TABLE, calls, &files)?;
+
+    let edges = derived.edges.iter().map(|e| {
+        vec![
+            text(&e.kind),
+            text(&e.src_id),
+            text(&e.dst_id),
+            int(e.line),
+            text(INFERRED),
+            Cell::Text(file_id(&e.file)),
+            text(&e.rule),
+            text(CONF_PROBABLY),
+        ]
+    });
+    let (added, removed) = sync_table(tx, &INFERRED_EDGE_TABLE, edges, &files)?;
+    counts.edges_added = added.len() as u32;
+    counts.edges_removed = removed.len() as u32;
+
+    let patterns = derived.patterns.iter().map(|p| {
+        vec![
+            Cell::Text(file_id(&p.file)),
+            text(&p.subject_id),
+            text(&p.kind),
+            int(p.line),
+            text(&p.rule),
+            text(&p.conf),
+            Cell::opt(p.term.as_deref()),
+            Cell::opt(p.detail.as_deref()),
+        ]
+    });
+    sync_table(tx, &PATTERN_TABLE, patterns, &files)?;
+
+    let gaps = derived.gaps.iter().map(|g| {
+        vec![
+            Cell::Text(file_id(&g.file)),
+            text(&g.kind),
+            int(g.line),
+            text(&g.subject_id),
+        ]
+    });
+    sync_table(tx, &GAP_TABLE, gaps, &files)?;
+
+    let rows = manifests.npm.iter().map(|m| {
+        let detail = serde_json::json!({ "bin": m.bin, "main": m.main, "scripts": m.scripts });
+        vec![
+            Cell::Text(file_id(&m.path)),
+            text(&m.root),
+            text("npm"),
+            Cell::opt(m.name.as_deref()),
+            Cell::opt(m.lockfile.as_deref()),
+            Cell::Text(detail.to_string()),
+        ]
+    });
+    sync_table(tx, &MANIFEST_TABLE, rows, &files)?;
+
+    let deps = manifests.npm.iter().flat_map(|m| {
+        let id = file_id(&m.path);
+        m.deps.iter().map(move |d| {
+            vec![
+                Cell::Text(id.clone()),
+                Cell::text(&d.section),
+                Cell::text(&d.name),
+                Cell::text(&d.declared),
+                Cell::opt(d.resolved.as_deref()),
+                Cell::Int(d.dev.into()),
+                Cell::Int(d.line.into()),
+            ]
+        })
+    });
+    sync_table(tx, &DEPENDENCY_TABLE, deps, &files)?;
+    Ok(counts)
+}
+
+/// Writes the difference between the rows of `table` that derive owns and `rows`
+/// (given in `table.columns` order), and returns the rows (added, removed). Of rows
+/// with the same key, the first is kept. A row whose file has no `file` row is left
+/// out; that cannot happen, so debug builds stop on it.
+fn sync_table(
+    tx: &Transaction,
+    table: &DerivedTable,
+    rows: impl Iterator<Item = Row>,
+    files: &HashSet<String>,
+) -> rusqlite::Result<(Vec<Row>, Vec<Row>)> {
+    let file_col = table
+        .columns
+        .iter()
+        .position(|c| *c == "file_id")
+        .expect("every derived table has a file_id column");
+    let mut by_key: BTreeMap<Row, Row> = BTreeMap::new();
+    for row in rows {
+        let known = matches!(&row[file_col], Cell::Text(id) if files.contains(id));
+        debug_assert!(
+            known,
+            "a derived {} row names no stored file: {row:?}",
+            table.name
+        );
+        if known {
+            by_key.entry(row[..table.key].to_vec()).or_insert(row);
+        }
+    }
+    let new: BTreeSet<Row> = by_key.into_values().collect();
+
+    let columns = table.columns.join(", ");
+    let n = table.columns.len();
+    let old: BTreeSet<Row> = tx
+        .prepare_cached(&format!(
+            "SELECT {columns} FROM {} WHERE {}",
+            table.name, table.owned
+        ))?
+        .query_map([], |row| (0..n).map(|i| row.get(i)).collect())?
+        .collect::<rusqlite::Result<_>>()?;
+    let removed: Vec<Row> = old.difference(&new).cloned().collect();
+    let added: Vec<Row> = new.difference(&old).cloned().collect();
+
+    // Deletes first: a changed row keeps its key.
+    let key = table.columns[..table.key]
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("{c} = ?{}", i + 1))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let mut delete = tx.prepare_cached(&format!("DELETE FROM {} WHERE {key}", table.name))?;
+    for row in &removed {
+        delete.execute(params_from_iter(&row[..table.key]))?;
+    }
+    let slots = (1..=n)
+        .map(|i| format!("?{i}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut insert = tx.prepare_cached(&format!(
+        "INSERT INTO {}({columns}) VALUES ({slots})",
+        table.name
+    ))?;
+    for row in &added {
+        insert.execute(params_from_iter(row))?;
+    }
+    Ok((added, removed))
+}
+
 /// Resolves the file at `rel` and writes only the difference from its stored
-/// `edge`, `ref` and `reverse_import` rows, so resolving a file again whose result
+/// `parsed` `edge` rows (inferred ones belong to the mediation pass) and its `ref` and
+/// `reverse_import` rows, so resolving a file again whose result
 /// did not change writes nothing. Returns the number of edges added and removed.
 fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Result<(u32, u32)> {
     let id = file_id(rel);
     let resolved = resolve_file(project, rel);
 
-    // `prov` and `conf` are not in the key: every L1 edge is `parsed` and `sure`. L2
-    // must add them when `inferred` / `probably` edges arrive.
+    // Only `parsed` edges are read, deleted and counted here, and every one is `sure`,
+    // so `prov` and `conf` stay out of the key.
     let old_edges: BTreeSet<(String, String, String, u32, String)> = tx
-        .prepare_cached("SELECT kind, src_id, dst_id, line, rule FROM edge WHERE file_id = ?1")?
+        .prepare_cached(
+            "SELECT kind, src_id, dst_id, line, rule FROM edge
+             WHERE file_id = ?1 AND prov = 'parsed'",
+        )?
         .query_map([&id], |row| {
             Ok((
                 row.get(0)?,
@@ -1355,7 +1836,8 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
         })
         .collect();
     let mut delete = tx.prepare_cached(
-        "DELETE FROM edge WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4",
+        "DELETE FROM edge
+         WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4 AND prov = 'parsed'",
     )?;
     let gone: Vec<_> = old_edges.difference(&new_edges).collect();
     for (kind, src, dst, line, _) in &gone {
@@ -1512,5 +1994,7 @@ mod tests {
     fn the_confidence_constant_is_how_the_model_spells_sure() {
         let sure = serde_json::to_value(hm_core::model::Confidence::Sure).unwrap();
         assert_eq!(sure, super::CONF_SURE);
+        let probably = serde_json::to_value(hm_core::model::Confidence::Probably).unwrap();
+        assert_eq!(probably, super::CONF_PROBABLY);
     }
 }
