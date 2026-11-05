@@ -30,6 +30,14 @@ const SKIP_DIRS: &[&str] = &[
     "bin",
     "obj",
     "coverage",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".tox",
+    "site-packages",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
 ];
 
 /// The names of the ignore files the walk honours, highest precedence first.
@@ -476,13 +484,15 @@ pub fn classify(rel: &str, head: &[u8]) -> FileClass {
 
     if segments
         .iter()
-        .any(|s| matches!(*s, "test" | "tests" | "__tests__"))
+        .any(|s| matches!(*s, "test" | "tests" | "__tests__" | "testdata"))
         || name.contains(".test.")
         || name.contains(".spec.")
         || name.ends_with("_test.go")
         || (name.starts_with("test_") && ext == "py")
         || name.ends_with("Test.java")
         || name.ends_with("Tests.cs")
+        || name.ends_with("_test.py")
+        || name == "conftest.py"
     {
         return FileClass::Test;
     }
@@ -490,6 +500,8 @@ pub fn classify(rel: &str, head: &[u8]) -> FileClass {
     if name.contains(".gen.")
         || name.ends_with(".g.cs")
         || name.ends_with("_pb2.py")
+        || name.ends_with("_pb2_grpc.py")
+        || name.ends_with("_pb2.pyi")
         || name.ends_with(".pb.go")
         || name.ends_with(".min.js")
         || has_generated_marker(head)

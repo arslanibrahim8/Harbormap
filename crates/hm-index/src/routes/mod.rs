@@ -16,6 +16,7 @@ use serde::Serialize;
 
 use crate::facts::FileFacts;
 use crate::index::parses;
+use crate::lang::Lang;
 use crate::manifest::{ManifestCache, Manifests};
 use crate::ts::resolve::{ModuleResolver, ModuleTarget, Project, holder, symbol_ids};
 use crate::ts::tsconfig::load_tsconfigs;
@@ -262,6 +263,15 @@ pub(crate) fn is_known(project: &Project, rel: &str) -> bool {
             project.modules.resolve("", &format!("./{rel}")),
             ModuleTarget::File(found) if found == rel
         )
+}
+
+/// Whether the rules of this module read `rel`: a TypeScript or JavaScript file. Go and
+/// Python facts share the map; their rules come with L2b part 2.
+pub(crate) fn is_ts_file(rel: &str) -> bool {
+    matches!(
+        Lang::from_path(Path::new(rel)),
+        Some(Lang::TypeScript | Lang::Tsx | Lang::JavaScript)
+    )
 }
 
 /// True when some file of the tree lies under folder `dir`, by the rule of [`is_known`].

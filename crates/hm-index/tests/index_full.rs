@@ -28,9 +28,9 @@ fn scalar(store: &Store, sql: &str) -> String {
 fn full_index_of_the_fixture_reports_and_stores() {
     let (mut ix, _dir) = indexer_for("ts-basic");
     let r = ix.full().unwrap();
-    assert_eq!(r.parsed, 10); // 7 .ts + 2 .tsx + 1 .js; ignored and skipped folders excluded
+    assert_eq!(r.parsed, 11); // 7 .ts + 2 .tsx + 1 .js + tool.py; ignored and skipped folders excluded
     assert_eq!(r.parsed_with_errors, 0);
-    assert_eq!(r.not_supported_yet, 1); // tool.py
+    assert_eq!(r.not_supported_yet, 0); // tool.py is parsed as Python
     assert_eq!(r.skipped.get("dir:node_modules"), Some(&1));
     assert_eq!(r.skipped.get("dir:dist"), Some(&1));
     assert_eq!(r.classes.get("test"), Some(&1));
@@ -63,7 +63,7 @@ fn the_store_holds_status_hashes_meta_and_evidence() {
         )
     };
     assert_eq!(status("src/db.ts"), "parsed");
-    assert_eq!(status("src/scripts/tool.py"), "not_supported_yet");
+    assert_eq!(status("src/scripts/tool.py"), "parsed");
     assert_eq!(status("docs/guide.md"), "not_parsed");
     assert_eq!(status("Dockerfile"), "not_parsed");
     assert_eq!(status("tsconfig.json"), "not_parsed");
@@ -179,7 +179,7 @@ fn a_large_file_is_counted_and_never_parsed() {
     fs::write(dir.path().join("src/big.ts"), big).unwrap();
     let r = ix.full().unwrap();
     assert_eq!(r.skipped.get("too_large"), Some(&1));
-    assert_eq!(r.parsed, 10);
+    assert_eq!(r.parsed, 11);
     assert_eq!(
         scalar(
             ix.store(),
@@ -194,7 +194,7 @@ fn a_syntax_error_is_reported_not_fatal() {
     let (mut ix, dir) = indexer_for("ts-basic");
     fs::write(dir.path().join("src/bad.ts"), "export function (((\n").unwrap();
     let r = ix.full().unwrap();
-    assert_eq!((r.parsed, r.parsed_with_errors), (11, 1));
+    assert_eq!((r.parsed, r.parsed_with_errors), (12, 1));
     assert_eq!(
         scalar(
             ix.store(),
@@ -319,8 +319,8 @@ fn unreadable_folders_and_files_are_counted_and_the_pass_goes_on() {
     };
     let r = ix.full().unwrap();
     assert_eq!(r.skipped.get("unreadable"), Some(&2));
-    // Four files in src/orders and src/db.ts are not parsed.
-    assert_eq!(r.parsed, 5);
+    // Four files in src/orders and src/db.ts are not parsed; tool.py is.
+    assert_eq!(r.parsed, 6);
     let s = ix.store();
     assert_eq!(
         scalar(s, "SELECT parse_status FROM file WHERE path = 'src/db.ts'"),

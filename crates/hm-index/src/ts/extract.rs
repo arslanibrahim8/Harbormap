@@ -154,6 +154,9 @@ pub fn extract(src: &str, lang: Lang) -> FileFacts {
         heritage,
         module_names,
         web,
+        package: None,
+        labels: Vec::new(),
+        attrs: Vec::new(),
     }
 }
 

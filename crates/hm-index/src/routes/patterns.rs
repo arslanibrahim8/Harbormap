@@ -339,6 +339,10 @@ pub(crate) fn derive(inputs: &Inputs, out: &mut Derived) {
     };
 
     for (rel, facts) in inputs.project.facts {
+        // The pack's rules are TypeScript ones; a Python or Go call is not theirs.
+        if !super::is_ts_file(rel) {
+            continue;
+        }
         let ctx = FileCtx::new(inputs, rel, facts);
         let pattern = |rule: &Rule, subject_id: String, line: u32, conf: &str| Pattern {
             file: rel.clone(),

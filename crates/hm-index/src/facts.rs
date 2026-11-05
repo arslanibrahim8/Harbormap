@@ -207,6 +207,25 @@ pub struct CtorFieldFact {
     pub line: u32,
 }
 
+/// A named nested function or closure inside a symbol (spec §7.2 item 12). It is a
+/// label for the lines it spans, not a symbol.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LabelFact {
+    pub owner: Option<(String, String)>,
+    pub name: String,
+    pub l0: u32,
+    pub l1: u32,
+}
+
+/// The type a class states for one of its attributes, as written (`Repo`, `models.Repo`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AttrFact {
+    pub class: String,
+    pub attr: String,
+    pub type_name: String,
+    pub line: u32,
+}
+
 /// A `<form>` (or form component) with its action.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FormFact {
@@ -308,6 +327,13 @@ pub struct FileFacts {
     /// Absent from the JSON of a file without web facts, as in L1.
     #[serde(default, skip_serializing_if = "WebFacts::is_empty")]
     pub web: WebFacts,
+    /// The Go package clause.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<LabelFact>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attrs: Vec<AttrFact>,
 }
 
 impl FileFacts {
@@ -322,6 +348,37 @@ impl FileFacts {
             heritage: Vec::new(),
             module_names: Vec::new(),
             web: WebFacts::default(),
+            package: None,
+            labels: Vec::new(),
+            attrs: Vec::new(),
+        }
+    }
+
+    /// The index of the symbol that holds a call at `line` whose fact names `(owner, name)`:
+    /// of the functions, methods and classes with that pair that span the line, the one
+    /// with the smallest span; `None` when there is none or the smallest span is shared.
+    pub fn holder(&self, owner: &str, name: &str, line: u32) -> Option<usize> {
+        let holders: Vec<(usize, u32)> = self
+            .symbols
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| {
+                s.owner == owner
+                    && s.name == name
+                    && matches!(
+                        s.kind,
+                        SymbolKind::Function | SymbolKind::Method | SymbolKind::Class
+                    )
+                    && s.l0 <= line
+                    && line <= s.l1
+            })
+            .map(|(i, s)| (i, s.l1 - s.l0))
+            .collect();
+        let smallest = holders.iter().map(|&(_, span)| span).min();
+        let mut tightest = holders.iter().filter(|&&(_, span)| Some(span) == smallest);
+        match (tightest.next(), tightest.next()) {
+            (Some(&(i, _)), None) => Some(i),
+            _ => None,
         }
     }
 }

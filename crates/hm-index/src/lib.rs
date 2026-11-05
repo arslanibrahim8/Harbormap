@@ -2,15 +2,22 @@
 //! writes the facts that the store keeps (Learn spec §5).
 
 pub mod facts;
+pub mod go;
 pub mod hash;
 pub mod index;
 pub mod lang;
+pub mod langs;
 pub mod location;
 pub mod manifest;
+pub mod py;
 pub mod query;
 pub mod routes;
 #[doc(hidden)]
 pub mod synth;
+#[doc(hidden)]
+pub mod synth_go;
+#[doc(hidden)]
+pub mod synth_py;
 pub mod ts;
 pub mod view;
 pub mod walk;

@@ -117,6 +117,14 @@ pub fn interface_hash(f: &FileFacts) -> String {
             .iter()
             .map(|e| format!("e\u{1f}{}", export_key(e))),
     );
+    if let Some(package) = &f.package {
+        keys.push(format!("p\u{1f}{package}"));
+    }
+    keys.extend(
+        f.attrs
+            .iter()
+            .map(|a| format!("a\u{1f}{}\u{1f}{}\u{1f}{}", a.class, a.attr, a.type_name)),
+    );
     finish(keys)
 }
 

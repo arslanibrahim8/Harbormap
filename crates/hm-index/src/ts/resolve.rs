@@ -196,6 +196,21 @@ fn package_name(specifier: &str) -> &str {
     &specifier[..end]
 }
 
+/// Every rule a TypeScript edge is written under. These rows belong to the resolver
+/// (see [`crate::langs::resolver_rules`]).
+pub const RULES: &[&str] = &[
+    "ts.import",
+    "ts.extends",
+    "ts.jsx",
+    "ts.call.import",
+    "ts.call.local",
+    "ts.call.namespace",
+    "ts.call.new",
+    "ts.call.require",
+    "ts.call.static",
+    "ts.call.this",
+];
+
 /// The files of a worktree with their facts, and the resolver for their specifiers.
 pub struct Project<'a> {
     /// Relative path to the facts of that file.
@@ -203,7 +218,7 @@ pub struct Project<'a> {
     pub modules: &'a ModuleResolver,
 }
 
-/// An edge of the graph; every L1 edge is `Sure` and `parsed`.
+/// An edge of the graph; every TypeScript edge is `Sure` and `parsed`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EdgeRow {
     /// `imports`, `calls` or `extends`.
@@ -212,6 +227,8 @@ pub struct EdgeRow {
     pub dst_id: String,
     pub line: u32,
     pub rule: &'static str,
+    /// A `Probably` edge with provenance `inferred`; `false` means `Sure` and `parsed`.
+    pub inferred: bool,
 }
 
 /// A reference that is not an edge.
@@ -230,7 +247,9 @@ pub struct RefRow {
 pub struct ResolvedFile {
     pub edges: Vec<EdgeRow>,
     pub refs: Vec<RefRow>,
-    /// The files this one imports (of any import kind), as relative paths.
+    /// The files this one imports (of any import kind), as relative paths. For a
+    /// Python file, every file whose facts its resolution read; the files its
+    /// `imports` edges point to are among them.
     pub imports_files: BTreeSet<String>,
 }
 
@@ -493,28 +512,7 @@ pub(crate) fn holder(
     line: u32,
 ) -> Option<usize> {
     let (owner, name) = owner?;
-    let holders: Vec<(usize, u32)> = facts
-        .symbols
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| {
-            s.owner == *owner
-                && s.name == *name
-                && matches!(
-                    s.kind,
-                    SymbolKind::Function | SymbolKind::Method | SymbolKind::Class
-                )
-                && s.l0 <= line
-                && line <= s.l1
-        })
-        .map(|(i, s)| (i, s.l1 - s.l0))
-        .collect();
-    let smallest = holders.iter().map(|&(_, span)| span).min();
-    let mut tightest = holders.iter().filter(|&&(_, span)| Some(span) == smallest);
-    match (tightest.next(), tightest.next()) {
-        (Some(&(i, _)), None) => Some(i),
-        _ => None,
-    }
+    facts.holder(owner, name, line)
 }
 
 /// The id of the symbol that holds a fact of `facts` (a call, a route call, a client
@@ -666,6 +664,7 @@ pub fn resolve_file(p: &Project, rel: &str) -> ResolvedFile {
                 dst_id,
                 line,
                 rule,
+                inferred: false,
             })
             .collect(),
         refs: r

@@ -11,6 +11,7 @@ use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use hm_core::ids::file_id;
@@ -22,22 +23,50 @@ use serde::Serialize;
 use crate::facts::{FileFacts, ImportKind, ImportedName, ParseStatus, SymbolKind};
 use crate::hash::{content_hash, facts_hash, interface_hash};
 use crate::lang::Lang;
+use crate::langs::{self, Resolvers, Workspace};
 use crate::manifest::{LOCKFILES, ManifestCache, Manifests};
 use crate::routes::{Derived, Inputs, derive};
-use crate::ts::resolve::{ModuleResolver, ModuleTarget, Project, resolve_file, symbol_ids};
-use crate::ts::tsconfig::load_tsconfigs;
+use crate::ts::resolve::{EdgeRow, ModuleTarget, symbol_ids};
 use crate::walk::{
     FileClass, IGNORE_FILES, Skip, WalkRules, WalkedFile, is_unreadable, walk, walked_file,
 };
 
-/// Where every L1 edge comes from.
-const PROVENANCE: &str = "parsed";
+/// Where an exact edge comes from.
+const PROV_PARSED: &str = "parsed";
+/// Where a name-match, DI or rule-derived edge comes from.
+const PROV_INFERRED: &str = "inferred";
 /// `Confidence::Sure` as the store spells it (checked by a test).
 const CONF_SURE: &str = "sure";
-/// Where every derived edge comes from, and how sure it is (spec §5.2).
-const INFERRED: &str = "inferred";
 /// `Confidence::Probably` as the store spells it (checked by a test).
 const CONF_PROBABLY: &str = "probably";
+
+/// The `(prov, conf)` a resolved edge is stored with (spec §5.2).
+fn evidence(e: &EdgeRow) -> (&'static str, &'static str) {
+    if e.inferred {
+        (PROV_INFERRED, CONF_PROBABLY)
+    } else {
+        (PROV_PARSED, CONF_SURE)
+    }
+}
+
+/// The [`langs::resolver_rules`] as an SQL list, `('ts.import', …)`. An edge row whose
+/// rule is in it belongs to the resolver of its file; every other one to derive.
+static RESOLVER_RULES: LazyLock<String> = LazyLock::new(|| {
+    let rules: Vec<String> = langs::resolver_rules()
+        .inspect(|r| assert!(!r.contains('\''), "a rule id holds a quote: {r}"))
+        .map(|r| format!("'{r}'"))
+        .collect();
+    format!("({})", rules.join(", "))
+});
+
+/// The edge rows derive owns. Derive writes only `inferred` rows, so `prov` narrows the
+/// scan to them through `edge_prov`.
+static DERIVED_EDGES: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        "prov = '{PROV_INFERRED}' AND rule NOT IN {}",
+        *RESOLVER_RULES
+    )
+});
 
 #[derive(Debug)]
 pub enum IndexError {
@@ -111,8 +140,10 @@ pub struct IndexReport {
     pub symbols: u32,
     /// Count by kind of the edges read from the code (`prov = parsed`).
     pub edges: BTreeMap<String, u32>,
-    /// Count by kind of the edges the rules infer (`prov = inferred`): client calls to
-    /// routes, framework-mediated calls and what runs on the way in.
+    /// Count by kind of the `Probably` edges (`prov = inferred`): the name-match calls
+    /// the resolvers infer (Go method names, Python inherited and attribute calls), and
+    /// what the route rules derive: client calls to routes, framework-mediated calls and
+    /// what runs on the way in.
     pub inferred_edges: BTreeMap<String, u32>,
     /// Ref count by status (`unresolved`, `external`, `builtin`, `local`).
     pub refs: BTreeMap<String, u32>,
@@ -213,7 +244,7 @@ pub struct Indexer {
     store: Store,
     /// Facts of every parsed file, by relative path; the same as `file.facts_json`.
     facts: BTreeMap<String, FileFacts>,
-    resolver: ModuleResolver,
+    resolvers: Resolvers,
     /// The include rules of the last walk; `None` until this indexer has walked.
     rules: Option<WalkRules>,
     /// The folders the last walk admitted.
@@ -229,12 +260,11 @@ impl Indexer {
     pub fn open(root: &Path, store: Store) -> Result<Indexer> {
         let facts = load_facts(&store)?;
         let known = stored_paths(store.conn())?;
-        let tsconfigs = load_tsconfigs(root, &known);
         Ok(Indexer {
             root: root.to_path_buf(),
             store,
             facts,
-            resolver: ModuleResolver::new(known, tsconfigs),
+            resolvers: Resolvers::load(root, known),
             rules: None,
             dirs: Vec::new(),
             manifest_cache: ManifestCache::default(),
@@ -370,10 +400,8 @@ impl Indexer {
             || changes
                 .iter()
                 .any(|c| !matches!(c, Change::Unchanged | Change::Touched));
-        let tsconfigs = load_tsconfigs(&self.root, &known);
-        report.notes = tsconfigs.notes.clone();
-        report.notes.sort();
-        let resolver = ModuleResolver::new(known.clone(), tsconfigs);
+        let resolvers = Resolvers::load(&self.root, known.clone());
+        report.notes = resolvers.notes();
         let manifests = Manifests::load(&self.root, &known, &mut self.manifest_cache);
 
         let outcome = self.store.write(|tx| {
@@ -383,17 +411,14 @@ impl Indexer {
             for (f, change) in &live {
                 write_change(tx, f, change)?;
             }
-            let project = Project {
-                facts: &facts,
-                modules: &resolver,
-            };
+            let project = Workspace::new(&facts, &resolvers);
             if dirty {
                 for rel in facts.keys() {
                     replace_resolved(tx, &project, rel)?;
                 }
             }
             let derived = derive(&Inputs {
-                project: &project,
+                project: &project.ts(),
                 manifests: &manifests,
             });
             sync_derived(tx, &derived, &manifests)?;
@@ -406,7 +431,7 @@ impl Indexer {
                 report.notes.extend(manifests.notes.iter().cloned());
                 report.notes.sort();
                 self.facts = facts;
-                self.resolver = resolver;
+                self.resolvers = resolvers;
                 self.rules = Some(walked.rules);
                 self.dirs = walked.dirs;
                 self.manifests = Some(manifests);
@@ -608,6 +633,10 @@ impl Indexer {
         let mut added: Vec<String> = Vec::new();
         // Files whose change other files can see, so their importers resolve again.
         let mut seeds: Vec<String> = Vec::new();
+        // Names that files may reach by name alone and whose symbols changed.
+        let mut renamed: BTreeSet<String> = BTreeSet::new();
+        // A stored file that gains its facts: Go importers hold no row for it.
+        let mut gained = false;
         for (f, change) in &writes {
             let hash = match change {
                 Change::Fresh { hash, .. } => hash.as_str(),
@@ -640,6 +669,8 @@ impl Indexer {
             {
                 seeds.push(rel.clone());
             }
+            renamed.extend(langs::inferred_changes(rel, old.as_ref(), new.as_ref()));
+            gained |= old_hash.is_some() && old.is_none() && new.is_some();
             if let Some(new) = new {
                 facts.insert(rel.clone(), new);
             }
@@ -648,12 +679,13 @@ impl Indexer {
         for rel in &removed {
             let old = facts.remove(rel);
             diff_symbols(rel, old.as_ref(), None, &mut delta);
+            renamed.extend(langs::inferred_changes(rel, old.as_ref(), None));
         }
 
         // 3. Whether the resolver is rebuilt, which resolves every file again: a new
         // or removed file can change where any specifier points, and so can a config
         // file. A rescan does so on any change, as `full` does.
-        let sources = self.resolver.config_sources();
+        let sources = self.resolvers.config_sources();
         let config = delta
             .files_changed
             .iter()
@@ -661,7 +693,7 @@ impl Indexer {
             .any(|rel| sources.contains(rel));
         let rebuild = match &rescan {
             Some(_) => !rewritten.is_empty() || !removed.is_empty(),
-            None => !added.is_empty() || !removed.is_empty() || config,
+            None => !added.is_empty() || !removed.is_empty() || config || gained,
         };
 
         // 4. Whether the tree is derived again, and whether the manifests are read
@@ -678,7 +710,7 @@ impl Indexer {
         // 5. One transaction: the files to resolve again, removals, file and symbol
         // rows, then the resolved rows of those files, written as differences, then
         // the derived rows of the tree, also written as differences.
-        let (root, resolver) = (&self.root, &self.resolver);
+        let (root, resolvers) = (&self.root, &self.resolvers);
         let (cache, last) = (&mut self.manifest_cache, self.manifests.as_ref());
         let outcome = self.store.write(|tx| {
             let rebuilt = if rebuild {
@@ -696,20 +728,27 @@ impl Indexer {
                         known
                     }
                 };
-                let tsconfigs = load_tsconfigs(root, &known);
-                Some(ModuleResolver::new(known, tsconfigs))
+                Some(Resolvers::load(root, known))
             } else {
                 None
             };
-            let project = Project {
-                facts: &facts,
-                modules: rebuilt.as_ref().unwrap_or(resolver),
-            };
+            let project = Workspace::new(&facts, rebuilt.as_ref().unwrap_or(resolvers));
             // Read before anything is written: the importers as the last pass stored them.
             let resolve: BTreeSet<String> = if rebuilt.is_some() {
                 facts.keys().cloned().collect()
             } else {
                 let mut resolve = dependents(tx, &project, &seeds)?;
+                for rel in &seeds {
+                    resolve.extend(langs::implicit_dependents(&project, rel));
+                }
+                if !renamed.is_empty() {
+                    resolve.extend(
+                        facts
+                            .iter()
+                            .filter(|(rel, f)| langs::reads_names(rel, f, &renamed))
+                            .map(|(rel, _)| rel.clone()),
+                    );
+                }
                 resolve.extend(
                     rewritten
                         .iter()
@@ -733,7 +772,7 @@ impl Indexer {
                     change,
                     Change::Skipped(_) | Change::Fresh { parsed: None, .. }
                 ) {
-                    edges.1 += count_edges(tx, &file_id(&f.rel))?;
+                    edges.1 += count_resolved_edges(tx, &file_id(&f.rel))?;
                 }
                 write_change(tx, f, change)?;
             }
@@ -753,7 +792,7 @@ impl Indexer {
                     .or(last)
                     .expect("the first derive loads the manifests");
                 let found = derive(&Inputs {
-                    project: &project,
+                    project: &project.ts(),
                     manifests,
                 });
                 derived = sync_derived(tx, &found, manifests)?;
@@ -778,8 +817,8 @@ impl Indexer {
         if let Some(manifests) = loaded {
             self.manifests = Some(manifests);
         }
-        if let Some(resolver) = rebuilt {
-            self.resolver = resolver;
+        if let Some(resolvers) = rebuilt {
+            self.resolvers = resolvers;
         }
         if let Some(walk) = rescan {
             self.rules = Some(walk.rules);
@@ -839,15 +878,13 @@ fn skip_name(skip: Skip) -> &'static str {
 pub(crate) fn parses(f: &WalkedFile) -> bool {
     f.skip.is_none()
         && !matches!(f.class, FileClass::Doc | FileClass::Infra)
-        && f.lang.is_some_and(|l| l.parsed_in_l1())
+        && f.lang.is_some_and(|l| l.parsed())
 }
 
 /// The `parse_status` of a file that is read but not parsed.
 fn unparsed_status(f: &WalkedFile) -> &'static str {
     match f.lang {
-        Some(lang)
-            if !matches!(f.class, FileClass::Doc | FileClass::Infra) && !lang.parsed_in_l1() =>
-        {
+        Some(lang) if !matches!(f.class, FileClass::Doc | FileClass::Infra) && !lang.parsed() => {
             NOT_SUPPORTED
         }
         _ => "not_parsed",
@@ -942,7 +979,7 @@ fn read_one(job: &Job) -> io::Result<Change> {
             parsed: None,
         });
     };
-    let facts = crate::ts::extract(&String::from_utf8_lossy(&bytes), lang);
+    let facts = crate::langs::extract(&String::from_utf8_lossy(&bytes), lang);
     let status = match facts.status {
         ParseStatus::Parsed => "parsed",
         ParseStatus::ParsedWithErrors => "parsed_with_errors",
@@ -1042,17 +1079,47 @@ fn clear_symbols(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// Removes the rows that resolving a file wrote, and the inferred edges stored with
-/// it; [`sync_derived`] writes back those that are still derived.
+/// Removes the rows that resolving a file wrote: its edges under a resolver rule, its
+/// refs and its `reverse_import` rows. The edges derive owns are left to
+/// [`sync_derived`].
 fn clear_resolved(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
+    tx.prepare_cached(&format!(
+        "DELETE FROM edge WHERE file_id = ?1 AND rule IN {}",
+        *RESOLVER_RULES
+    ))?
+    .execute([id])?;
     for sql in [
-        "DELETE FROM edge WHERE file_id = ?1",
         "DELETE FROM ref WHERE file_id = ?1",
         "DELETE FROM reverse_import WHERE src_file_id = ?1",
     ] {
         tx.prepare_cached(sql)?.execute([id])?;
     }
     Ok(())
+}
+
+/// Inserts the edge `e` that resolving the file `id` gave. A derived row with the same
+/// key (`kind`, ends, line, `prov`) is deleted first: the resolver's row wins, and
+/// [`sync_derived`] leaves out a derived edge whose key a resolver row holds. Only an
+/// `inferred` edge can meet a derived row. Returns the number of rows deleted.
+fn insert_resolved_edge(tx: &Transaction, id: &str, e: &EdgeRow) -> rusqlite::Result<u32> {
+    let (prov, conf) = evidence(e);
+    let mut taken = 0;
+    if e.inferred {
+        taken = tx
+            .prepare_cached(
+                "DELETE FROM edge
+                 WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4 AND prov = ?5",
+            )?
+            .execute(params![e.kind, e.src_id, e.dst_id, e.line, prov])? as u32;
+    }
+    tx.prepare_cached(
+        "INSERT INTO edge(kind, src_id, dst_id, file_id, line, rule, prov, conf)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    )?
+    .execute(params![
+        e.kind, e.src_id, e.dst_id, id, e.line, e.rule, prov, conf
+    ])?;
+    Ok(taken)
 }
 
 fn insert_symbols(
@@ -1088,18 +1155,12 @@ fn insert_symbols(
 
 /// Resolves the file at `rel` and replaces its `edge`, `ref` and `reverse_import`
 /// rows with the result. The file's `file` row must exist.
-fn replace_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Result<()> {
+fn replace_resolved(tx: &Transaction, project: &Workspace, rel: &str) -> rusqlite::Result<()> {
     let id = file_id(rel);
     clear_resolved(tx, &id)?;
-    let resolved = resolve_file(project, rel);
-    let mut edge = tx.prepare_cached(
-        "INSERT INTO edge(kind, src_id, dst_id, file_id, line, rule, prov, conf)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-    )?;
+    let resolved = langs::resolve_file(project, rel);
     for e in &resolved.edges {
-        edge.execute(params![
-            e.kind, e.src_id, e.dst_id, id, e.line, e.rule, PROVENANCE, CONF_SURE
-        ])?;
+        insert_resolved_edge(tx, &id, e)?;
     }
     let mut reference = tx.prepare_cached(
         "INSERT INTO ref(file_id, kind, text, line, status) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -1288,10 +1349,14 @@ struct Surface<'a> {
     symbols: Vec<(&'a str, &'a str, SymbolKind, bool, bool)>,
     exports: Vec<(&'a str, Option<&'a str>, Option<&'a str>, bool)>,
     forwarded: Vec<(&'a str, ImportKind, &'a [ImportedName], bool)>,
+    /// `(class, base)` of a Python file: subclasses elsewhere inherit through them.
+    heritage: Vec<(&'a str, &'a str)>,
 }
 
 impl<'a> Surface<'a> {
     fn of(rel: &str, facts: &'a FileFacts) -> Surface<'a> {
+        // Any name a Python file imports can be imported from it in turn.
+        let python = Lang::from_path(Path::new(rel)) == Some(Lang::Python);
         let locals: Vec<&str> = facts
             .exports
             .iter()
@@ -1329,8 +1394,9 @@ impl<'a> Surface<'a> {
                 .imports
                 .iter()
                 .filter(|i| {
-                    i.kind != ImportKind::ReExport
-                        && i.names.iter().any(|n| locals.contains(&n.local.as_str()))
+                    python
+                        || (i.kind != ImportKind::ReExport
+                            && i.names.iter().any(|n| locals.contains(&n.local.as_str())))
                 })
                 .map(|i| {
                     (
@@ -1340,6 +1406,12 @@ impl<'a> Surface<'a> {
                         i.type_only,
                     )
                 })
+                .collect(),
+            heritage: facts
+                .heritage
+                .iter()
+                .filter(|_| python)
+                .map(|h| (h.class.as_str(), h.extends.as_str()))
                 .collect(),
         }
     }
@@ -1384,7 +1456,7 @@ const FORWARD_HOPS: usize = 5;
 /// (a re-export, or an `export { a }` of an import), for up to [`FORWARD_HOPS`] hops.
 fn dependents(
     conn: &rusqlite::Connection,
-    project: &Project,
+    project: &Workspace,
     seeds: &[String],
 ) -> rusqlite::Result<BTreeSet<String>> {
     let mut stmt = conn.prepare_cached(
@@ -1419,8 +1491,16 @@ fn dependents(
 }
 
 /// Whether resolving a name exported by `rel` can lead on into `target`: `rel`
-/// re-exports from it, or exports a name that it imports from it.
-fn forwards(p: &Project, rel: &str, target: &str) -> bool {
+/// re-exports from it, or exports a name that it imports from it. A Go package hands
+/// no names on, and a Python file's rows already name every file its resolution read.
+fn forwards(w: &Workspace, rel: &str, target: &str) -> bool {
+    if matches!(
+        Lang::from_path(Path::new(rel)),
+        Some(Lang::Python | Lang::Go)
+    ) {
+        return false;
+    }
+    let p = w.ts();
     let Some(facts) = p.facts.get(rel) else {
         return false;
     };
@@ -1439,11 +1519,20 @@ fn forwards(p: &Project, rel: &str, target: &str) -> bool {
     })
 }
 
-/// The edges stored with the file `id`, `parsed` and `inferred`: what removing or
-/// clearing it deletes.
+/// The edges stored with the file `id`, resolved and derived alike: what removing its
+/// row deletes.
 fn count_edges(tx: &Transaction, id: &str) -> rusqlite::Result<u32> {
     tx.prepare_cached("SELECT count(*) FROM edge WHERE file_id = ?1")?
         .query_row([id], |row| row.get(0))
+}
+
+/// The edges resolving the file `id` wrote: what [`clear_resolved`] deletes.
+fn count_resolved_edges(tx: &Transaction, id: &str) -> rusqlite::Result<u32> {
+    tx.prepare_cached(&format!(
+        "SELECT count(*) FROM edge WHERE file_id = ?1 AND rule IN {}",
+        *RESOLVER_RULES
+    ))?
+    .query_row([id], |row| row.get(0))
 }
 
 /// The ids of the routes the file `id` declares.
@@ -1520,8 +1609,26 @@ struct DerivedTable {
     /// Every column; the first `key` are the primary key, and one is `file_id`.
     columns: &'static [&'static str],
     key: usize,
-    /// The condition that selects the rows derive owns.
-    owned: &'static str,
+    /// The rows derive owns.
+    owned: Owned,
+}
+
+/// Which rows of a [`DerivedTable`] derive owns.
+#[derive(Clone, Copy)]
+enum Owned {
+    /// Every row: no other pass writes the table.
+    All,
+    /// The edge rows under a rule no resolver writes ([`DERIVED_EDGES`]).
+    DerivedEdges,
+}
+
+impl Owned {
+    fn sql(self) -> &'static str {
+        match self {
+            Owned::All => "1",
+            Owned::DerivedEdges => DERIVED_EDGES.as_str(),
+        }
+    }
 }
 
 const ROUTE_TABLE: DerivedTable = DerivedTable {
@@ -1541,14 +1648,14 @@ const ROUTE_TABLE: DerivedTable = DerivedTable {
         "detail",
     ],
     key: 1,
-    owned: "1",
+    owned: Owned::All,
 };
 
 const CLIENT_CALL_TABLE: DerivedTable = DerivedTable {
     name: "client_call",
     columns: &["file_id", "line", "method", "url", "rule", "src_id"],
     key: 5,
-    owned: "1",
+    owned: Owned::All,
 };
 
 const INFERRED_EDGE_TABLE: DerivedTable = DerivedTable {
@@ -1557,7 +1664,7 @@ const INFERRED_EDGE_TABLE: DerivedTable = DerivedTable {
         "kind", "src_id", "dst_id", "line", "prov", "file_id", "rule", "conf",
     ],
     key: 5,
-    owned: "prov = 'inferred'",
+    owned: Owned::DerivedEdges,
 };
 
 const PATTERN_TABLE: DerivedTable = DerivedTable {
@@ -1573,21 +1680,21 @@ const PATTERN_TABLE: DerivedTable = DerivedTable {
         "detail",
     ],
     key: 5,
-    owned: "1",
+    owned: Owned::All,
 };
 
 const GAP_TABLE: DerivedTable = DerivedTable {
     name: "gap",
     columns: &["file_id", "kind", "line", "subject_id"],
     key: 3,
-    owned: "1",
+    owned: Owned::All,
 };
 
 const MANIFEST_TABLE: DerivedTable = DerivedTable {
     name: "manifest",
     columns: &["file_id", "root", "kind", "name", "lockfile", "detail"],
     key: 1,
-    owned: "1",
+    owned: Owned::All,
 };
 
 const DEPENDENCY_TABLE: DerivedTable = DerivedTable {
@@ -1596,7 +1703,7 @@ const DEPENDENCY_TABLE: DerivedTable = DerivedTable {
         "file_id", "section", "name", "declared", "resolved", "dev", "line",
     ],
     key: 3,
-    owned: "1",
+    owned: Owned::All,
 };
 
 /// Brings the rows derive owns in line with `derived` and `manifests`: for `route`,
@@ -1660,18 +1767,44 @@ fn sync_derived(
     });
     sync_table(tx, &CLIENT_CALL_TABLE, calls, &files)?;
 
-    let edges = derived.edges.iter().map(|e| {
-        vec![
-            text(&e.kind),
-            text(&e.src_id),
-            text(&e.dst_id),
-            int(e.line),
-            text(INFERRED),
-            Cell::Text(file_id(&e.file)),
-            text(&e.rule),
-            text(CONF_PROBABLY),
-        ]
-    });
+    // A derived edge whose key a resolver row holds is left out: the resolver's row
+    // stands (see `insert_resolved_edge`).
+    let held: HashSet<(String, String, String, u32)> = tx
+        .prepare_cached(&format!(
+            "SELECT kind, src_id, dst_id, line FROM edge
+             WHERE prov = '{PROV_INFERRED}' AND rule IN {}",
+            *RESOLVER_RULES
+        ))?
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    debug_assert!(
+        derived
+            .edges
+            .iter()
+            .all(|e| !langs::is_resolver_rule(&e.rule)),
+        "derive wrote an edge under a resolver rule"
+    );
+    let edges = derived
+        .edges
+        .iter()
+        .filter(|e| {
+            held.is_empty()
+                || !held.contains(&(e.kind.clone(), e.src_id.clone(), e.dst_id.clone(), e.line))
+        })
+        .map(|e| {
+            vec![
+                text(&e.kind),
+                text(&e.src_id),
+                text(&e.dst_id),
+                int(e.line),
+                text(PROV_INFERRED),
+                Cell::Text(file_id(&e.file)),
+                text(&e.rule),
+                text(CONF_PROBABLY),
+            ]
+        });
     let (added, removed) = sync_table(tx, &INFERRED_EDGE_TABLE, edges, &files)?;
     counts.edges_added = added.len() as u32;
     counts.edges_removed = removed.len() as u32;
@@ -1765,7 +1898,8 @@ fn sync_table(
     let old: BTreeSet<Row> = tx
         .prepare_cached(&format!(
             "SELECT {columns} FROM {} WHERE {}",
-            table.name, table.owned
+            table.name,
+            table.owned.sql()
         ))?
         .query_map([], |row| (0..n).map(|i| row.get(i)).collect())?
         .collect::<rusqlite::Result<_>>()?;
@@ -1797,21 +1931,24 @@ fn sync_table(
     Ok((added, removed))
 }
 
-/// Resolves the file at `rel` and writes only the difference from its stored
-/// `parsed` `edge` rows (inferred ones belong to the mediation pass) and its `ref` and
-/// `reverse_import` rows, so resolving a file again whose result
-/// did not change writes nothing. Returns the number of edges added and removed.
-fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Result<(u32, u32)> {
+/// Resolves the file at `rel` and writes only the difference from the rows resolving
+/// it wrote: its edges under a resolver rule (`parsed` and `inferred`; derived edges
+/// belong to [`sync_derived`]), its `ref` rows and its `reverse_import` rows, so
+/// resolving a file again whose result did not change writes nothing. Returns the
+/// number of edges added and removed.
+fn sync_resolved(tx: &Transaction, project: &Workspace, rel: &str) -> rusqlite::Result<(u32, u32)> {
     let id = file_id(rel);
-    let resolved = resolve_file(project, rel);
+    let resolved = langs::resolve_file(project, rel);
 
-    // Only `parsed` edges are read, deleted and counted here, and every one is `sure`,
-    // so `prov` and `conf` stay out of the key.
-    let old_edges: BTreeSet<(String, String, String, u32, String)> = tx
-        .prepare_cached(
-            "SELECT kind, src_id, dst_id, line, rule FROM edge
-             WHERE file_id = ?1 AND prov = 'parsed'",
-        )?
+    // A resolver writes one edge per (kind, ends, line), so with `rule`, `prov` and
+    // `conf` the key says everything about a row; any of them changing replaces it.
+    type EdgeKey = (String, String, String, u32, String, String, String);
+    let old_edges: BTreeSet<EdgeKey> = tx
+        .prepare_cached(&format!(
+            "SELECT kind, src_id, dst_id, line, rule, prov, conf FROM edge
+             WHERE file_id = ?1 AND rule IN {}",
+            *RESOLVER_RULES
+        ))?
         .query_map([&id], |row| {
             Ok((
                 row.get(0)?,
@@ -1819,39 +1956,47 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
                 row.get(2)?,
                 row.get(3)?,
                 row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
             ))
         })?
         .collect::<rusqlite::Result<_>>()?;
-    let new_edges: BTreeSet<(String, String, String, u32, String)> = resolved
+    let new_edges: BTreeMap<EdgeKey, &EdgeRow> = resolved
         .edges
         .iter()
         .map(|e| {
-            (
+            let (prov, conf) = evidence(e);
+            let key = (
                 e.kind.to_string(),
                 e.src_id.clone(),
                 e.dst_id.clone(),
                 e.line,
                 e.rule.to_string(),
-            )
+                prov.to_string(),
+                conf.to_string(),
+            );
+            (key, e)
         })
         .collect();
+    // Deletes first, by the primary key: a row whose rule or confidence changed keeps its
+    // key, so the old row must go before the new one comes.
     let mut delete = tx.prepare_cached(
         "DELETE FROM edge
-         WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4 AND prov = 'parsed'",
+         WHERE kind = ?1 AND src_id = ?2 AND dst_id = ?3 AND line = ?4 AND prov = ?5",
     )?;
-    let gone: Vec<_> = old_edges.difference(&new_edges).collect();
-    for (kind, src, dst, line, _) in &gone {
-        delete.execute(params![kind, src, dst, line])?;
+    let mut removed = 0;
+    for key @ (kind, src, dst, line, _, prov, _) in &old_edges {
+        if !new_edges.contains_key(key) {
+            delete.execute(params![kind, src, dst, line, prov])?;
+            removed += 1;
+        }
     }
-    let mut insert = tx.prepare_cached(
-        "INSERT INTO edge(kind, src_id, dst_id, file_id, line, rule, prov, conf)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-    )?;
-    let fresh: Vec<_> = new_edges.difference(&old_edges).collect();
-    for (kind, src, dst, line, rule) in &fresh {
-        insert.execute(params![
-            kind, src, dst, id, line, rule, PROVENANCE, CONF_SURE
-        ])?;
+    let mut added = 0;
+    for (key, e) in &new_edges {
+        if !old_edges.contains(key) {
+            removed += insert_resolved_edge(tx, &id, e)?;
+            added += 1;
+        }
     }
 
     let old_refs: BTreeSet<(String, String, u32, String)> = tx
@@ -1900,7 +2045,7 @@ fn sync_resolved(tx: &Transaction, project: &Project, rel: &str) -> rusqlite::Re
     for dst in new_imports.difference(&old_imports) {
         insert.execute(params![dst, id])?;
     }
-    Ok((fresh.len() as u32, gone.len() as u32))
+    Ok((added, removed))
 }
 
 /// The columns `stored_row` reads.
@@ -1990,11 +2135,81 @@ fn counts(conn: &rusqlite::Connection, sql: &str) -> rusqlite::Result<BTreeMap<S
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::routes::InferredEdge;
+
     #[test]
-    fn the_confidence_constant_is_how_the_model_spells_sure() {
+    fn the_confidence_constants_are_how_the_model_spells_them() {
         let sure = serde_json::to_value(hm_core::model::Confidence::Sure).unwrap();
         assert_eq!(sure, super::CONF_SURE);
         let probably = serde_json::to_value(hm_core::model::Confidence::Probably).unwrap();
         assert_eq!(probably, super::CONF_PROBABLY);
+    }
+
+    /// The `(rule, prov)` of every stored edge.
+    fn stored(tx: &Transaction) -> Vec<(String, String)> {
+        tx.prepare("SELECT rule, prov FROM edge ORDER BY rule")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    }
+
+    /// No rule writes such a pair today (derive's edges are TypeScript, the resolvers'
+    /// inferred edges Go and Python), but the key has no `rule`: when a resolver and
+    /// derive infer the same edge, the resolver's row stands and the pass goes on.
+    #[test]
+    fn a_resolver_row_wins_a_key_that_derive_also_infers() {
+        let mut store = Store::open_in_memory().unwrap();
+        let id = file_id("a.py");
+        let derived = Derived {
+            edges: vec![InferredEdge {
+                kind: "calls".into(),
+                src_id: "y_src".into(),
+                dst_id: "y_dst".into(),
+                file: "a.py".into(),
+                line: 3,
+                rule: "py.example.derived".into(),
+            }],
+            ..Derived::default()
+        };
+        let resolved = EdgeRow {
+            kind: "calls",
+            src_id: "y_src".into(),
+            dst_id: "y_dst".into(),
+            line: 3,
+            rule: "py.call.attr",
+            inferred: true,
+        };
+        let manifests = Manifests::default();
+        store
+            .write(|tx| {
+                tx.execute(
+                    "INSERT INTO file(id, path, class, size, mtime_ns, loc, content_hash,
+                                      parse_status)
+                     VALUES (?1, 'a.py', 'source', 0, 0, 0, '', 'parsed')",
+                    [&id],
+                )?;
+                // Derive first: its row is stored.
+                let counts = sync_derived(tx, &derived, &manifests)?;
+                assert_eq!((counts.edges_added, counts.edges_removed), (1, 0));
+                // The resolver takes the key, and counts the derived row it replaced.
+                assert_eq!(insert_resolved_edge(tx, &id, &resolved)?, 1);
+                let both = vec![("py.call.attr".to_string(), "inferred".to_string())];
+                assert_eq!(stored(tx), both);
+                // Derive leaves the edge out while the resolver row holds the key.
+                let counts = sync_derived(tx, &derived, &manifests)?;
+                assert_eq!((counts.edges_added, counts.edges_removed), (0, 0));
+                assert_eq!(stored(tx), both);
+                // When the resolver row goes, derive's edge comes back.
+                clear_resolved(tx, &id)?;
+                let counts = sync_derived(tx, &derived, &manifests)?;
+                assert_eq!((counts.edges_added, counts.edges_removed), (1, 0));
+                let derived = vec![("py.example.derived".to_string(), "inferred".to_string())];
+                assert_eq!(stored(tx), derived);
+                Ok(())
+            })
+            .unwrap();
     }
 }
