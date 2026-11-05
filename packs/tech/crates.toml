@@ -1,0 +1,851 @@
+# Rust crates. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "tokio"
+name = "Tokio"
+category = "other"
+crates = ["tokio"]
+en.beginner = "a library that lets a Rust program run many tasks at the same time."
+en.builder = "an asynchronous runtime for Rust that schedules futures and provides timers, networking and channels."
+tr.beginner = "bir Rust programının birçok işi aynı anda yapmasını sağlayan bir kütüphane."
+tr.builder = "Rust için asenkron çalışma zamanı; görevleri zamanlar, ağ işlemleri, zamanlayıcılar ve kanallar sunar."
+
+[[tech]]
+id = "futures-rs"
+name = "Futures"
+category = "other"
+crates = ["futures"]
+en.beginner = "a Rust library for handling results that will arrive later, like data from the internet."
+en.builder = "core traits and combinators for asynchronous computation, streams and sinks, used together with an executor."
+tr.beginner = "internetten gelen veri gibi ileride gelecek sonuçları yöneten bir Rust kütüphanesi."
+tr.builder = "asenkron işlemler için temel özellikler, birleştiriciler, akışlar ve bir çalıştırıcıyla kullanılan yardımcı araçlar."
+
+[[tech]]
+id = "serde"
+name = "Serde"
+category = "other"
+crates = ["serde"]
+en.beginner = "a library that converts program data to and from formats like JSON."
+en.builder = "a framework for serializing and deserializing Rust data structures, using derive macros and pluggable data formats."
+tr.beginner = "program verisini JSON gibi biçimlere çeviren ve geri okuyan bir kütüphane."
+tr.builder = "Rust veri yapılarını türetme makroları ile farklı biçimlere ve bu biçimlerden çeviren bir çatı."
+
+[[tech]]
+id = "serde-json"
+name = "Serde JSON"
+category = "other"
+crates = ["serde_json"]
+en.beginner = "a library that reads and writes JSON data in a Rust project."
+en.builder = "the JSON format backend for serde, with a dynamic Value type and fast parsing and printing of JSON text."
+tr.beginner = "bir Rust projesinde JSON verisini okuyan ve yazan bir kütüphane."
+tr.builder = "serde için JSON biçimi; esnek Value türü ile JSON metnini hızlıca ayrıştırır ve üretir."
+
+[[tech]]
+id = "serde-yaml"
+name = "Serde YAML"
+category = "other"
+crates = ["serde_yaml"]
+en.beginner = "a library that reads and writes YAML config files in a Rust project."
+en.builder = "serde's YAML format backend, reading and writing YAML text as Rust types; no longer maintained upstream."
+tr.beginner = "bir Rust projesinde YAML yapılandırma dosyalarını okuyan ve yazan bir kütüphane."
+tr.builder = "serde için YAML biçimi; YAML metnini Rust türlerine çevirir ve tersini yapar; yapımcısı artık bakımını sürdürmüyor."
+
+[[tech]]
+id = "toml-rs"
+name = "TOML"
+category = "other"
+crates = ["toml"]
+en.beginner = "a library that reads and writes TOML settings files, like Cargo.toml, in a Rust project."
+en.builder = "a TOML parser and serializer for Rust, built on serde, used to read Cargo manifests and config files."
+tr.beginner = "Cargo.toml gibi TOML ayar dosyalarını okuyan ve yazan bir Rust kütüphanesi."
+tr.builder = "serde üzerine kurulu, Rust için TOML ayrıştırıcı ve yazıcı; Cargo dosyaları ve ayar dosyaları için kullanılır."
+
+[[tech]]
+id = "axum"
+name = "Axum"
+category = "framework"
+crates = ["axum"]
+en.beginner = "a library for building web servers and APIs in Rust that answer requests from browsers or apps."
+en.builder = "a web framework built on tokio, hyper and tower, using typed handlers and extractors to route HTTP requests."
+tr.beginner = "tarayıcılardan veya uygulamalardan gelen istekleri yanıtlayan, Rust ile web sunucusu kuran bir kütüphane."
+tr.builder = "tokio, hyper ve tower üzerine kurulu bir web çatısı; tür güvenli işleyicilerle HTTP isteklerini yönlendirir."
+
+[[tech]]
+id = "actix-web"
+name = "Actix Web"
+category = "framework"
+crates = ["actix-web"]
+en.beginner = "a fast Rust framework for building web servers and APIs that answer requests."
+en.builder = "a high-performance Rust web framework with routing, middleware and typed request extractors."
+tr.beginner = "istekleri yanıtlayan web sunucusu ve API kurmak için hızlı bir Rust çatısı."
+tr.builder = "yönlendirme, ara katman ve tür güvenli istek ayrıştırıcıları olan yüksek performanslı bir Rust web çatısı."
+
+[[tech]]
+id = "rocket-rs"
+name = "Rocket"
+category = "framework"
+crates = ["rocket"]
+en.beginner = "a Rust framework that makes web servers and APIs easy to write with simple route attributes."
+en.builder = "a Rust web framework focused on ease of use, with route macros, request guards, and form and JSON support."
+tr.beginner = "basit etiketlerle web sunucusu yazmayı kolaylaştıran bir Rust çatısı."
+tr.builder = "kullanım kolaylığına odaklı Rust web çatısı; rota makroları, istek korumaları ve form ile JSON desteği sunar."
+
+[[tech]]
+id = "warp-rs"
+name = "Warp"
+category = "framework"
+crates = ["warp"]
+en.beginner = "a Rust library for building web servers and APIs by chaining small request filters."
+en.builder = "a composable web framework for Rust built on hyper and tokio; routes are combined from reusable filter functions."
+tr.beginner = "küçük istek filtrelerini zincirleyerek web sunucusu ve API kurmaya yarayan bir Rust kütüphanesi."
+tr.builder = "hyper ve tokio üzerine kurulu, yeniden kullanılabilir filtre fonksiyonlarından rotalar oluşturan bir web çatısı."
+
+[[tech]]
+id = "hyper-rs"
+name = "Hyper"
+category = "other"
+crates = ["hyper"]
+en.beginner = "a Rust library for sending and receiving web traffic, usually used through a framework."
+en.builder = "a fast, low-level HTTP client and server library for Rust, built on tokio, used by axum and reqwest."
+tr.beginner = "Rust ile web isteği gönderen ve alan, genelde bir çatı üzerinden kullanılan bir kütüphane."
+tr.builder = "tokio üzerine kurulu, hızlı ve düşük seviyeli bir HTTP istemci ve sunucu kütüphanesi; axum ve reqwest bunu kullanır."
+
+[[tech]]
+id = "reqwest"
+name = "reqwest"
+category = "other"
+crates = ["reqwest"]
+en.beginner = "a Rust library for calling web services and downloading files from the internet."
+en.builder = "an ergonomic async HTTP client for Rust with JSON, form, cookie, proxy and TLS support, built on hyper."
+tr.beginner = "Rust ile web servislerini çağıran ve internetten dosya indiren bir kütüphane."
+tr.builder = "hyper üzerine kurulu, asenkron ve kullanımı kolay bir HTTP istemcisi; JSON, çerez, proxy ve TLS desteği sunar."
+
+[[tech]]
+id = "tower-rs"
+name = "Tower"
+category = "framework"
+crates = ["tower"]
+en.beginner = "a Rust library of reusable building blocks, such as timeouts and retries, that wrap around a web service."
+en.builder = "a library of composable service and middleware traits for Rust, used by axum, tonic and hyper-based servers."
+tr.beginner = "web servisini saran, zaman aşımı ve yeniden deneme gibi hazır parçalar sunan bir Rust kütüphanesi."
+tr.builder = "axum, tonic ve hyper tabanlı sunucularda kullanılan, birleştirilebilir servis ve ara katman arayüzleri sunan kütüphane."
+
+[[tech]]
+id = "tower-http"
+name = "Tower HTTP"
+category = "framework"
+crates = ["tower-http"]
+en.beginner = "a Rust library of ready-made web server add-ons, such as request logging, compression and browser access rules (CORS)."
+en.builder = "HTTP-specific tower middleware for tracing, compression, CORS, static file serving and timeouts."
+tr.beginner = "istek kaydı, sıkıştırma ve tarayıcı erişim kuralları (CORS) gibi hazır sunucu eklentileri sunan Rust kütüphanesi."
+tr.builder = "tower için HTTP'ye özel ara katmanlar: izleme, sıkıştırma, CORS, statik dosya sunumu ve zaman aşımı."
+
+[[tech]]
+id = "sqlx"
+name = "SQLx"
+category = "data"
+crates = ["sqlx"]
+en.beginner = "a Rust library that runs SQL queries on databases and can check them while building."
+en.builder = "an async SQL toolkit for Rust supporting PostgreSQL, MySQL, SQLite and others, with compile-time checked queries."
+tr.beginner = "SQL sorgularını veritabanlarında çalıştıran ve derleme sırasında kontrol edebilen bir Rust kütüphanesi."
+tr.builder = "PostgreSQL, MySQL, SQLite gibi veritabanlarını destekleyen, asenkron bir SQL araç takımı; sorgular derlenirken denetlenir."
+
+[[tech]]
+id = "diesel"
+name = "Diesel"
+category = "data"
+crates = ["diesel"]
+en.beginner = "a library that turns Rust code into database queries and checks them when building."
+en.builder = "a type-safe ORM and query builder for Rust with migrations, supporting PostgreSQL, MySQL and SQLite."
+tr.beginner = "Rust kodunu veritabanı sorgularına çeviren ve derlemede denetleyen bir kütüphane."
+tr.builder = "tür güvenli bir ORM ve sorgu oluşturucu; PostgreSQL, MySQL ve SQLite ile çalışır ve şema değişikliklerini yönetir."
+
+[[tech]]
+id = "sea-orm"
+name = "SeaORM"
+category = "data"
+crates = ["sea-orm"]
+en.beginner = "a library that turns Rust code into database queries without writing much SQL."
+en.builder = "an async ORM and query builder for Rust built on sqlx, with entity models, relations and migrations."
+tr.beginner = "Rust kodunu, çok SQL yazmadan, veritabanı sorgularına çeviren bir kütüphane."
+tr.builder = "sqlx üzerine kurulu, asenkron bir ORM ve sorgu oluşturucu; varlık modelleri, ilişkiler ve şema değişikliklerini (migration) destekler."
+
+[[tech]]
+id = "clap-rs"
+name = "clap"
+category = "other"
+crates = ["clap"]
+en.beginner = "a library that reads the options users type after a command, like --name."
+en.builder = "a command-line argument parser for Rust with derive support, help text, subcommands and validation."
+tr.beginner = "kullanıcının bir komuttan sonra yazdığı --name gibi seçenekleri okuyan bir kütüphane."
+tr.builder = "Rust için komut satırı argümanlarını ayrıştıran; yardım metni, alt komutlar ve doğrulama sunan kütüphane."
+
+[[tech]]
+id = "anyhow"
+name = "anyhow"
+category = "other"
+crates = ["anyhow"]
+en.beginner = "a Rust library that makes errors simple to pass around and show, without custom error types."
+en.builder = "a flexible error type for Rust applications that wraps any error with context, for functions returning Result."
+tr.beginner = "hataları, özel hata türleri yazmadan, kolayca iletmeyi ve göstermeyi sağlayan bir Rust kütüphanesi."
+tr.builder = "herhangi bir hatayı bağlam bilgisiyle saran, Result döndüren uygulamalar için esnek bir hata türü."
+
+[[tech]]
+id = "thiserror"
+name = "thiserror"
+category = "other"
+crates = ["thiserror"]
+en.beginner = "a Rust library that helps you define clear custom error types with little code."
+en.builder = "a derive macro for Rust that generates std::error::Error and Display implementations for custom error enums."
+tr.beginner = "az kodla açık, kendi hata türlerinizi tanımlamanıza yardımcı olan bir Rust kütüphanesi."
+tr.builder = "Rust'ta hata türleri için Error ve Display kodlarını üreten bir türetme makrosu."
+
+[[tech]]
+id = "eyre"
+name = "eyre"
+category = "other"
+crates = ["eyre", "color-eyre"]
+en.beginner = "a Rust library for error reports that show the cause and context clearly when the program fails."
+en.builder = "a flexible error reporting library for Rust forked from anyhow; color-eyre adds colored reports with backtraces."
+tr.beginner = "program hata verdiğinde nedenini ve bağlamını açıkça gösteren bir Rust hata raporu kütüphanesi."
+tr.builder = "anyhow'dan türetilmiş esnek bir hata raporlama kütüphanesi; color-eyre renkli raporlar ve geri izleme ekler."
+
+[[tech]]
+id = "tracing"
+name = "tracing"
+category = "other"
+crates = ["tracing", "tracing-subscriber"]
+en.beginner = "a Rust library that records what a program does, so you can find problems and time steps."
+en.builder = "a structured, span-based instrumentation library for Rust; tracing-subscriber collects and prints those events."
+tr.beginner = "bir Rust programının ne yaptığını kaydeden; sorunları bulmanıza ve adımların süresini ölçmenize yardım eden kütüphane."
+tr.builder = "Rust için yapılandırılmış, süre (span) tabanlı izleme kütüphanesi; tracing-subscriber bu olayları toplayıp yazdırır."
+
+[[tech]]
+id = "log-rs"
+name = "log"
+category = "other"
+crates = ["log"]
+en.beginner = "a Rust library that adds simple log messages, like info or error, to your program."
+en.builder = "the standard Rust logging facade: macros like info! and error! that forward messages to any logger backend."
+tr.beginner = "programınıza bilgi ve hata gibi basit kayıt mesajları ekleyen bir Rust kütüphanesi."
+tr.builder = "Rust'ın standart günlük (log) arayüzü; info! ve error! gibi makrolar mesajları seçilen kayıt altyapısına iletir."
+
+[[tech]]
+id = "env-logger"
+name = "env_logger"
+category = "other"
+crates = ["env_logger"]
+en.beginner = "a Rust logger that prints messages to the terminal; you choose the level with an environment variable."
+en.builder = "a simple logger for the log crate that prints records to stderr, filtered by the RUST_LOG environment variable."
+tr.beginner = "mesajları terminale yazdıran bir Rust kayıt aracı; düzeyi bir ortam değişkeniyle seçersiniz."
+tr.builder = "log kütüphanesi için basit bir kayıt yazıcısı; kayıtları hata akışına (stderr) yazar ve RUST_LOG ortam değişkeniyle süzer."
+
+[[tech]]
+id = "chrono"
+name = "chrono"
+category = "other"
+crates = ["chrono"]
+en.beginner = "a Rust library for dates and times, such as today's date, time zones and formatting."
+en.builder = "a date and time library for Rust covering dates, times, time zones, durations, parsing and formatting."
+tr.beginner = "bir Rust projesinde tarih ve saatle çalışmayı kolaylaştıran kütüphane."
+tr.builder = "tarih, saat, saat dilimi ve süre işlemleri için Rust kütüphanesi; metin olarak ayrıştırma ve biçimlendirme de yapar."
+
+[[tech]]
+id = "time-rs"
+name = "time"
+category = "other"
+crates = ["time"]
+en.beginner = "a Rust library for working with dates, times and durations in a program."
+en.builder = "a date and time library for Rust with formatting, parsing, durations and UTC offsets."
+tr.beginner = "Rust programında tarih, saat ve süre değerleriyle çalışmaya yarayan bir kütüphane."
+tr.builder = "Rust için tarih ve saat kütüphanesi; biçimlendirme, ayrıştırma, süre ve UTC ofsetlerini destekler."
+
+[[tech]]
+id = "uuid-rs"
+name = "uuid"
+category = "other"
+crates = ["uuid"]
+en.beginner = "a Rust library that creates unique IDs, used to identify records like users or orders."
+en.builder = "a library for generating and parsing UUIDs in Rust, including random (v4) and time-based (v7) versions."
+tr.beginner = "kullanıcı veya sipariş gibi kayıtları tanımlamak için benzersiz kimlikler üreten bir Rust kütüphanesi."
+tr.builder = "Rust için UUID üretme ve ayrıştırma kütüphanesi; rastgele (v4) ve zaman tabanlı (v7) sürümleri destekler."
+
+[[tech]]
+id = "rand-rs"
+name = "rand"
+category = "other"
+crates = ["rand"]
+en.beginner = "a Rust library that produces random numbers, such as dice rolls or shuffled lists."
+en.builder = "a widely used Rust crate for random number generators, probability distributions and shuffling."
+tr.beginner = "zar atma veya karıştırma gibi rastgele sayılar üreten bir Rust kütüphanesi."
+tr.builder = "Rust için rastgele sayı üreteçleri, olasılık dağılımları ve listeleri karıştırma işlemlerini sunan yaygın bir kütüphane."
+
+[[tech]]
+id = "regex-rs"
+name = "regex"
+category = "other"
+crates = ["regex"]
+en.beginner = "a Rust library that searches text for patterns, such as emails or phone numbers."
+en.builder = "a fast regular expression library for Rust with guaranteed linear-time matching and Unicode support."
+tr.beginner = "metinde e-posta veya telefon numarası gibi desenleri arayan bir Rust kütüphanesi."
+tr.builder = "Rust için hızlı düzenli ifade (regex) kütüphanesi; doğrusal sürede eşleştirme ve Unicode desteği sunar."
+
+[[tech]]
+id = "once-cell-rs"
+name = "once_cell"
+category = "other"
+crates = ["once_cell"]
+en.beginner = "a Rust library that stores a value that is set once and then reused everywhere."
+en.builder = "a crate with thread-safe cells for write-once values, now largely replaced by std's OnceLock and LazyLock."
+tr.beginner = "bir kez ayarlanan ve sonra her yerde yeniden kullanılan bir değeri saklayan Rust kütüphanesi."
+tr.builder = "iş parçacığı güvenli, bir kez yazılan değerler için hücreler sunar; bugün çoğunlukla standart kütüphanedeki OnceLock ile değiştirilir."
+
+[[tech]]
+id = "lazy-static-rs"
+name = "lazy_static"
+category = "other"
+crates = ["lazy_static"]
+en.beginner = "a Rust library for global values that are set up the first time they are used."
+en.builder = "a macro for declaring lazily initialized static variables in Rust, now largely superseded by std::sync::LazyLock."
+tr.beginner = "ilk kullanıldığında hazırlanan genel değerler için bir Rust kütüphanesi."
+tr.builder = "ilk kullanımda ilklendirilen statik değişkenler tanımlamak için makro; bugün çoğunlukla standart LazyLock kullanılır."
+
+[[tech]]
+id = "itertools-rs"
+name = "itertools"
+category = "other"
+crates = ["itertools"]
+en.beginner = "a Rust library with extra helper functions for working with lists and sequences of values."
+en.builder = "an extension crate adding many iterator adaptors and helpers, such as grouping, sorting and joining, to Rust iterators."
+tr.beginner = "Rust'ta listeler ve değer dizileriyle çalışmak için ek yardımcı fonksiyonlar sunan kütüphane."
+tr.builder = "Rust yineleyicilerine gruplama, sıralama ve birleştirme gibi birçok ek işlem ekleyen bir uzantı kütüphanesi."
+
+[[tech]]
+id = "rayon"
+name = "Rayon"
+category = "other"
+crates = ["rayon"]
+en.beginner = "a Rust library that spreads work over several CPU cores to make loops run faster."
+en.builder = "a data-parallelism library for Rust, turning iterator chains into parallel work across a thread pool."
+tr.beginner = "döngüleri daha hızlı çalıştırmak için işi birden çok işlemci çekirdeğine dağıtan bir Rust kütüphanesi."
+tr.builder = "Rust yineleyici zincirlerini bir iş parçacığı havuzunda paralel çalıştıran veri paralelliği kütüphanesi."
+
+[[tech]]
+id = "crossbeam"
+name = "Crossbeam"
+category = "other"
+crates = ["crossbeam"]
+en.beginner = "a Rust library with tools for safely sharing data and messages between threads."
+en.builder = "a collection of concurrency tools for Rust, including multi-producer channels, scoped threads and lock-free data structures."
+tr.beginner = "iş parçacıkları arasında veri ve mesaj güvenli şekilde paylaşmaya yarayan araçlar sunan Rust kütüphanesi."
+tr.builder = "Rust için eşzamanlılık araçları: çoklu üretici kanalları, kapsam sınırlı iş parçacıkları ve kilitsiz veri yapıları."
+
+[[tech]]
+id = "parking-lot"
+name = "parking_lot"
+category = "other"
+crates = ["parking_lot"]
+en.beginner = "a Rust library with faster locks that keep parts of a program from changing data at once."
+en.builder = "a library of compact, faster replacements for std's Mutex and RwLock, with fair locking and no poisoning."
+tr.beginner = "programın parçalarının verileri aynı anda değiştirmesini engelleyen, daha hızlı kilitler sunan Rust kütüphanesi."
+tr.builder = "std'deki Mutex ve RwLock yerine kullanılan, daha küçük ve hızlı kilit türleri; adil kilitleme sunar."
+
+[[tech]]
+id = "dashmap"
+name = "DashMap"
+category = "other"
+crates = ["dashmap"]
+en.beginner = "a Rust library for a shared key-value table that many parts of a program can update at once."
+en.builder = "a concurrent hash map for Rust with sharded locks, letting many threads read and write without one global lock."
+tr.beginner = "programın birçok parçasının aynı anda güncelleyebildiği, paylaşılan bir anahtar-değer tablosu sunan Rust kütüphanesi."
+tr.builder = "parçalı kilitler kullanan eşzamanlı bir hash tablosu; birçok iş parçacığının tek bir genel kilit olmadan okuyup yazmasına izin verir."
+
+[[tech]]
+id = "bytes-rs"
+name = "bytes"
+category = "other"
+crates = ["bytes"]
+en.beginner = "a Rust library for handling raw bytes of data, such as network packets, efficiently."
+en.builder = "a utility crate providing Bytes and BytesMut, cheaply cloneable and sliceable byte buffers for network code."
+tr.beginner = "ağ paketleri gibi ham veri baytlarını verimli biçimde işlemeye yarayan bir Rust kütüphanesi."
+tr.builder = "Bytes ve BytesMut gibi ucuza kopyalanabilen ve dilimlenebilen bayt tamponları sunan, ağ kodu için yardımcı kütüphane."
+
+[[tech]]
+id = "base64-rs"
+name = "base64"
+category = "other"
+crates = ["base64"]
+en.beginner = "a Rust library that converts binary data to and from text using base64 encoding."
+en.builder = "a base64 encoder and decoder for Rust, supporting standard, URL-safe and other alphabets and padding modes."
+tr.beginner = "base64 kodlamasıyla ikili veriyi metne ve metinden ikili veriye çeviren bir Rust kütüphanesi."
+tr.builder = "Rust için base64 kodlayıcı ve çözücü; standart ve URL uyumlu alfabeleri ve dolgu (padding) kiplerini destekler."
+
+[[tech]]
+id = "sha2-rs"
+name = "sha2"
+category = "auth"
+crates = ["sha2"]
+en.beginner = "a Rust library that creates fixed-length fingerprints of data, such as SHA-256 hashes."
+en.builder = "a pure Rust implementation of the SHA-2 family of hash functions, including SHA-256 and SHA-512."
+tr.beginner = "verinin SHA-256 gibi sabit uzunlukta parmak izini (özet) üreten bir Rust kütüphanesi."
+tr.builder = "SHA-2 ailesi özet (hash) fonksiyonlarının, SHA-256 ve SHA-512 dahil, saf Rust uygulaması."
+
+[[tech]]
+id = "ring-rs"
+name = "ring"
+category = "auth"
+crates = ["ring"]
+en.beginner = "a Rust library for encryption, digital signatures and secure random numbers."
+en.builder = "a cryptography library for Rust providing AEAD encryption, hashing, HMAC, signatures and secure randomness."
+tr.beginner = "Rust için şifreleme, dijital imza ve güvenli rastgele sayı sunan bir kütüphane."
+tr.builder = "Rust için kriptografi kütüphanesi; kimlik doğrulamalı şifreleme, özet, HMAC, imza ve güvenli rastgele sayı üretimi sunar."
+
+[[tech]]
+id = "rustls"
+name = "rustls"
+category = "auth"
+crates = ["rustls"]
+en.beginner = "a Rust library that makes web connections private and secure with TLS, like HTTPS."
+en.builder = "a modern TLS library written in pure Rust, supporting TLS 1.2 and 1.3 without OpenSSL."
+tr.beginner = "web bağlantılarını HTTPS gibi TLS ile özel ve güvenli hale getiren bir Rust kütüphanesi."
+tr.builder = "saf Rust ile yazılmış modern bir TLS kütüphanesi; TLS 1.2 ve 1.3'ü OpenSSL olmadan destekler."
+
+[[tech]]
+id = "openssl-rs"
+name = "OpenSSL"
+category = "auth"
+crates = ["openssl"]
+en.beginner = "a Rust wrapper around the OpenSSL library for encryption, certificates and secure connections."
+en.builder = "Rust bindings to the OpenSSL C library, providing TLS, hashing, ciphers and certificate handling."
+tr.beginner = "şifreleme, sertifika ve güvenli bağlantı için OpenSSL kütüphanesini Rust'tan kullanmayı sağlayan kütüphane."
+tr.builder = "OpenSSL C kütüphanesi için Rust bağlamaları; TLS, özet, şifreleme ve sertifika işlemlerini sunar."
+
+[[tech]]
+id = "jsonwebtoken-rs"
+name = "jsonwebtoken"
+category = "auth"
+crates = ["jsonwebtoken"]
+en.beginner = "a Rust library that creates and checks login tokens, called JWTs, that prove who a user is."
+en.builder = "a JSON Web Token library for Rust that encodes, decodes and validates signed tokens."
+tr.beginner = "kullanıcının kim olduğunu kanıtlayan, JWT adı verilen giriş belirteçleri üreten ve doğrulayan bir Rust kütüphanesi."
+tr.builder = "Rust için JSON Web Token kütüphanesi; imzalı belirteçleri üretir, çözer ve doğrular."
+
+[[tech]]
+id = "argon2-rs"
+name = "Argon2"
+category = "auth"
+crates = ["argon2"]
+en.beginner = "a Rust library that scrambles passwords safely before they are stored, so they cannot be read back."
+en.builder = "a pure Rust implementation of Argon2, a memory-hard password hashing function, with configurable cost settings."
+tr.beginner = "parolaları saklanmadan önce güvenli biçimde karıştıran ve geri okunmalarını engelleyen bir Rust kütüphanesi."
+tr.builder = "bellek yoğun bir parola özetleme (hash) fonksiyonu olan Argon2'nin saf Rust uygulaması; maliyet ayarları yapılabilir."
+
+[[tech]]
+id = "bcrypt-rs"
+name = "bcrypt"
+category = "auth"
+crates = ["bcrypt"]
+en.beginner = "a Rust library that scrambles passwords with bcrypt, an older but still common password method."
+en.builder = "a Rust implementation of bcrypt password hashing, with a cost factor and salt generation, for storing password hashes."
+tr.beginner = "Rust için parolaları bcrypt yöntemiyle karıştıran, eski ama hâlâ yaygın bir kütüphane."
+tr.builder = "bcrypt parola özetleme algoritmasının Rust uygulaması; maliyet faktörü ve tuz (salt) üretimini içerir."
+
+[[tech]]
+id = "validator-rs"
+name = "validator"
+category = "validation"
+crates = ["validator"]
+en.beginner = "a Rust library that checks input, such as emails or lengths, using rules on your data types."
+en.builder = "a struct validation crate for Rust using derive macros, with built-in rules for email, URL, length and range checks."
+tr.beginner = "e-posta veya uzunluk gibi girdileri, veri türlerinize tanımladığınız kurallara göre denetleyen bir Rust kütüphanesi."
+tr.builder = "Rust veri yapıları için doğrulama kütüphanesi; türetme makroları ve e-posta, URL, uzunluk, aralık kontrolleri sunar."
+
+[[tech]]
+id = "garde"
+name = "garde"
+category = "validation"
+crates = ["garde"]
+en.beginner = "a Rust library that checks input data against rules written on your data types."
+en.builder = "a derive-based validation library for Rust structs, with built-in and custom rules and error reports."
+tr.beginner = "veri türlerinize yazılan kurallara göre girdileri denetleyen bir Rust kütüphanesi."
+tr.builder = "Rust yapıları için türetme tabanlı doğrulama kütüphanesi; hazır ve özel kurallar ile hata raporları sunar."
+
+[[tech]]
+id = "proptest"
+name = "proptest"
+category = "testing"
+crates = ["proptest"]
+en.beginner = "a Rust testing library that tries many random inputs to find cases where your code breaks."
+en.builder = "a property-based testing framework for Rust, generating random inputs and shrinking failures to minimal examples."
+tr.beginner = "kodunuzun bozulduğu durumları bulmak için çok sayıda rastgele girdi deneyen bir Rust test kütüphanesi."
+tr.builder = "özellik tabanlı test çatısı; rastgele girdiler üretir ve başarısız durumları en küçük örneğe indirir."
+
+[[tech]]
+id = "quickcheck-rs"
+name = "QuickCheck"
+category = "testing"
+crates = ["quickcheck"]
+en.beginner = "a Rust testing library that checks that a rule holds true for many random inputs."
+en.builder = "a property-based testing library for Rust inspired by Haskell's QuickCheck, generating random test inputs."
+tr.beginner = "bir kuralın çok sayıda rastgele girdide doğru kalıp kalmadığını denetleyen bir Rust test kütüphanesi."
+tr.builder = "Haskell'in QuickCheck'inden esinlenen, rastgele test girdileri üreten özellik tabanlı test kütüphanesi."
+
+[[tech]]
+id = "criterion-rs"
+name = "Criterion"
+category = "testing"
+crates = ["criterion"]
+en.beginner = "a Rust benchmarking library that measures how long code takes to run, with statistics."
+en.builder = "a statistics-driven benchmarking library for Rust that runs measurements and reports timing changes between runs."
+tr.beginner = "kodun ne kadar sürede çalıştığını istatistiklerle ölçen bir Rust performans test kütüphanesi."
+tr.builder = "istatistiksel ölçüm yapan Rust kıyaslama (benchmark) kütüphanesi; çalıştırmalar arasındaki süre farklarını raporlar."
+
+[[tech]]
+id = "insta"
+name = "insta"
+category = "testing"
+crates = ["insta"]
+en.beginner = "a Rust testing library that saves expected output as snapshots and flags any later change."
+en.builder = "a snapshot testing library for Rust, comparing outputs with saved files and reviewing changes with cargo-insta."
+tr.beginner = "beklenen çıktıyı anlık görüntü olarak kaydedip sonraki değişiklikleri işaretleyen bir Rust test kütüphanesi."
+tr.builder = "çıktıları kayıtlı dosyalarla karşılaştıran anlık görüntü (snapshot) test kütüphanesi; değişiklikleri cargo-insta ile incelemeyi sağlar."
+
+[[tech]]
+id = "mockall"
+name = "mockall"
+category = "testing"
+crates = ["mockall"]
+en.beginner = "a Rust library that creates fake stand-ins for parts of your code so tests can run alone."
+en.builder = "a mock object library for Rust that generates mocks from traits and structs, with expectations and call checks."
+tr.beginner = "testlerin tek başına çalışması için kodunuzun parçalarının sahte kopyalarını üreten bir Rust kütüphanesi."
+tr.builder = "trait ve yapılardan sahte (mock) nesneler üreten kütüphane; beklentileri ve çağrı denetimlerini destekler."
+
+[[tech]]
+id = "rstest"
+name = "rstest"
+category = "testing"
+crates = ["rstest"]
+en.beginner = "a Rust testing library that runs one test function with many input cases, without copy-paste."
+en.builder = "a fixture and parameterized test framework for Rust using attribute macros to define cases and reusable setup."
+tr.beginner = "aynı test fonksiyonunu kopyala-yapıştır yapmadan çok sayıda girdiyle çalıştıran bir Rust test kütüphanesi."
+tr.builder = "öznitelik makroları ile durumları ve yeniden kullanılabilir hazırlık (fixture) kodunu tanımlayan Rust test çatısı."
+
+[[tech]]
+id = "assert-cmd"
+name = "assert_cmd"
+category = "testing"
+crates = ["assert_cmd"]
+en.beginner = "a Rust testing library that runs your command-line program in tests and checks its output."
+en.builder = "a helper crate for integration testing Rust command-line programs, asserting exit status and output."
+tr.beginner = "Rust ile yazdığınız komut satırı programını testlerde çalıştırıp çıktısını denetleyen bir kütüphane."
+tr.builder = "Rust komut satırı programlarını entegrasyon testlerinde çalıştıran; çıkış kodunu ve çıktıyı doğrulayan yardımcı kütüphane."
+
+[[tech]]
+id = "predicates-rs"
+name = "predicates"
+category = "testing"
+crates = ["predicates"]
+en.beginner = "a Rust library of small checks, like whether text contains a phrase, used in tests."
+en.builder = "a companion crate offering composable boolean predicates on values, often used with assert_cmd."
+tr.beginner = "testlerde kullanılan; metin içerip içermediği gibi koşulları kontrol eden bir Rust kütüphanesi."
+tr.builder = "değerler üzerinde birleştirilebilir mantıksal koşullar (predicate) sunan; assert_cmd ile sıkça kullanılır."
+
+[[tech]]
+id = "tempfile-rs"
+name = "tempfile"
+category = "other"
+crates = ["tempfile"]
+en.beginner = "a Rust library that creates temporary files and folders that are removed automatically."
+en.builder = "a crate for creating temporary files and directories in Rust that are deleted when dropped, commonly used in tests."
+tr.beginner = "işi bitince otomatik silinen geçici dosya ve klasörler oluşturan bir Rust kütüphanesi."
+tr.builder = "Rust'ta geçici dosya ve dizinler oluşturan; kapsamdan çıkınca (drop) silinen, testlerde sık kullanılan kütüphane."
+
+[[tech]]
+id = "wasm-bindgen"
+name = "wasm-bindgen"
+category = "other"
+crates = ["wasm-bindgen", "web-sys", "js-sys"]
+en.beginner = "a tool that lets Rust code run in the browser and call JavaScript and web page features."
+en.builder = "a Rust-to-JavaScript binding toolchain for WebAssembly, with web-sys and js-sys exposing browser and JS APIs."
+tr.beginner = "Rust kodunun tarayıcıda çalışmasını ve JavaScript ile sayfa özelliklerini kullanmasını sağlayan bir araç."
+tr.builder = "WebAssembly için Rust–JavaScript köprüsü; web-sys ve js-sys tarayıcı ve JavaScript arayüzlerini sunar."
+
+[[tech]]
+id = "yew"
+name = "Yew"
+category = "ui"
+crates = ["yew"]
+en.beginner = "a Rust framework for building the parts of a website users see, with components like React."
+en.builder = "a component-based Rust framework for building single-page web frontends, compiled to WebAssembly."
+tr.beginner = "React'a benzer bileşenlerle, kullanıcının gördüğü web sitesi parçalarını kurmaya yarayan bir Rust çatısı."
+tr.builder = "WebAssembly'ye derlenen, bileşen tabanlı tek sayfalık web arayüzleri için bir Rust çatısı."
+
+[[tech]]
+id = "leptos"
+name = "Leptos"
+category = "ui"
+crates = ["leptos"]
+en.beginner = "a Rust framework for building fast web pages that run in the browser and on the server."
+en.builder = "a full-stack Rust web framework with fine-grained reactivity, server functions and server-side rendering."
+tr.beginner = "hızlı web sayfaları kurmaya yarayan, hem tarayıcıda hem sunucuda çalışabilen bir Rust çatısı."
+tr.builder = "ince taneli reaktivite, sunucu fonksiyonları ve sunucuda işleme sunan, tam yığın bir Rust web çatısı."
+
+[[tech]]
+id = "dioxus"
+name = "Dioxus"
+category = "ui"
+crates = ["dioxus"]
+en.beginner = "a Rust framework for building apps for web, desktop and mobile from one codebase."
+en.builder = "a cross-platform Rust UI framework with a React-like component model, targeting web, desktop, mobile and server."
+tr.beginner = "web, masaüstü ve mobil için tek bir kod tabanından uygulama kurmaya yarayan bir Rust çatısı."
+tr.builder = "React benzeri bileşen modeline sahip; web, masaüstü, mobil ve sunucu hedefleyen çapraz platform Rust arayüz çatısı."
+
+[[tech]]
+id = "tauri"
+name = "Tauri"
+category = "framework"
+crates = ["tauri"]
+en.beginner = "a Rust framework for building small desktop apps that use a web page as their window."
+en.builder = "a toolkit for building desktop and mobile apps with a Rust backend and any web frontend, using the system webview."
+tr.beginner = "arayüzü bir web sayfası olan küçük masaüstü uygulamaları yapmaya yarayan bir Rust çatısı."
+tr.builder = "Rust arka ucu ve herhangi bir web ön yüzüyle masaüstü ve mobil uygulamalar geliştirmeye yarayan; sistemin web görünümünü kullanan araç seti."
+
+[[tech]]
+id = "egui"
+name = "egui"
+category = "ui"
+crates = ["egui", "eframe"]
+en.beginner = "a Rust library for building simple graphical windows, buttons and sliders quickly."
+en.builder = "an immediate-mode GUI library for Rust; eframe is the framework that runs egui apps on desktop and the web."
+tr.beginner = "Rust ile pencereler, düğmeler ve kaydırıcılar gibi basit grafik arayüzleri hızlıca yapan bir kütüphane."
+tr.builder = "anlık kipte (immediate mode) GUI kütüphanesi; eframe, egui uygulamalarını masaüstü ve web'de çalıştırır."
+
+[[tech]]
+id = "iced"
+name = "Iced"
+category = "ui"
+crates = ["iced"]
+en.beginner = "a Rust library for building cross-platform desktop apps with a clean, Elm-inspired style."
+en.builder = "a cross-platform GUI library for Rust, inspired by Elm, with a reactive architecture of messages and views."
+tr.beginner = "Elm'den esinlenen temiz bir yapıyla çapraz platform masaüstü uygulamaları yapan bir Rust kütüphanesi."
+tr.builder = "Elm'den esinlenen, mesaj ve görünüm yapısına dayalı çapraz platform Rust grafik arayüz kütüphanesi."
+
+[[tech]]
+id = "bevy"
+name = "Bevy"
+category = "other"
+crates = ["bevy"]
+en.beginner = "a Rust game engine for making 2D and 3D games, with code organized into reusable parts."
+en.builder = "a data-driven game engine built on an entity-component-system architecture, for 2D and 3D games."
+tr.beginner = "2D ve 3D oyun yapmak için, kodu yeniden kullanılabilir parçalara ayıran bir Rust oyun motoru."
+tr.builder = "varlık-bileşen-sistem mimarisine dayanan, veri odaklı 2D ve 3D oyun motoru."
+
+[[tech]]
+id = "ratatui"
+name = "Ratatui"
+category = "ui"
+crates = ["ratatui"]
+en.beginner = "a Rust library for building text-based interfaces that run inside a terminal, with boxes, lists and charts."
+en.builder = "a Rust library for terminal user interfaces, a community fork of tui-rs, with widgets and layout."
+tr.beginner = "terminal içinde çalışan, kutu, liste ve grafik içeren yazı tabanlı arayüzler yapan bir Rust kütüphanesi."
+tr.builder = "terminal kullanıcı arayüzleri için Rust kütüphanesi; tui-rs'den çatallanmış olup bileşenler ve yerleşim sunar."
+
+[[tech]]
+id = "crossterm"
+name = "crossterm"
+category = "ui"
+crates = ["crossterm"]
+en.beginner = "a Rust library that controls the terminal: colors, cursor position and key presses."
+en.builder = "a cross-platform terminal manipulation library for Rust, handling raw mode, events and styled output on Windows, macOS and Linux."
+tr.beginner = "terminali kontrol eden bir Rust kütüphanesi: renkler, imleç konumu ve tuş basımları."
+tr.builder = "Windows, macOS ve Linux üzerinde çalışan; ham kip, olaylar ve renkli çıktı işleyen çapraz platform terminal kütüphanesi."
+
+[[tech]]
+id = "indicatif"
+name = "indicatif"
+category = "other"
+crates = ["indicatif"]
+en.beginner = "a Rust library that shows progress bars and spinners in the terminal while a program works."
+en.builder = "a terminal progress reporting library for Rust, with progress bars, spinners and multi-bar layouts."
+tr.beginner = "program çalışırken terminalde ilerleme çubukları ve dönen simgeler gösteren bir Rust kütüphanesi."
+tr.builder = "Rust için terminal ilerleme raporlama kütüphanesi; ilerleme çubukları, dönen simgeler ve çoklu çubuk düzenleri sunar."
+
+[[tech]]
+id = "dialoguer"
+name = "dialoguer"
+category = "other"
+crates = ["dialoguer"]
+en.beginner = "a Rust library that asks questions in the terminal, like yes-or-no prompts and menus."
+en.builder = "a library of interactive terminal prompts for Rust, including text input, confirmations, selections and passwords."
+tr.beginner = "terminalde kullanıcıya evet/hayır soruları ve seçim menüleri sunan bir Rust kütüphanesi."
+tr.builder = "Rust için etkileşimli terminal istemleri; metin girişi, onay, seçim ve parola sorularını içerir."
+
+[[tech]]
+id = "tree-sitter-rs"
+name = "tree-sitter"
+category = "other"
+crates = ["tree-sitter"]
+en.beginner = "a Rust library that parses code in many languages into trees, used by editors for highlighting."
+en.builder = "Rust bindings to the tree-sitter parsing library, which builds syntax trees incrementally for many languages."
+tr.beginner = "birçok dildeki kodu ağaç yapısına ayırıp editörlerin renklendirmesinde kullanılan bir Rust kütüphanesi."
+tr.builder = "birçok dil için sözdizimi ağacı üreten, artımlı çalışan tree-sitter ayrıştırıcısının Rust bağlamaları."
+
+[[tech]]
+id = "notify-rs"
+name = "notify"
+category = "other"
+crates = ["notify"]
+en.beginner = "a Rust library that watches files and folders and reports when they change."
+en.builder = "a cross-platform file system notification library for Rust, using native OS watchers such as inotify and FSEvents."
+tr.beginner = "dosya ve klasörleri izleyip değiştiklerinde haber veren bir Rust kütüphanesi."
+tr.builder = "işletim sisteminin yerel izleyicilerini (inotify, FSEvents vb.) kullanan, çapraz platform dosya sistemi bildirim kütüphanesi."
+
+[[tech]]
+id = "walkdir-rs"
+name = "walkdir"
+category = "other"
+crates = ["walkdir"]
+en.beginner = "a Rust library that goes through every file and folder inside a folder, including subfolders."
+en.builder = "a Rust crate for efficiently iterating recursively over directory trees, with options for depth and symlinks."
+tr.beginner = "bir klasörün içindeki tüm dosya ve alt klasörleri tek tek gezen bir Rust kütüphanesi."
+tr.builder = "dizin ağaçlarını özyinelemeli olarak verimli biçimde gezen Rust kütüphanesi; derinlik ve sembolik bağlantı seçenekleri sunar."
+
+[[tech]]
+id = "ignore-rs"
+name = "ignore"
+category = "other"
+crates = ["ignore"]
+en.beginner = "a Rust library that walks folders while skipping files listed in .gitignore rules."
+en.builder = "a fast directory walker for Rust that respects .gitignore and similar ignore files, used by ripgrep."
+tr.beginner = "klasörleri gezerken .gitignore kurallarında listelenen dosyaları atlayan bir Rust kütüphanesi."
+tr.builder = ".gitignore gibi dosyalara uyan hızlı bir dizin gezgini; ripgrep tarafından kullanılır."
+
+[[tech]]
+id = "config-rs"
+name = "config"
+category = "build"
+crates = ["config"]
+en.beginner = "a Rust library that loads app settings from files and environment variables into one place."
+en.builder = "a layered configuration library for Rust that merges files, environment variables and defaults into typed settings."
+tr.beginner = "uygulama ayarlarını dosyalardan ve ortam değişkenlerinden tek bir yere toplayan bir Rust kütüphanesi."
+tr.builder = "dosya, ortam değişkeni ve varsayılan değerleri birleştirip tür güvenli ayarlar üreten katmanlı yapılandırma kütüphanesi."
+
+[[tech]]
+id = "dotenvy"
+name = "dotenvy"
+category = "build"
+crates = ["dotenvy"]
+en.beginner = "a Rust library that loads settings from a .env file into environment variables when the program starts."
+en.builder = "an actively maintained fork of dotenv for Rust, reading .env files into the process environment."
+tr.beginner = "program başladığında .env dosyasındaki ayarları ortam değişkenlerine yükleyen bir Rust kütüphanesi."
+tr.builder = "dotenv'in sürdürülen çatalı; .env dosyasını okuyup süreç ortam değişkenlerine aktarır."
+
+[[tech]]
+id = "askama"
+name = "Askama"
+category = "other"
+crates = ["askama"]
+en.beginner = "a Rust template engine that fills HTML pages with data, checked when the code is built."
+en.builder = "a type-safe Jinja-like template engine for Rust that compiles templates into Rust code at build time."
+tr.beginner = "HTML sayfalarını verilerle dolduran, derleme sırasında kontrol edilen bir Rust şablon motoru."
+tr.builder = "Jinja'ya benzer, tür güvenli bir Rust şablon motoru; şablonları derleme zamanında Rust koduna çevirir."
+
+[[tech]]
+id = "tera"
+name = "Tera"
+category = "other"
+crates = ["tera"]
+en.beginner = "a Rust template engine that builds web pages or text from templates and data."
+en.builder = "a Jinja2-inspired template engine for Rust with inheritance, filters and macros, rendering templates at runtime."
+tr.beginner = "şablonlar ve verilerden web sayfaları ya da metinler üreten bir Rust şablon motoru."
+tr.builder = "Jinja2'den esinlenen; kalıtım, süzgeçler ve makrolar sunan, şablonları çalışma sırasında işleyen Rust şablon motoru."
+
+[[tech]]
+id = "handlebars-rs"
+name = "Handlebars"
+category = "other"
+crates = ["handlebars"]
+en.beginner = "a Rust template engine using the Handlebars style, where templates have simple placeholders."
+en.builder = "a Rust implementation of the Handlebars templating language, rendering templates from JSON or structs."
+tr.beginner = "Handlebars tarzında, basit yer tutucular içeren şablonları işleyen bir Rust şablon motoru."
+tr.builder = "Handlebars şablon dilinin Rust uygulaması; şablonları JSON veya yapılardan gelen verilerle işler."
+
+[[tech]]
+id = "utoipa"
+name = "utoipa"
+category = "other"
+crates = ["utoipa"]
+en.beginner = "a Rust library that writes API documentation automatically from the code of your web server."
+en.builder = "a code-first OpenAPI documentation generator for Rust, using derive macros on handlers and data types."
+tr.beginner = "web sunucunuzun kodundan API belgelerini otomatik üreten bir Rust kütüphanesi."
+tr.builder = "işleyici ve veri türlerindeki türetme makrolarından OpenAPI belgesi üreten, koddan başlayan bir Rust kütüphanesi."
+
+[[tech]]
+id = "lettre"
+name = "lettre"
+category = "other"
+crates = ["lettre"]
+en.beginner = "a Rust library for sending email from a program, such as a welcome message or receipt."
+en.builder = "an email client library for Rust that builds messages and sends them over SMTP with TLS and authentication."
+tr.beginner = "bir Rust programından e-posta göndermeyi sağlayan bir kütüphane, örneğin karşılama mesajı için."
+tr.builder = "Rust için e-posta kütüphanesi; mesajları oluşturur ve TLS ile kimlik doğrulamalı SMTP üzerinden gönderir."
+
+[[tech]]
+id = "image-rs"
+name = "image"
+category = "other"
+crates = ["image"]
+en.beginner = "a Rust library that opens, edits and saves picture files such as PNG and JPEG."
+en.builder = "a pure Rust image processing library that decodes and encodes common formats and offers basic pixel operations."
+tr.beginner = "PNG ve JPEG gibi resim dosyalarını açan, düzenleyen ve kaydeden bir Rust kütüphanesi."
+tr.builder = "yaygın biçimleri çözen ve kodlayan, saf Rust ile yazılmış görüntü işleme kütüphanesi; temel piksel işlemleri sunar."
+
+[[tech]]
+id = "ndarray"
+name = "ndarray"
+category = "other"
+crates = ["ndarray"]
+en.beginner = "a Rust library for working with grids of numbers, like tables or matrices, for math and science."
+en.builder = "an N-dimensional array library for Rust, similar to NumPy, with slicing and element-wise operations."
+tr.beginner = "Rust ile sayılardan oluşan tablo ve matrisler üzerinde matematik işlemleri yapmayı sağlayan kütüphane."
+tr.builder = "NumPy'a benzeyen, çok boyutlu diziler için Rust kütüphanesi; dilimleme ve öğe bazlı işlemler sunar."
+
+[[tech]]
+id = "polars-rs"
+name = "Polars"
+category = "other"
+crates = ["polars"]
+en.beginner = "a Rust library for fast data tables, for filtering, grouping and summarizing large datasets."
+en.builder = "a fast DataFrame library for Rust built on Apache Arrow, with lazy queries and multi-threaded execution."
+tr.beginner = "büyük veri tablolarını süzmek, gruplamak ve özetlemek için hızlı bir Rust kütüphanesi."
+tr.builder = "Apache Arrow üzerine kurulu hızlı bir veri çerçevesi (DataFrame) kütüphanesi; tembel sorgular ve çok iş parçacıklı çalışma sunar."
+
+[[tech]]
+id = "nom-rs"
+name = "nom"
+category = "other"
+crates = ["nom"]
+en.beginner = "a Rust library for building parsers that read structured text or binary data piece by piece."
+en.builder = "a parser combinator library for Rust that builds parsers from small functions, with zero-copy and streaming modes."
+tr.beginner = "yapılandırılmış metin veya ikili veriyi parça parça okuyan ayrıştırıcılar yazmaya yarayan bir Rust kütüphanesi."
+tr.builder = "küçük fonksiyonları birleştirerek ayrıştırıcı kuran bir Rust kütüphanesi; kopyasız ve akış kiplerini destekler."
+
+[[tech]]
+id = "pest"
+name = "pest"
+category = "other"
+crates = ["pest"]
+en.beginner = "a Rust parser library where you describe a language's grammar in a separate file."
+en.builder = "a Rust parsing library driven by PEG grammars written in .pest files, generating parsers at compile time via a derive macro."
+tr.beginner = "bir dilin kurallarını ayrı bir dosyada tanımlayıp ayrıştırıcı üreten bir Rust kütüphanesi."
+tr.builder = "PEG dilbilgisi kurallarını .pest dosyasından okuyup derleme sırasında ayrıştırıcı üreten bir Rust kütüphanesi."
+
+[[tech]]
+id = "syn"
+name = "syn"
+category = "build"
+crates = ["syn", "quote", "proc-macro2"]
+en.beginner = "tools that let Rust code read and write other Rust code, used to build code-generating macros."
+en.builder = "the core crates for Rust procedural macros: syn parses Rust syntax, quote generates tokens and proc-macro2 wraps them."
+tr.beginner = "Rust kodunun başka Rust kodu okuyup yazmasını sağlayan araçlar; kod üreten makrolar için kullanılır."
+tr.builder = "Rust makroları için temel kütüphaneler: syn Rust sözdizimini ayrıştırır, quote kod üretir, proc-macro2 belirteçleri sarar."

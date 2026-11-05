@@ -1,0 +1,731 @@
+# Other packages for npm. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "lodash"
+name = "Lodash"
+category = "other"
+npm = ["lodash", "lodash-es"]
+en.beginner = "a library of small helper functions for lists, objects and text."
+en.builder = "a utility library of functional helpers for arrays, objects and strings; lodash-es is its ES module build."
+tr.beginner = "listeler, nesneler ve metinler için hazır yardımcı fonksiyonlar sunan bir kütüphane."
+tr.builder = "dizi, nesne ve metin işlemleri için fonksiyonlar içeren bir yardımcı kütüphane; lodash-es, ES modül biçimindeki sürümüdür."
+
+[[tech]]
+id = "underscore"
+name = "Underscore.js"
+category = "other"
+npm = ["underscore"]
+en.beginner = "a library of helper functions for working with lists and objects."
+en.builder = "an older utility library of helper functions for arrays, objects and collections; much of it is now built into JavaScript."
+tr.beginner = "liste ve nesnelerle çalışmak için yardımcı fonksiyonlar sunan bir kütüphane."
+tr.builder = "dizi, nesne ve koleksiyonlar için eski bir yardımcı fonksiyon kütüphanesi; birçok işlevi artık JavaScript'in kendisi sunuyor."
+
+[[tech]]
+id = "ramda"
+name = "Ramda"
+category = "other"
+npm = ["ramda"]
+en.beginner = "a library that transforms lists and objects with small, reusable functions."
+en.builder = "a functional programming library with curried helpers for arrays, objects and other data that never change the original."
+tr.beginner = "küçük ve yeniden kullanılabilir fonksiyonlarla listeleri ve nesneleri dönüştüren bir kütüphane."
+tr.builder = "dizi ve nesneler üzerinde çalışan, fonksiyonel programlamaya dayalı bir yardımcı kütüphane; orijinal veriyi değiştirmeden işler."
+
+[[tech]]
+id = "date-fns"
+name = "date-fns"
+category = "other"
+npm = ["date-fns"]
+en.beginner = "a library for formatting, comparing and changing dates and times."
+en.builder = "a modular date utility library of plain functions that work on native JavaScript Date objects."
+tr.beginner = "tarih ve saatleri biçimlendiren, karşılaştıran ve değiştiren bir kütüphane."
+tr.builder = "yerel JavaScript Date nesneleriyle çalışan, modüler yapıda bir tarih yardımcı kütüphanesi."
+
+[[tech]]
+id = "dayjs"
+name = "Day.js"
+category = "other"
+npm = ["dayjs"]
+en.beginner = "a small library that makes dates and times easy to work with."
+en.builder = "a tiny date library with a Moment.js-compatible API whose date objects cannot be changed in place."
+tr.beginner = "tarih ve saatlerle kolayca çalışmayı sağlayan küçük bir kütüphane."
+tr.builder = "Moment.js ile uyumlu bir arayüze sahip, çok küçük bir tarih kütüphanesi; tarih nesneleri yerinde değiştirilemez."
+
+[[tech]]
+id = "moment"
+name = "Moment.js"
+category = "other"
+npm = ["moment"]
+en.beginner = "a long-used library for dates and times, now in maintenance mode."
+en.builder = "a legacy date library for parsing, formatting and manipulating dates; its maintainers suggest newer options such as Luxon, Day.js or date-fns."
+tr.beginner = "eskiden çok kullanılan, artık yalnızca bakımı yapılan bir tarih ve saat kütüphanesi."
+tr.builder = "tarihleri ayrıştırmak, biçimlendirmek ve değiştirmek için eski bir kütüphane; yazarları Luxon, Day.js ya da date-fns gibi yeni seçenekleri öneriyor."
+
+[[tech]]
+id = "luxon"
+name = "Luxon"
+category = "other"
+npm = ["luxon"]
+en.beginner = "a library that handles dates, times and time zones in everyday code."
+en.builder = "a date and time library built on the Intl API, with immutable DateTime objects and time zone support."
+tr.beginner = "tarih, saat ve saat dilimlerini kolayca yöneten bir kütüphane."
+tr.builder = "Intl API üzerine kurulu, değiştirilemez DateTime nesneleri ve saat dilimi desteği olan bir tarih kütüphanesi."
+
+[[tech]]
+id = "uuid"
+name = "uuid"
+category = "other"
+npm = ["uuid"]
+en.beginner = "a library that creates unique ids, such as for records or sessions."
+en.builder = "a package that generates standard, RFC-compliant UUID identifiers in several versions."
+tr.beginner = "kayıtlar veya oturumlar için benzersiz kimlikler üreten bir kütüphane."
+tr.builder = "standart UUID kimlikleri üreten, birden çok sürümü destekleyen bir paket."
+
+[[tech]]
+id = "nanoid"
+name = "Nano ID"
+category = "other"
+npm = ["nanoid"]
+en.beginner = "a tiny library that makes short, random unique ids."
+en.builder = "a tiny, URL-safe random ID generator whose default ids are 21 characters long."
+tr.beginner = "kısa ve rastgele benzersiz kimlikler üreten küçük bir kütüphane."
+tr.builder = "varsayılan olarak 21 karakterli, URL'de güvenle kullanılabilen rastgele kimlikler üreten küçük bir paket."
+
+[[tech]]
+id = "chalk"
+name = "Chalk"
+category = "other"
+npm = ["chalk"]
+en.beginner = "a library that adds colors and bold text to terminal output."
+en.builder = "a JavaScript package for styling terminal text with colors and effects, using ANSI escape codes."
+tr.beginner = "terminal çıktısına renk ve kalın yazı ekleyen bir kütüphane."
+tr.builder = "terminal metnini renk ve efektlerle biçimlendiren, ANSI kaçış kodlarını kullanan bir paket."
+
+[[tech]]
+id = "commander"
+name = "Commander.js"
+category = "other"
+npm = ["commander"]
+en.beginner = "a library that builds command-line tools with commands and options."
+en.builder = "a complete solution for parsing command-line arguments, subcommands and options, with generated help text."
+tr.beginner = "komutlar ve seçeneklerle komut satırı araçları oluşturan bir kütüphane."
+tr.builder = "komut satırı argümanlarını, alt komutları ve seçenekleri çözümleyen, yardım metnini kendisi üreten bir paket."
+
+[[tech]]
+id = "yargs"
+name = "Yargs"
+category = "other"
+npm = ["yargs"]
+en.beginner = "a library that reads and checks command-line options for a terminal tool."
+en.builder = "a command-line argument parser with validation, help output, and command and option grouping."
+tr.beginner = "terminal aracının komut satırı seçeneklerini okuyan ve denetleyen bir kütüphane."
+tr.builder = "doğrulama, yardım çıktısı ve komut gruplama özelliklerine sahip bir komut satırı argüman ayrıştırıcısı."
+
+[[tech]]
+id = "inquirer"
+name = "Inquirer"
+category = "other"
+npm = ["inquirer", "@inquirer/*"]
+en.beginner = "a library that asks questions in the terminal and reads the answers."
+en.builder = "interactive command-line prompts such as lists, checkboxes and input fields; newer versions live under @inquirer/*."
+tr.beginner = "terminalde soru soran ve cevapları okuyan bir kütüphane."
+tr.builder = "liste, onay kutusu ve metin alanı gibi etkileşimli komut satırı soruları; yeni sürümleri @inquirer/* altında yayımlanıyor."
+
+[[tech]]
+id = "ora"
+name = "ora"
+category = "other"
+npm = ["ora"]
+en.beginner = "a library that shows a loading spinner while a terminal task runs."
+en.builder = "a terminal spinner library for showing progress while asynchronous work is running."
+tr.beginner = "terminal görevi çalışırken dönen bir yükleme simgesi gösteren kütüphane."
+tr.builder = "eşzamansız işler sürerken terminalde ilerleme gösteren bir yükleme simgesi kütüphanesi."
+
+[[tech]]
+id = "debug"
+name = "debug"
+category = "other"
+npm = ["debug"]
+en.beginner = "a tiny helper that prints debugging messages, switched on by name."
+en.builder = "a small debugging utility that prints messages only for namespaces enabled through the DEBUG environment variable."
+tr.beginner = "adına göre açılıp kapanan, hata ayıklama mesajları yazdıran küçük bir yardımcı."
+tr.builder = "yalnızca DEBUG ortam değişkeniyle açılan ad alanları için mesaj yazdıran küçük bir hata ayıklama aracı."
+
+[[tech]]
+id = "winston"
+name = "Winston"
+category = "other"
+npm = ["winston"]
+en.beginner = "a library that writes application logs to the console, files or other places."
+en.builder = "a flexible logging library for Node.js with multiple transports, log levels and custom formats."
+tr.beginner = "uygulama günlüklerini konsola, dosyalara ya da başka yerlere yazan bir kütüphane."
+tr.builder = "Node.js için birden çok hedefe, günlük seviyesine ve özel biçime destek veren esnek bir günlük kütüphanesi."
+
+[[tech]]
+id = "pino"
+name = "Pino"
+category = "other"
+npm = ["pino"]
+en.beginner = "a fast logger that writes application logs as structured JSON lines."
+en.builder = "a very fast Node.js logger that writes newline-delimited JSON, with low overhead and separate output targets."
+tr.beginner = "uygulama günlüklerini yapılandırılmış JSON satırları olarak yazan hızlı bir günlük kaydedici."
+tr.builder = "satır satır JSON yazan, çok hızlı bir Node.js günlük kütüphanesi; düşük yük getirir ve ayrı çıktı hedefleri sunar."
+
+[[tech]]
+id = "morgan"
+name = "Morgan"
+category = "other"
+npm = ["morgan"]
+en.beginner = "a small add-on for Express that logs every web request the server receives."
+en.builder = "an HTTP request logger middleware for Express and Connect, with preset formats such as combined and dev."
+tr.beginner = "sunucunun aldığı her web isteğini kaydeden, Express için küçük bir eklenti."
+tr.builder = "Express ve Connect için HTTP istek günlüğü ara katmanı; combined ve dev gibi hazır biçimleri var."
+
+[[tech]]
+id = "cheerio"
+name = "Cheerio"
+category = "other"
+npm = ["cheerio"]
+en.beginner = "a library that reads and searches HTML pages on the server, like jQuery does."
+en.builder = "a fast, jQuery-like API for parsing and manipulating HTML and XML documents without a browser."
+tr.beginner = "HTML sayfalarını sunucuda okuyan ve içinde arama yapan bir kütüphane."
+tr.builder = "tarayıcı olmadan HTML ve XML belgelerini ayrıştıran ve düzenleyen, jQuery'ye benzer bir arayüz."
+
+[[tech]]
+id = "sharp"
+name = "Sharp"
+category = "other"
+npm = ["sharp"]
+en.beginner = "a library that resizes, crops and converts images on the server."
+en.builder = "a fast Node.js image processing library built on libvips, for resizing and converting common formats."
+tr.beginner = "görselleri sunucuda yeniden boyutlandıran, kırpan ve dönüştüren bir kütüphane."
+tr.builder = "libvips üzerine kurulu, yaygın biçimleri yeniden boyutlandırıp dönüştüren hızlı bir görsel işleme kütüphanesi."
+
+[[tech]]
+id = "multer"
+name = "Multer"
+category = "other"
+npm = ["multer"]
+en.beginner = "a helper that receives files uploaded through web forms."
+en.builder = "a middleware for Express that handles multipart form uploads and saves the uploaded files."
+tr.beginner = "web formlarıyla yüklenen dosyaları alan bir yardımcı."
+tr.builder = "Express için çok parçalı form yüklemelerini işleyen ve yüklenen dosyaları kaydeden bir ara katman."
+
+[[tech]]
+id = "formidable"
+name = "formidable"
+category = "other"
+npm = ["formidable"]
+en.beginner = "a library that reads files and fields sent by an upload form."
+en.builder = "a Node.js parser for multipart form data that streams uploaded files to disk or memory."
+tr.beginner = "yükleme formundan gelen dosyaları ve alanları okuyan bir kütüphane."
+tr.builder = "çok parçalı form verisini ayrıştıran, yüklenen dosyaları diske ya da belleğe aktaran bir Node.js paketi."
+
+[[tech]]
+id = "nodemailer"
+name = "Nodemailer"
+category = "other"
+npm = ["nodemailer"]
+en.beginner = "a library that sends emails from your Node.js application."
+en.builder = "a module for sending email through SMTP servers or transport services, with attachments and HTML bodies."
+tr.beginner = "Node.js uygulamanızdan e-posta gönderen bir kütüphane."
+tr.builder = "SMTP sunucuları veya taşıma servisleri üzerinden ek dosyalı ve HTML içerikli e-posta gönderen bir modül."
+
+[[tech]]
+id = "resend"
+name = "Resend"
+category = "other"
+npm = ["resend"]
+en.beginner = "a library that sends emails through the Resend email service."
+en.builder = "the official SDK for the Resend email API, used to send transactional emails such as receipts and password resets."
+tr.beginner = "Resend e-posta servisi üzerinden e-posta gönderen bir kütüphane."
+tr.builder = "Resend e-posta API'si için resmi SDK; fatura ya da şifre sıfırlama gibi işlem e-postalarını göndermek için kullanılır."
+
+[[tech]]
+id = "sendgrid"
+name = "SendGrid"
+category = "other"
+npm = ["@sendgrid/mail"]
+en.beginner = "a library that sends emails through the SendGrid email service."
+en.builder = "the official Node.js helper for the SendGrid v3 Mail Send API, for sending emails with templates and attachments."
+tr.beginner = "SendGrid e-posta servisi üzerinden e-posta gönderen bir kütüphane."
+tr.builder = "SendGrid v3 Mail Send API için resmi Node.js yardımcı paketi; şablonlu ve ekli e-posta göndermeye yarar."
+
+[[tech]]
+id = "ai-sdk"
+name = "Vercel AI SDK"
+category = "other"
+npm = ["ai", "@ai-sdk/*"]
+en.beginner = "a library that connects your app to AI models and streams their answers."
+en.builder = "a TypeScript toolkit from Vercel for calling language models, streaming responses and building chat and tool-using features."
+tr.beginner = "uygulamanızı yapay zekâ modellerine bağlayan ve cevaplarını akış halinde gösteren bir kütüphane."
+tr.builder = "dil modellerini çağırmak, yanıtları akış halinde iletmek ve sohbet özellikleri kurmak için Vercel tarafından geliştirilen bir TypeScript araç takımı."
+
+[[tech]]
+id = "rxjs"
+name = "RxJS"
+category = "other"
+npm = ["rxjs"]
+en.beginner = "a library for handling events and data that arrive over time, such as clicks or responses."
+en.builder = "a reactive programming library built on observables, with many operators to combine, filter and transform streams."
+tr.beginner = "tıklama veya cevap gibi zaman içinde gelen olay ve verileri yöneten bir kütüphane."
+tr.builder = "gözlemlenebilirler (observable) üzerine kurulu, akışları birleştirmek, süzmek ve dönüştürmek için çok sayıda operatör sunan bir kütüphane."
+
+[[tech]]
+id = "immer"
+name = "Immer"
+category = "ui"
+npm = ["immer"]
+en.beginner = "a library that updates app data safely, by letting you write simple changes."
+en.builder = "a library for immutable state updates: you edit a draft copy, and it produces a new state without mutating the original."
+tr.beginner = "uygulama verisini güvenli biçimde güncelleyen, değişiklikleri basit kodla yazmanızı sağlayan bir kütüphane."
+tr.builder = "değiştirilemez durum güncellemeleri için kütüphane: taslak bir kopyayı düzenler, orijinali değiştirmeden yeni durum üretir."
+
+[[tech]]
+id = "superjson"
+name = "superjson"
+category = "other"
+npm = ["superjson"]
+en.beginner = "a library that safely sends JavaScript values like dates over JSON."
+en.builder = "a JSON serializer that keeps types such as Date, Map, Set and undefined intact when sent between server and client."
+tr.beginner = "tarih gibi JavaScript değerlerini JSON üzerinden güvenle taşıyan bir kütüphane."
+tr.builder = "sunucu ile istemci arasında gönderilirken Date, Map, Set ve undefined gibi türleri koruyan bir JSON dönüştürücü."
+
+[[tech]]
+id = "cookie"
+name = "cookie"
+category = "other"
+npm = ["cookie"]
+en.beginner = "a small library that reads and writes browser cookies on the server."
+en.builder = "a parser and serializer for HTTP Cookie and Set-Cookie headers, with options such as expiry and HttpOnly."
+tr.beginner = "sunucu tarafında tarayıcı çerezlerini okuyup yazan küçük bir kütüphane."
+tr.builder = "HTTP Cookie ve Set-Cookie başlıklarını ayrıştıran ve üreten bir paket; süre ve HttpOnly gibi seçenekleri vardır."
+
+[[tech]]
+id = "cookie-parser"
+name = "cookie-parser"
+category = "other"
+npm = ["cookie-parser"]
+en.beginner = "an Express add-on that reads the cookies sent with each web request."
+en.builder = "Express middleware that parses the Cookie header into req.cookies and can verify signed cookies."
+tr.beginner = "her web isteğiyle gönderilen çerezleri okuyan, Express için bir eklenti."
+tr.builder = "Cookie başlığını req.cookies alanına ayrıştıran ve imzalı çerezleri doğrulayabilen bir Express ara katmanı."
+
+[[tech]]
+id = "express-session"
+name = "express-session"
+category = "auth"
+npm = ["express-session"]
+en.beginner = "an Express add-on that remembers each visitor between page requests, such as after login."
+en.builder = "Express middleware that stores session data on the server and sends a session cookie to identify each visitor."
+tr.beginner = "giriş sonrası gibi, ziyaretçiyi sayfa istekleri arasında hatırlayan, Express için bir eklenti."
+tr.builder = "sunucu tarafında oturum verisi tutan ve her ziyaretçiyi tanımak için oturum çerezi gönderen bir Express ara katmanı."
+
+[[tech]]
+id = "body-parser"
+name = "body-parser"
+category = "other"
+npm = ["body-parser"]
+en.beginner = "an Express add-on that reads the data a form or app sends to the server."
+en.builder = "Express middleware that parses JSON and URL-encoded request bodies; Express now includes most of it itself."
+tr.beginner = "form veya uygulamanın sunucuya gönderdiği veriyi okuyan, Express için bir eklenti."
+tr.builder = "JSON ve URL kodlu istek gövdelerini ayrıştıran Express ara katmanı; bugün çoğu işi Express'in kendisi yapar."
+
+[[tech]]
+id = "compression"
+name = "compression"
+category = "other"
+npm = ["compression"]
+en.beginner = "an Express add-on that shrinks web responses so pages load faster."
+en.builder = "middleware that compresses HTTP responses with gzip or deflate when the browser supports it."
+tr.beginner = "sayfaların daha hızlı yüklenmesi için web yanıtlarını küçülten, Express için bir eklenti."
+tr.builder = "tarayıcı destekliyorsa HTTP yanıtlarını gzip ya da deflate ile sıkıştıran bir ara katman."
+
+[[tech]]
+id = "http-proxy-middleware"
+name = "http-proxy-middleware"
+category = "other"
+npm = ["http-proxy-middleware"]
+en.beginner = "an add-on that forwards web requests from one server to another, such as a backend API."
+en.builder = "middleware that proxies HTTP and WebSocket requests to another target, often used in development servers."
+tr.beginner = "web isteklerini bir sunucudan başka bir sunucuya, örneğin bir arka uç API'sine yönlendiren eklenti."
+tr.builder = "HTTP ve WebSocket isteklerini başka bir hedefe ileten bir ara katman; geliştirme sunucularında sık kullanılır."
+
+[[tech]]
+id = "cron"
+name = "node-cron"
+category = "other"
+npm = ["cron", "node-cron"]
+en.beginner = "a library that runs a task automatically at set times, such as every night."
+en.builder = "a scheduler for Node.js that runs functions on cron-style time patterns inside the running app."
+tr.beginner = "bir görevi belirli zamanlarda, örneğin her gece otomatik çalıştıran bir kütüphane."
+tr.builder = "Node.js için, cron biçimindeki zaman kalıplarına göre fonksiyonları uygulama içinde çalıştıran bir zamanlayıcı."
+
+[[tech]]
+id = "xlsx"
+name = "SheetJS"
+category = "other"
+npm = ["xlsx"]
+en.beginner = "a library that reads and writes Excel spreadsheet files."
+en.builder = "a library for parsing and writing XLSX and other spreadsheet formats, such as CSV and ODS; the npm release is old, newer versions come from sheetjs.com."
+tr.beginner = "Excel tablo dosyalarını okuyan ve yazan bir kütüphane."
+tr.builder = "XLSX ile CSV ve ODS gibi tablo biçimlerini okuyup yazan bir kütüphane; npm sürümü eski, yeni sürümler sheetjs.com adresinden geliyor."
+
+[[tech]]
+id = "papaparse"
+name = "Papa Parse"
+category = "other"
+npm = ["papaparse"]
+en.beginner = "a library that reads CSV files and turns each row into data."
+en.builder = "a fast CSV parser and writer for browsers and Node.js, with streaming and header row support."
+tr.beginner = "CSV dosyalarını okuyup her satırı veriye çeviren bir kütüphane."
+tr.builder = "tarayıcı ve Node.js için hızlı bir CSV ayrıştırıcı ve yazıcı; akış ve başlık satırı desteği sunar."
+
+[[tech]]
+id = "pdfkit"
+name = "PDFKit"
+category = "other"
+npm = ["pdfkit"]
+en.beginner = "a library that creates PDF files from code, with text, images and shapes."
+en.builder = "a JavaScript PDF generator for Node.js and browsers that draws text, vector graphics and images."
+tr.beginner = "metin, görsel ve şekillerle koddan PDF dosyası oluşturan bir kütüphane."
+tr.builder = "Node.js ve tarayıcılar için JavaScript PDF üretici; metin, vektör grafik ve görsel çizer."
+
+[[tech]]
+id = "pdf-lib"
+name = "pdf-lib"
+category = "other"
+npm = ["pdf-lib"]
+en.beginner = "a library that creates and edits PDF files, including filling in forms."
+en.builder = "a pure JavaScript library for creating and modifying PDF documents in browsers and Node.js, with no native dependencies."
+tr.beginner = "PDF dosyası oluşturan ve düzenleyen, form doldurmayı da yapabilen bir kütüphane."
+tr.builder = "tarayıcı ve Node.js'te PDF belgeleri oluşturup değiştiren, yerel bağımlılığı olmayan saf JavaScript kütüphanesi."
+
+[[tech]]
+id = "jspdf"
+name = "jsPDF"
+category = "other"
+npm = ["jspdf"]
+en.beginner = "a library that makes PDF files in the browser from text and images."
+en.builder = "a client-side JavaScript library for generating PDF documents with text, images and simple drawing commands."
+tr.beginner = "tarayıcıda metin ve görsellerden PDF dosyası üreten bir kütüphane."
+tr.builder = "PDF belgeleri üretmek için tarayıcı tarafında çalışan JavaScript kütüphanesi; metin, görsel ve basit çizimler içerir."
+
+[[tech]]
+id = "marked"
+name = "marked"
+category = "other"
+npm = ["marked"]
+en.beginner = "a library that converts Markdown text into HTML web pages."
+en.builder = "a fast Markdown parser and compiler that outputs HTML for browsers and Node.js."
+tr.beginner = "Markdown metnini HTML sayfalarına çeviren bir kütüphane."
+tr.builder = "Markdown metnini tarayıcı ve Node.js için HTML'e dönüştüren hızlı bir ayrıştırıcı."
+
+[[tech]]
+id = "gray-matter"
+name = "gray-matter"
+category = "other"
+npm = ["gray-matter"]
+en.beginner = "a library that reads the metadata block at the top of a Markdown file."
+en.builder = "a parser for front matter, the YAML or JSON header of a text file, that separates it from the content."
+tr.beginner = "Markdown dosyasının başındaki bilgi bloğunu okuyan bir kütüphane."
+tr.builder = "metin dosyasının başındaki YAML ya da JSON bilgi bloğunu (front matter) ayırıp okuyan bir ayrıştırıcı."
+
+[[tech]]
+id = "mdx"
+name = "MDX"
+category = "other"
+npm = ["@mdx-js/*"]
+en.beginner = "a format that lets you write web pages in Markdown with embedded components."
+en.builder = "an extension of Markdown that allows JSX components inside documents, compiled into React or other UI code."
+tr.beginner = "Markdown içine bileşen eklemenize izin veren bir biçim."
+tr.builder = "Markdown'a JSX bileşenleri eklemeye izin veren bir biçim; belgeler React gibi arayüz kütüphanelerine uygun koda derlenir."
+
+[[tech]]
+id = "next-mdx-remote"
+name = "next-mdx-remote"
+category = "other"
+npm = ["next-mdx-remote"]
+en.beginner = "a library that shows MDX text from files or a CMS on a Next.js page."
+en.builder = "a Next.js helper that compiles MDX from strings or remote sources so it can render on pages."
+tr.beginner = "MDX metnini dosyalardan ya da bir CMS'den alıp Next.js sayfasında gösteren bir kütüphane."
+tr.builder = "MDX metnini Next.js sayfalarında gösterilecek biçimde derleyen bir yardımcı paket."
+
+[[tech]]
+id = "contentlayer"
+name = "Contentlayer"
+category = "other"
+npm = ["contentlayer"]
+en.beginner = "a tool that turns Markdown and other content files into typed data for a site."
+en.builder = "a content layer that validates Markdown or MDX files against a schema and generates typed data for web projects; it has had no release since 2023."
+tr.beginner = "Markdown ve benzeri içerik dosyalarını bir site için türü belli verilere çeviren bir araç."
+tr.builder = "Markdown ya da MDX dosyalarını bir şemaya göre doğrulayıp web projeleri için türü belli veri üreten bir içerik katmanı; 2023'ten beri yeni sürümü çıkmadı."
+
+[[tech]]
+id = "sanity"
+name = "Sanity"
+category = "other"
+npm = ["sanity", "@sanity/*"]
+en.beginner = "a content management service where you store and edit a site's text, images and other content."
+en.builder = "a headless CMS with a real-time content API and the Sanity Studio editing app, configured in code."
+tr.beginner = "bir sitenin yazılarını ve görsellerini saklayıp düzenlediğiniz bir içerik yönetim servisi."
+tr.builder = "sayfa görünümü olmayan, yalnızca içerik sunan bir CMS; gerçek zamanlı içerik API'si ve kodla yapılandırılan Sanity Studio düzenleme uygulamasını içerir."
+
+[[tech]]
+id = "contentful"
+name = "Contentful"
+category = "other"
+npm = ["contentful"]
+en.beginner = "a content management service where editors manage text and images for a website."
+en.builder = "a headless CMS with a content API and SDK for fetching entries and assets into web apps."
+tr.beginner = "editörlerin bir web sitesinin metin ve görsellerini yönettiği bir içerik servisi."
+tr.builder = "içerik API'si ve SDK'sı olan, kayıtları ve görselleri web uygulamalarına getiren sayfa görünümü olmayan bir CMS."
+
+[[tech]]
+id = "vercel-analytics"
+name = "Vercel Web Analytics"
+category = "deploy"
+npm = ["@vercel/analytics"]
+en.beginner = "a tool that counts page views and visits for a site hosted on Vercel."
+en.builder = "a small component that sends page view data to Vercel Web Analytics."
+tr.beginner = "Vercel'de barındırılan bir sitenin sayfa görüntülenmelerini ve ziyaretlerini sayan bir araç."
+tr.builder = "sayfa görüntüleme verilerini Vercel Web Analytics'e gönderen küçük bir bileşen."
+
+[[tech]]
+id = "vercel-speed-insights"
+name = "Vercel Speed Insights"
+category = "deploy"
+npm = ["@vercel/speed-insights"]
+en.beginner = "a tool that measures how fast a site's pages load for real visitors."
+en.builder = "a component that reports real-user Core Web Vitals and loading performance to Vercel Speed Insights."
+tr.beginner = "gerçek ziyaretçiler için sitenin sayfalarının ne kadar hızlı yüklendiğini ölçen bir araç."
+tr.builder = "gerçek kullanıcı verilerinden Core Web Vitals ve yükleme hızı ölçümlerini Vercel Speed Insights'a gönderen bir bileşen."
+
+[[tech]]
+id = "posthog"
+name = "PostHog"
+category = "other"
+npm = ["posthog-js", "posthog-node"]
+en.beginner = "a tool that records what visitors do on a site, to help improve it."
+en.builder = "a product analytics and session tracking SDK; posthog-js runs in browsers and posthog-node in Node.js."
+tr.beginner = "ziyaretçilerin sitede ne yaptığını kaydeden ve geliştirmeye yardımcı olan bir araç."
+tr.builder = "ürün analitiği ve oturum takibi SDK'sı; posthog-js tarayıcıda, posthog-node Node.js'te çalışır."
+
+[[tech]]
+id = "mixpanel"
+name = "Mixpanel"
+category = "other"
+npm = ["mixpanel-browser"]
+en.beginner = "a tool that tracks what users do in an app to show how people use it."
+en.builder = "a browser SDK for Mixpanel product analytics that sends tracked events and user profiles."
+tr.beginner = "kullanıcıların uygulamadaki eylemlerini izleyip insanların uygulamayı nasıl kullandığını gösteren bir araç."
+tr.builder = "Mixpanel ürün analitiği için tarayıcı SDK'sı; izlenen olayları ve kullanıcı profillerini gönderir."
+
+[[tech]]
+id = "twilio"
+name = "Twilio"
+category = "other"
+npm = ["twilio"]
+en.beginner = "a service and library for sending text messages and making phone calls from code."
+en.builder = "the official Node.js SDK for the Twilio communications API, for SMS, voice calls and verification."
+tr.beginner = "koddan kısa mesaj gönderip telefon araması yapmaya yarayan bir servis ve kütüphane."
+tr.builder = "Twilio iletişim API'si için resmi Node.js SDK'sı; SMS, sesli arama ve doğrulama için kullanılır."
+
+[[tech]]
+id = "pusher"
+name = "Pusher"
+category = "other"
+npm = ["pusher", "pusher-js"]
+en.beginner = "a service that pushes live updates from the server to users' browsers."
+en.builder = "a hosted real-time messaging service; pusher is the server SDK and pusher-js the browser client."
+tr.beginner = "sunucudan kullanıcıların tarayıcısına anlık güncellemeler gönderen bir servis."
+tr.builder = "barındırılan gerçek zamanlı mesajlaşma servisi; pusher sunucu SDK'sı, pusher-js ise tarayıcı istemcisidir."
+
+[[tech]]
+id = "ably"
+name = "Ably"
+category = "other"
+npm = ["ably"]
+en.beginner = "a service for live messages and updates sent between a server and many clients."
+en.builder = "the JavaScript SDK for Ably, a hosted real-time messaging platform with publish and subscribe channels."
+tr.beginner = "sunucu ile çok sayıda istemci arasında anlık mesaj ve güncelleme gönderen bir servis."
+tr.builder = "Ably gerçek zamanlı mesajlaşma platformunun JavaScript SDK'sı; yayınla-abone-ol kanalları sunar."
+
+[[tech]]
+id = "qrcode"
+name = "node-qrcode"
+category = "other"
+npm = ["qrcode"]
+en.beginner = "a library that creates QR code images from text or links."
+en.builder = "a JavaScript QR code generator that draws to canvas, SVG or data URLs, in browsers and Node.js."
+tr.beginner = "metin ya da bağlantılardan QR kod görseli üreten bir kütüphane."
+tr.builder = "tarayıcı ve Node.js'te QR kodu canvas, SVG ya da data URL olarak üreten bir paket."
+
+[[tech]]
+id = "mime"
+name = "mime"
+category = "other"
+npm = ["mime"]
+en.beginner = "a small library that finds a file's type, such as image/png, from its name."
+en.builder = "a tool that maps file extensions to MIME types and back, for correct HTTP content headers."
+tr.beginner = "dosya adından türünü, örneğin image/png gibi, bulan küçük bir kütüphane."
+tr.builder = "dosya uzantılarını MIME türlerine ve tersine eşleyen, doğru HTTP içerik başlıkları için kullanılan bir paket."
+
+[[tech]]
+id = "glob"
+name = "glob"
+category = "other"
+npm = ["glob"]
+en.beginner = "a library that finds files whose names match a pattern such as *.js."
+en.builder = "a file-matching library that expands wildcard patterns such as **/*.ts across a folder tree."
+tr.beginner = "adı *.js gibi bir kalıba uyan dosyaları bulan bir kütüphane."
+tr.builder = "**/*.ts gibi joker karakterli kalıpları klasör ağacında genişleten bir dosya arama paketi."
+
+[[tech]]
+id = "fs-extra"
+name = "fs-extra"
+category = "other"
+npm = ["fs-extra"]
+en.beginner = "a library that adds easy copy, move and delete options to Node's file tools."
+en.builder = "a drop-in extension of Node's built-in fs module that adds promise support and recursive copy, move and remove."
+tr.beginner = "Node'un dosya araçlarına kolay kopyalama, taşıma ve silme işlemleri ekleyen bir kütüphane."
+tr.builder = "Node'un yerleşik fs modülünü genişleten; Promise desteği ve alt klasörleri de kapsayan kopyalama, taşıma ve silme işlemleri sunan bir paket."
+
+[[tech]]
+id = "chokidar"
+name = "chokidar"
+category = "other"
+npm = ["chokidar"]
+en.beginner = "a library that notices when files change, so a tool can react right away."
+en.builder = "a cross-platform file watcher that many build tools and dev servers use to detect changes."
+tr.beginner = "dosyalar değiştiğinde fark eden ve araçların hemen tepki vermesini sağlayan bir kütüphane."
+tr.builder = "birçok derleme aracının ve geliştirme sunucusunun değişiklikleri algılamak için kullandığı, platformlar arası bir dosya izleyici."
+
+[[tech]]
+id = "execa"
+name = "execa"
+category = "other"
+npm = ["execa"]
+en.beginner = "a library that runs other programs from your Node.js code and reads their output."
+en.builder = "a friendly wrapper around child_process for running commands, with promise results and clear error messages."
+tr.beginner = "Node.js kodunuzdan başka programlar çalıştıran ve çıktılarını okuyan bir kütüphane."
+tr.builder = "komutları çalıştırmak için child_process üzerine kurulu, Promise sonuçları ve açık hata mesajları sunan bir paket."
+
+[[tech]]
+id = "zx"
+name = "zx"
+category = "other"
+npm = ["zx"]
+en.beginner = "a tool that lets you write terminal scripts in JavaScript instead of bash."
+en.builder = "a Google-built library for scripting shell commands in JavaScript, using template literals to run them."
+tr.beginner = "terminal betiklerini bash yerine JavaScript ile yazmanızı sağlayan bir araç."
+tr.builder = "Google tarafından geliştirilen, kabuk komutlarını JavaScript'te şablon metinleriyle çalıştıran bir kütüphane."
+
+[[tech]]
+id = "semver"
+name = "node-semver"
+category = "other"
+npm = ["semver"]
+en.beginner = "a library that compares and checks version numbers such as 1.2.3."
+en.builder = "a library that parses, compares and checks ranges of version numbers that follow the SemVer rules."
+tr.beginner = "1.2.3 gibi sürüm numaralarını karşılaştıran ve kontrol eden bir kütüphane."
+tr.builder = "anlamsal sürümleme (SemVer) kurallarına göre sürüm numaralarını ayrıştıran, karşılaştıran ve aralıklarını kontrol eden paket."
+
+[[tech]]
+id = "yaml"
+name = "yaml"
+category = "other"
+npm = ["yaml"]
+en.beginner = "a library that reads and writes YAML configuration files."
+en.builder = "a complete YAML 1.2 parser and writer for JavaScript, with comment and multi-document support."
+tr.beginner = "YAML yapılandırma dosyalarını okuyan ve yazan bir kütüphane."
+tr.builder = "JavaScript için eksiksiz bir YAML 1.2 ayrıştırıcı ve yazıcı; yorum ve birden çok belge desteği sunar."
+
+[[tech]]
+id = "js-yaml"
+name = "js-yaml"
+category = "other"
+npm = ["js-yaml"]
+en.beginner = "a library that reads and writes YAML files, such as settings and CI files."
+en.builder = "a popular YAML parser and dumper for JavaScript; its load function is safe by default."
+tr.beginner = "ayar ve CI dosyaları gibi YAML dosyalarını okuyan ve yazan bir kütüphane."
+tr.builder = "JavaScript için yaygın bir YAML ayrıştırıcı ve yazıcı; okuma işlevi varsayılan olarak güvenli modda çalışır."
+
+[[tech]]
+id = "qs"
+name = "qs"
+category = "other"
+npm = ["qs"]
+en.beginner = "a library that reads and writes the key=value part of a web address."
+en.builder = "a query string parser that supports nested objects and arrays; Express relies on it for extended parsing."
+tr.beginner = "web adresinin anahtar=değer kısmını okuyan ve yazan bir kütüphane."
+tr.builder = "iç içe nesne ve dizileri destekleyen bir sorgu dizesi ayrıştırıcı; Express genişletilmiş ayrıştırma için bunu kullanır."
+
+[[tech]]
+id = "query-string"
+name = "query-string"
+category = "other"
+npm = ["query-string"]
+en.beginner = "a small library that builds and reads the ?key=value part of a URL."
+en.builder = "a library for parsing and creating URL query strings, with sorting and array format options."
+tr.beginner = "bir adresteki ?anahtar=değer kısmını oluşturan ve okuyan küçük bir kütüphane."
+tr.builder = "URL sorgu dizelerini ayrıştıran ve oluşturan, sıralama ve dizi biçimi seçenekleri olan bir kütüphane."
+
+[[tech]]
+id = "eventemitter3"
+name = "EventEmitter3"
+category = "other"
+npm = ["eventemitter3"]
+en.beginner = "a small library for sending and listening to named events in code."
+en.builder = "a fast, lightweight EventEmitter implementation compatible with Node's events module."
+tr.beginner = "kodda adlandırılmış olayları gönderip dinlemeye yarayan küçük bir kütüphane."
+tr.builder = "Node'un events modülüyle uyumlu, hızlı ve hafif bir olay yayıcı (EventEmitter) uygulaması."
+
+[[tech]]
+id = "p-limit"
+name = "p-limit"
+category = "other"
+npm = ["p-limit"]
+en.beginner = "a tiny helper that runs only a set number of tasks at the same time."
+en.builder = "a promise concurrency limiter that queues async tasks so no more than a set number run at once."
+tr.beginner = "aynı anda yalnızca belirli sayıda görevi çalıştıran küçük bir yardımcı."
+tr.builder = "eşzamansız görevleri kuyruğa alıp aynı anda en fazla belirli sayıda çalışmasını sağlayan bir Promise sınırlayıcı."
+
+[[tech]]
+id = "async"
+name = "async"
+category = "other"
+npm = ["async"]
+en.beginner = "an older library with helpers for running many tasks in order or in parallel."
+en.builder = "a utility module for asynchronous control flow, with helpers such as parallel, series and waterfall; async/await now covers most of this."
+tr.beginner = "görevleri sırayla ya da aynı anda çalıştırmak için yardımcılar sunan eski bir kütüphane."
+tr.builder = "eşzamansız akış için yardımcı modül (parallel, series, waterfall); bugün çoğu iş async/await ile yapılıyor."
+
+[[tech]]
+id = "bluebird"
+name = "Bluebird"
+category = "other"
+npm = ["bluebird"]
+en.beginner = "an older library that adds extra features to promises, such as timeouts."
+en.builder = "a promise library with cancellation, timeouts and promisify helpers; most projects now use native Promises."
+tr.beginner = "Promise'lere zaman aşımı gibi ek özellikler getiren eski bir kütüphane."
+tr.builder = "iptal, zaman aşımı ve promisify gibi ek özellikleri olan bir Promise kütüphanesi; çoğu proje artık yerleşik Promise'leri kullanıyor."
+
+[[tech]]
+id = "jsqr"
+name = "jsQR"
+category = "other"
+npm = ["jsqr"]
+en.beginner = "a library that reads QR codes from a picture or camera image in the browser."
+en.builder = "a pure JavaScript QR code decoder that scans raw image pixel data, with no native dependencies."
+tr.beginner = "tarayıcıda bir fotoğraf ya da kamera görüntüsündeki QR kodunu okuyan bir kütüphane."
+tr.builder = "ham görüntü piksel verisini tarayan, yerel bağımlılığı olmayan saf JavaScript QR kod çözücü."
+
+[[tech]]
+id = "unpdf"
+name = "unpdf"
+category = "other"
+npm = ["unpdf"]
+en.beginner = "a library that reads text out of PDF files, in Node.js and serverless apps."
+en.builder = "a PDF text extraction library built on Mozilla's pdf.js, packaged to run without a browser, including in serverless functions."
+tr.beginner = "PDF dosyalarından metin okuyan, Node.js ve sunucusuz uygulamalarda çalışan bir kütüphane."
+tr.builder = "Mozilla'nın pdf.js motoru üzerine kurulu, tarayıcı gerektirmeden sunucusuz işlevlerde de çalışan bir PDF metin çıkarma kütüphanesi."

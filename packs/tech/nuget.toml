@@ -1,0 +1,461 @@
+# NuGet packages for .NET. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "aspnetcore"
+name = "ASP.NET Core"
+category = "framework"
+nuget = ["Microsoft.AspNetCore.*"]
+en.beginner = "the framework for building websites and web servers in C#."
+en.builder = "Microsoft's cross-platform web framework for .NET, covering hosting, routing, request middleware, Razor pages and Web APIs."
+tr.beginner = "C# ile web siteleri ve web sunucuları yapmaya yarayan bir çatı."
+tr.builder = "Microsoft'un .NET için çapraz platform web çatısı; sunucu kurulumu, yönlendirme, istek ara katmanları, Razor sayfaları ve Web API'leri sağlar."
+
+[[tech]]
+id = "aspnetcore-jwt-bearer"
+name = "ASP.NET Core JWT Bearer"
+category = "auth"
+nuget = ["Microsoft.AspNetCore.Authentication.JwtBearer"]
+en.beginner = "a tool that checks the login passes users send, so only signed-in users can open protected pages."
+en.builder = "ASP.NET Core authentication handler that validates JWT (JSON Web Token) bearer tokens on incoming HTTP requests."
+tr.beginner = "giriş belirteçlerini denetleyerek yalnızca oturum açmış kişilerin erişmesini sağlayan bir araç."
+tr.builder = "ASP.NET Core'un, gelen HTTP isteklerindeki JWT (JSON Web Token) taşıyıcı belirteçlerini doğrulayan kimlik doğrulama bileşeni."
+
+[[tech]]
+id = "aspnetcore-identity"
+name = "ASP.NET Core Identity"
+category = "auth"
+nuget = ["Microsoft.AspNetCore.Identity.EntityFrameworkCore"]
+en.beginner = "a ready-made user system that stores accounts, passwords and logins in the database."
+en.builder = "ASP.NET Core Identity storage for Entity Framework Core, saving users, roles and password hashes in a database."
+tr.beginner = "hesapları, şifreleri ve giriş bilgilerini veritabanında saklayan hazır bir kullanıcı sistemi."
+tr.builder = "Entity Framework Core üzerinden kullanıcıları, rolleri ve şifre özetlerini veritabanına kaydeden ASP.NET Core Identity katmanı."
+
+[[tech]]
+id = "blazor"
+name = "Blazor"
+category = "framework"
+nuget = ["Microsoft.AspNetCore.Components.*"]
+en.beginner = "a way to build interactive web pages using C# instead of JavaScript."
+en.builder = "Microsoft's component framework for interactive web UIs, running on the server or in the browser via WebAssembly."
+tr.beginner = "JavaScript yerine C# ile etkileşimli web sayfaları yapmayı sağlayan bir yöntem."
+tr.builder = "Microsoft'un bileşen tabanlı, etkileşimli web arayüzü çatısı; sunucuda veya WebAssembly ile tarayıcıda çalışabilir."
+
+[[tech]]
+id = "signalr-dotnet"
+name = "SignalR"
+category = "other"
+nuget = ["Microsoft.AspNetCore.SignalR.*"]
+en.beginner = "a way for the server to push live updates, such as chat messages, to users' browsers."
+en.builder = "ASP.NET Core real-time messaging library that keeps a connection open so the server and client can send messages both ways."
+tr.beginner = "sunucunun, sohbet mesajları gibi canlı güncellemeleri tarayıcıya anında göndermesini sağlayan bir yöntem."
+tr.builder = "ASP.NET Core'un gerçek zamanlı iletişim kütüphanesi; sunucu ile istemci arasında açık bağlantı üzerinden iki yönlü mesajlaşma sağlar."
+
+[[tech]]
+id = "ef-core"
+name = "Entity Framework Core"
+category = "data"
+nuget = ["Microsoft.EntityFrameworkCore", "Microsoft.EntityFrameworkCore.*"]
+en.beginner = "a library that lets C# code read and save data in a database without writing raw SQL."
+en.builder = "Microsoft's object-relational mapper (ORM) for .NET, mapping classes to tables and translating LINQ queries to SQL."
+tr.beginner = "C# kodunun ham SQL yazmadan veritabanından veri okumasını ve kaydetmesini sağlayan bir kütüphane."
+tr.builder = "Microsoft'un .NET için nesne-ilişkisel eşleştirici (ORM) kütüphanesi; sınıfları tablolara eşler ve LINQ sorgularını SQL'e çevirir."
+
+[[tech]]
+id = "dapper"
+name = "Dapper"
+category = "data"
+nuget = ["Dapper"]
+en.beginner = "a small, fast helper that runs your SQL queries and fills C# objects with the results."
+en.builder = "a lightweight micro-ORM for .NET that maps raw SQL query results to objects with very little overhead."
+tr.beginner = "ham SQL sorgularınızı çalıştırıp sonuçları C# nesnelerine dolduran küçük ve hızlı bir yardımcı."
+tr.builder = ".NET için hafif bir mikro-ORM; ham SQL sorgu sonuçlarını çok az ek yükle nesnelere eşler."
+
+[[tech]]
+id = "newtonsoft-json"
+name = "Newtonsoft.Json"
+category = "other"
+nuget = ["Newtonsoft.Json"]
+en.beginner = "a popular library for reading and writing JSON data, the common text format for sending data."
+en.builder = "Json.NET, a widely used .NET JSON serializer and deserializer that converts objects to and from JSON text."
+tr.beginner = "JSON verilerini okuyup yazmaya yarayan, yaygın kullanılan bir kütüphane."
+tr.builder = "Json.NET; nesneleri JSON metnine ve JSON metnini nesnelere çeviren, .NET için yaygın bir serileştirici."
+
+[[tech]]
+id = "system-text-json"
+name = "System.Text.Json"
+category = "other"
+nuget = ["System.Text.Json"]
+en.beginner = "Microsoft's standard tool for reading and writing JSON data in .NET apps."
+en.builder = "Microsoft's high-performance JSON serializer that ships with modern .NET, using UTF-8 text for speed."
+tr.beginner = "Microsoft'un .NET uygulamalarında JSON verilerini okuyup yazmak için standart aracı."
+tr.builder = "Microsoft'un yüksek performanslı JSON serileştiricisi; modern .NET ile birlikte gelir ve hız için UTF-8 kullanır."
+
+[[tech]]
+id = "serilog"
+name = "Serilog"
+category = "other"
+nuget = ["Serilog", "Serilog.*"]
+en.beginner = "a logging library that writes clear, structured messages about what your app is doing."
+en.builder = "a .NET structured logging library with sinks that write events to consoles, files and other destinations."
+tr.beginner = "uygulamanın ne yaptığını anlatan düzenli kayıtlar (log) yazan bir kütüphane."
+tr.builder = ".NET için yapılandırılmış günlük kütüphanesi; olayları konsola, dosyaya ve başka hedeflere yazar."
+
+[[tech]]
+id = "nlog"
+name = "NLog"
+category = "other"
+nuget = ["NLog"]
+en.beginner = "a long-standing logging library that records what happens in your app to files or other places."
+en.builder = "a flexible .NET logging platform that routes log events to targets such as files, databases and consoles through configuration."
+tr.beginner = "uygulamada olanları dosyalara veya başka yerlere kaydeden, uzun süredir kullanılan bir kayıt kütüphanesi."
+tr.builder = ".NET için esnek bir günlük platformu; kayıt olaylarını yapılandırmaya göre dosya, veritabanı ve konsol gibi hedeflere yönlendirir."
+
+[[tech]]
+id = "dotnet-extensions"
+name = ".NET Extensions"
+category = "framework"
+nuget = ["Microsoft.Extensions.*"]
+en.beginner = "a set of shared building blocks for settings, logging and services that most .NET apps use."
+en.builder = "Microsoft's .NET extension libraries for configuration, dependency injection, logging, hosting and options."
+tr.beginner = "ayarlar, günlük kaydı ve servisler için çoğu .NET uygulamasında kullanılan ortak yapı taşları."
+tr.builder = "Microsoft'un yapılandırma, bağımlılık enjeksiyonu, günlük kaydı, barındırma ve seçenekler için .NET kütüphaneleri."
+
+[[tech]]
+id = "automapper-dotnet"
+name = "AutoMapper"
+category = "other"
+nuget = ["AutoMapper"]
+en.beginner = "a helper that copies data from one kind of object to another, saving repetitive code."
+en.builder = "an object-to-object mapping library for .NET that maps properties by naming convention and can be configured explicitly."
+tr.beginner = "verileri bir nesne türünden diğerine kopyalayarak tekrarlanan kodu azaltan bir yardımcı."
+tr.builder = ".NET için nesneden nesneye eşleme kütüphanesi; özellikleri isim kuralına göre eşler, ayrıca açıkça ayarlanabilir."
+
+[[tech]]
+id = "mediatr"
+name = "MediatR"
+category = "other"
+nuget = ["MediatR"]
+en.beginner = "a helper that passes requests to the right handler, keeping the parts of your app loosely connected."
+en.builder = "an in-process mediator library for .NET that implements request/response and notification messaging patterns."
+tr.beginner = "istekleri doğru işleyiciye ileten, uygulamanın parçalarını gevşek bağlı tutan bir yardımcı."
+tr.builder = ".NET için aynı süreçte çalışan arabulucu kütüphanesi; istek/yanıt ve bildirim mesajlaşmasını uygular."
+
+[[tech]]
+id = "fluentvalidation"
+name = "FluentValidation"
+category = "validation"
+nuget = ["FluentValidation", "FluentValidation.*"]
+en.beginner = "a library for writing clear rules that check that user input is valid before the app uses it."
+en.builder = "a .NET validation library that uses a fluent interface to define rules in strongly typed classes."
+tr.beginner = "kullanıcı girişlerinin geçerli olduğunu denetleyen net kurallar yazmayı sağlayan kütüphane."
+tr.builder = ".NET için, kuralları akıcı bir arayüzle güçlü tipli sınıflarda tanımlayan doğrulama kütüphanesi."
+
+[[tech]]
+id = "swashbuckle"
+name = "Swashbuckle"
+category = "other"
+nuget = ["Swashbuckle.AspNetCore", "Swashbuckle.AspNetCore.*"]
+en.beginner = "a tool that builds a web page describing your app's API, so others can try its requests."
+en.builder = "a Swagger/OpenAPI generator and Swagger UI for ASP.NET Core, creating interactive API documentation from code."
+tr.beginner = "uygulamanızın API'sini anlatan ve başkalarının istek denemesini sağlayan bir sayfa oluşturan araç."
+tr.builder = "ASP.NET Core için Swagger/OpenAPI üreticisi ve Swagger arayüzü; koddan etkileşimli API belgeleri oluşturur."
+
+[[tech]]
+id = "nswag"
+name = "NSwag"
+category = "other"
+nuget = ["NSwag.*"]
+en.beginner = "a tool that creates API documentation and helper code for calling your app's web API."
+en.builder = "an OpenAPI/Swagger toolchain for .NET that generates API specifications, Swagger UI and typed clients."
+tr.beginner = "uygulamanın API belgelerini ve API'yi çağırmak için hazır kod üreten bir araç."
+tr.builder = ".NET için OpenAPI/Swagger araç seti; API tanımları, Swagger arayüzü ve tip güvenli istemciler üretir."
+
+[[tech]]
+id = "xunit-dotnet"
+name = "xUnit.net"
+category = "testing"
+nuget = ["xunit", "xunit.*"]
+en.beginner = "a testing tool for writing small checks that confirm your C# code behaves as expected."
+en.builder = "the xUnit.net test framework for .NET, where each test is a method marked with the Fact or Theory attribute."
+tr.beginner = "C# kodunun beklendiği gibi çalıştığını doğrulayan küçük kontroller yazmaya yarayan bir test aracı."
+tr.builder = ".NET için xUnit.net test çatısı; her test, Fact ya da Theory özniteliğiyle işaretlenmiş bir metottur."
+
+[[tech]]
+id = "nunit-dotnet"
+name = "NUnit"
+category = "testing"
+nuget = ["NUnit", "NUnit3TestAdapter"]
+en.beginner = "a long-used testing tool for writing checks that confirm your C# code works as expected."
+en.builder = "the NUnit test framework for .NET, with the NUnit3TestAdapter that lets IDEs and dotnet test run its tests."
+tr.beginner = "C# kodunuzun beklendiği gibi çalıştığını doğrulayan, uzun süredir kullanılan bir test aracı."
+tr.builder = ".NET için NUnit test çatısı; NUnit3TestAdapter, testleri IDE'lerde ve dotnet test komutuyla çalıştırır."
+
+[[tech]]
+id = "mstest-dotnet"
+name = "MSTest"
+category = "testing"
+nuget = ["MSTest.TestFramework", "MSTest.TestAdapter"]
+en.beginner = "Microsoft's own testing tool for checking that your .NET code works."
+en.builder = "Microsoft's MSTest unit test framework for .NET, made of the TestFramework attributes and the TestAdapter runner."
+tr.beginner = "Microsoft'un kendi test aracı; .NET kodunuzun doğru çalıştığını kontrol etmek için kullanılır."
+tr.builder = "Microsoft'un .NET için birim test çatısı MSTest; TestFramework öznitelikleri ve TestAdapter çalıştırıcısından oluşur."
+
+[[tech]]
+id = "moq-dotnet"
+name = "Moq"
+category = "testing"
+nuget = ["Moq"]
+en.beginner = "a helper that makes fake stand-ins for code parts, so you can test each piece alone."
+en.builder = "a mocking library for .NET that builds test doubles from interfaces and delegates, using lambda-based setup and verification."
+tr.beginner = "kodunuzun parçaları için sahte nesneler üreterek her parçayı tek başına test etmenizi sağlar."
+tr.builder = ".NET için mock kütüphanesi; arayüzlerden ve temsilcilerden test sahteleri üretir, lambda ifadeleriyle kurulum ve doğrulama yapar."
+
+[[tech]]
+id = "nsubstitute"
+name = "NSubstitute"
+category = "testing"
+nuget = ["NSubstitute"]
+en.beginner = "a simple helper for making fake stand-ins for parts of your code during tests."
+en.builder = "a friendly .NET mocking library whose syntax reads like plain C# for setting up substitutes and checking calls."
+tr.beginner = "testler sırasında kodunuzun parçaları yerine geçecek sahte nesneler oluşturmaya yarayan basit bir yardımcı."
+tr.builder = ".NET için sade sözdizimli bir taklit (mock) kütüphanesi; yerine geçen nesneleri kurmak ve çağrıları denetlemek için kullanılır."
+
+[[tech]]
+id = "fluentassertions"
+name = "FluentAssertions"
+category = "testing"
+nuget = ["FluentAssertions"]
+en.beginner = "a helper that makes test checks read like plain sentences, so failures are easy to understand."
+en.builder = "a .NET assertion library with fluent, readable checks such as result.Should().Be(...) and detailed failure messages."
+tr.beginner = "testlerdeki kontrolleri düz cümle gibi okunan hale getirerek hataları kolay anlaşılır kılan bir yardımcı."
+tr.builder = ".NET için akıcı ve okunabilir kontroller sunan doğrulama kütüphanesi; ayrıntılı hata mesajları üretir."
+
+[[tech]]
+id = "shouldly-dotnet"
+name = "Shouldly"
+category = "testing"
+nuget = ["Shouldly"]
+en.beginner = "a testing helper whose failure messages clearly show what was expected and what was actually found."
+en.builder = "a .NET assertion library focused on readable syntax such as value.ShouldBe(expected), with descriptive failure output."
+tr.beginner = "hata mesajları neyin beklendiğini ve neyin bulunduğunu açıkça gösteren bir test yardımcısı."
+tr.builder = ".NET için okunabilir sözdizimli (ör. value.ShouldBe) bir doğrulama kütüphanesi; açıklayıcı hata çıktısı verir."
+
+[[tech]]
+id = "coverlet"
+name = "coverlet"
+category = "testing"
+nuget = ["coverlet.collector"]
+en.beginner = "a tool that measures which parts of your C# code your tests actually run."
+en.builder = "a code coverage collector for dotnet test, producing coverage reports from test runs on .NET projects."
+tr.beginner = "testlerinizin C# kodunuzun hangi kısımlarını gerçekten çalıştırdığını ölçen bir araç."
+tr.builder = "dotnet test ile çalışan, .NET projelerinde kod kapsamı raporu üreten bir toplayıcı."
+
+[[tech]]
+id = "dotnet-test-sdk"
+name = ".NET Test SDK"
+category = "testing"
+nuget = ["Microsoft.NET.Test.Sdk"]
+en.beginner = "the base package that lets a .NET test project run its tests with the dotnet test command."
+en.builder = "Microsoft.NET.Test.Sdk, the MSBuild targets and properties every .NET test project references so its tests can run under dotnet test."
+tr.beginner = "bir .NET test projesinin testleri dotnet test komutuyla çalıştırmasını sağlayan temel paket."
+tr.builder = "Microsoft.NET.Test.Sdk; test projelerinin dotnet test altında çalışması için gereken MSBuild hedeflerini ve ayarlarını ekler."
+
+[[tech]]
+id = "bogus-dotnet"
+name = "Bogus"
+category = "testing"
+nuget = ["Bogus"]
+en.beginner = "a tool that generates realistic fake names, emails and addresses for testing and demos."
+en.builder = "a .NET port of faker.js for generating fake test data with rules for names, addresses, dates and more."
+tr.beginner = "test ve gösterimler için gerçekçi sahte isim, e-posta ve adres üreten bir araç."
+tr.builder = ".NET için sahte test verisi üreten kütüphane; isim, adres ve tarih gibi alanlar için kurallar tanımlamaya izin verir."
+
+[[tech]]
+id = "polly-dotnet"
+name = "Polly"
+category = "other"
+nuget = ["Polly", "Polly.*"]
+en.beginner = "a helper that retries failed calls and pauses repeated failing ones, keeping your app steady."
+en.builder = "a .NET resilience library offering retry, circuit breaker, timeout and fallback policies for unreliable calls."
+tr.beginner = "başarısız istekleri yeniden deneyen, sık hata veren istekleri geçici durduran bir yardımcı."
+tr.builder = ".NET dayanıklılık kütüphanesi; güvenilmeyen çağrılar için yeniden deneme, devre kesici, zaman aşımı ve yedek planlar sunar."
+
+[[tech]]
+id = "hangfire"
+name = "Hangfire"
+category = "other"
+nuget = ["Hangfire", "Hangfire.*"]
+en.beginner = "a tool that runs slow jobs in the background, such as sending emails, on a schedule."
+en.builder = "a .NET background job library with persistent storage, retries, a dashboard and recurring job scheduling."
+tr.beginner = "e-posta gönderme gibi uzun işleri arka planda, zamanlanmış olarak çalıştıran bir araç."
+tr.builder = ".NET için arka plan iş kütüphanesi; işleri kalıcı depoda tutar, yeniden dener, panel sunar ve yinelenen işleri zamanlar."
+
+[[tech]]
+id = "masstransit"
+name = "MassTransit"
+category = "data"
+nuget = ["MassTransit", "MassTransit.*"]
+en.beginner = "a helper that lets parts of an app send messages to each other through a queue."
+en.builder = "a .NET distributed application framework for message-based communication over brokers such as RabbitMQ and Azure Service Bus."
+tr.beginner = "uygulamanın parçalarının bir kuyruk üzerinden birbirine mesaj göndermesini sağlayan bir yardımcı."
+tr.builder = ".NET için mesaj tabanlı iletişim çatısı; RabbitMQ ve Azure Service Bus gibi aracılar üzerinden çalışır."
+
+[[tech]]
+id = "quartz-dotnet"
+name = "Quartz.NET"
+category = "other"
+nuget = ["Quartz"]
+en.beginner = "a scheduler that runs your code at set times, such as every night or every five minutes."
+en.builder = "Quartz.NET, a full-featured job scheduling library for .NET using cron-style triggers."
+tr.beginner = "kodunuzu her gece ya da beş dakikada bir gibi belirli zamanlarda çalıştıran bir zamanlayıcı."
+tr.builder = ".NET için tam özellikli iş zamanlama kütüphanesi; cron benzeri tetikleyicilerle işleri belirli zamanlarda çalıştırır."
+
+[[tech]]
+id = "refit-dotnet"
+name = "Refit"
+category = "other"
+nuget = ["Refit"]
+en.beginner = "a helper that lets C# code call a web API by describing it as a simple interface."
+en.builder = "a type-safe REST client library for .NET that generates the implementations of annotated interfaces automatically."
+tr.beginner = "bir web API'sini basit bir arayüz olarak tanımlayıp C# kodundan kolayca çağırmanızı sağlayan yardımcı."
+tr.builder = ".NET için tip güvenli REST istemci kütüphanesi; işaretlenmiş arayüzlerin uygulamasını otomatik olarak üretir."
+
+[[tech]]
+id = "restsharp"
+name = "RestSharp"
+category = "other"
+nuget = ["RestSharp"]
+en.beginner = "a library that makes it easy for C# code to send web requests and read the replies."
+en.builder = "a simple .NET REST and HTTP client library for calling web APIs with typed responses and JSON handling."
+tr.beginner = "C# kodunun web istekleri gönderip yanıtları okumasını kolaylaştıran bir kütüphane."
+tr.builder = ".NET için basit bir REST ve HTTP istemci kütüphanesi; web API'lerini çağırır ve JSON yanıtlarını işler."
+
+[[tech]]
+id = "duende-identityserver"
+name = "Duende IdentityServer"
+category = "auth"
+nuget = ["Duende.IdentityServer"]
+en.beginner = "a server that handles sign-in and access permissions, so apps can share one login system."
+en.builder = "Duende IdentityServer, an OpenID Connect and OAuth 2.0 identity provider for .NET, the successor to IdentityServer4."
+tr.beginner = "oturum açma ve erişim izinlerini yöneten bir sunucu; uygulamalar tek bir giriş sistemini paylaşabilir."
+tr.builder = ".NET için OpenID Connect ve OAuth 2.0 kimlik sağlayıcısı; IdentityServer4'ün devamı niteliğindedir."
+
+[[tech]]
+id = "bcrypt-net"
+name = "BCrypt.Net-Next"
+category = "auth"
+nuget = ["BCrypt.Net-Next"]
+en.beginner = "a helper that scrambles user passwords into safe stored values, so plain passwords are never saved."
+en.builder = "a .NET implementation of the bcrypt password hashing function, with salt generation and verification."
+tr.beginner = "kullanıcı şifrelerini düz metin olarak saklamak yerine güvenli bir özete çevirerek saklayan yardımcı."
+tr.builder = ".NET için bcrypt şifre özetleme algoritması; tuz üretimi ve şifre doğrulama işlemlerini yapar."
+
+[[tech]]
+id = "system-identitymodel-jwt"
+name = "System.IdentityModel.Tokens.Jwt"
+category = "auth"
+nuget = ["System.IdentityModel.Tokens.Jwt"]
+en.beginner = "a library that creates and checks login tokens (JWT) so the app knows who is signed in."
+en.builder = "Microsoft's .NET library for creating, reading and validating JSON Web Tokens (JWT) and signing credentials."
+tr.beginner = "giriş belirteçlerini (JWT) oluşturan ve denetleyen bir kütüphane; uygulama kimin oturum açtığını bilir."
+tr.builder = "Microsoft'un JSON Web Token (JWT) oluşturma, okuma ve doğrulama için .NET kütüphanesi; imzalama bilgilerini de kullanır."
+
+[[tech]]
+id = "microsoft-identity-web"
+name = "Microsoft.Identity.Web"
+category = "auth"
+nuget = ["Microsoft.Identity.Web"]
+en.beginner = "a helper that adds Microsoft work or school sign-in to a .NET app with less setup code."
+en.builder = "Microsoft's ASP.NET Core library that wires Microsoft Entra ID (Azure AD) authentication and token acquisition into apps."
+tr.beginner = "Microsoft iş veya okul hesaplarıyla giriş yapmayı .NET uygulamasına az kodla ekleyen bir yardımcı."
+tr.builder = "Microsoft'un, ASP.NET Core uygulamalarına Microsoft Entra ID (Azure AD) girişi ve belirteç alma özelliği ekleyen kütüphanesi."
+
+[[tech]]
+id = "mudblazor"
+name = "MudBlazor"
+category = "ui"
+nuget = ["MudBlazor"]
+en.beginner = "a ready-made set of web page parts, such as buttons, tables and forms, for Blazor apps."
+en.builder = "a Material Design component library for Blazor, providing ready-to-use UI components with theming."
+tr.beginner = "Blazor uygulamaları için düğme, tablo ve form gibi hazır sayfa parçaları seti."
+tr.builder = "Blazor için Material Design tasarımlı bileşen kütüphanesi; tema ile özelleştirilebilen hazır arayüz bileşenleri sunar."
+
+[[tech]]
+id = "communitytoolkit-mvvm"
+name = "CommunityToolkit.Mvvm"
+category = "ui"
+nuget = ["CommunityToolkit.Mvvm"]
+en.beginner = "a helper that cuts the repeated code needed to keep app screens and their data in sync."
+en.builder = "a .NET MVVM toolkit with source generators for observable properties, relay commands and messaging."
+tr.beginner = "uygulama ekranlarını ve verilerini senkron tutmak için gereken tekrarlayan kodu azaltan bir yardımcı."
+tr.builder = ".NET için MVVM araç seti; gözlemlenebilir özellikleri, komutları ve mesajlaşmayı kaynak üreteçlerle sağlar."
+
+[[tech]]
+id = "avalonia"
+name = "Avalonia UI"
+category = "ui"
+nuget = ["Avalonia"]
+en.beginner = "a way to build desktop app windows in C# that run on Windows, macOS and Linux."
+en.builder = "a cross-platform .NET UI framework using XAML for desktop, mobile and browser apps."
+tr.beginner = "C# ile Windows, macOS ve Linux'ta çalışan masaüstü uygulama pencereleri yapmanızı sağlayan bir çatı."
+tr.builder = "XAML kullanan çapraz platform .NET arayüz çatısı; masaüstü, mobil ve tarayıcı uygulamaları için."
+
+[[tech]]
+id = "csvhelper"
+name = "CsvHelper"
+category = "other"
+nuget = ["CsvHelper"]
+en.beginner = "a library that reads and writes spreadsheet-style CSV files as C# objects."
+en.builder = "a fast .NET library for reading and writing CSV files, mapping rows to and from strongly typed classes."
+tr.beginner = "CSV dosyalarını okuyup yazan ve satırları C# nesnelerine çeviren bir kütüphane."
+tr.builder = ".NET için hızlı bir CSV kütüphanesi; satırları tip tanımlı sınıflara ve sınıflardan eşler."
+
+[[tech]]
+id = "closedxml"
+name = "ClosedXML"
+category = "other"
+nuget = ["ClosedXML"]
+en.beginner = "a library that creates and edits Excel spreadsheets (.xlsx files) from C# code without Excel installed."
+en.builder = "a .NET library for reading and writing Excel .xlsx files using the Open XML format, with no Office dependency."
+tr.beginner = "Excel kurulu olmadan C# kodundan Excel tabloları (.xlsx) oluşturup düzenleyen bir kütüphane."
+tr.builder = ".NET için Open XML tabanlı bir kütüphane; Office kurulumu gerektirmeden .xlsx dosyalarını okur ve yazar."
+
+[[tech]]
+id = "yamldotnet"
+name = "YamlDotNet"
+category = "other"
+nuget = ["YamlDotNet"]
+en.beginner = "a library that reads and writes YAML settings files, a human-friendly format used in many projects."
+en.builder = "a .NET YAML parser and serializer that converts YAML text to and from C# objects."
+tr.beginner = "projelerde sıkça kullanılan, insanların okuyabildiği YAML ayar dosyalarını okuyup yazan bir kütüphane."
+tr.builder = ".NET için YAML ayrıştırıcı ve serileştirici; YAML metnini C# nesnelerine ve tersine çevirir."
+
+[[tech]]
+id = "fastendpoints"
+name = "FastEndpoints"
+category = "framework"
+nuget = ["FastEndpoints"]
+en.beginner = "a lightweight way to build web API routes in C# with less setup code."
+en.builder = "a .NET library on ASP.NET Core for building web APIs with one class per endpoint, plus validation and binding."
+tr.beginner = "C# ile web API yollarını az kurulum koduyla yazmanızı sağlayan hafif bir çatı."
+tr.builder = ".NET için ASP.NET Core üzerinde çalışan; her uç nokta için bir sınıf kullanan, doğrulama ve bağlama içeren web API çatısı."
+
+[[tech]]
+id = "spectre-console"
+name = "Spectre.Console"
+category = "other"
+nuget = ["Spectre.Console"]
+en.beginner = "a helper that makes command-line programs show colors, tables, progress bars and menus."
+en.builder = "a .NET library for building rich, styled console applications with colors, tables, trees, charts and prompts."
+tr.beginner = "komut satırı programlarının renkler, tablolar, ilerleme çubukları ve menüler göstermesini sağlayan bir yardımcı."
+tr.builder = ".NET için zengin ve renkli konsol uygulamaları yapan kütüphane; tablo, ağaç, grafik ve soru istemleri sunar."
+
+[[tech]]
+id = "system-commandline"
+name = "System.CommandLine"
+category = "other"
+nuget = ["System.CommandLine"]
+en.beginner = "a helper that reads the options and arguments a user types after a command, such as --name."
+en.builder = "Microsoft's .NET library for parsing command-line arguments, subcommands and options and generating help text."
+tr.beginner = "kullanıcının komuttan sonra yazdığı seçenekleri ve bağımsız değişkenleri (--ad gibi) okuyan bir yardımcı."
+tr.builder = "Microsoft'un komut satırı argümanlarını, alt komutları ve seçenekleri ayrıştıran ve yardım metni üreten .NET kütüphanesi."

@@ -1,0 +1,571 @@
+# Build, test and tooling packages for npm. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "type-definitions"
+name = "Type definitions (@types)"
+category = "build"
+npm = ["@types/*"]
+en.beginner = "extra files that tell the editor what a library's code looks like."
+en.builder = "DefinitelyTyped packages under @types that add TypeScript declarations for JavaScript libraries without built-in types."
+tr.beginner = "bir kütüphanenin kodunun nasıl göründüğünü editöre anlatan ek dosyalar."
+tr.builder = "JavaScript kütüphaneleri için TypeScript tür tanımları ekleyen, DefinitelyTyped deposundan gelen @types paketleri."
+
+[[tech]]
+id = "vite"
+name = "Vite"
+category = "build"
+npm = ["vite", "@vitejs/*"]
+en.beginner = "a tool that starts your web project quickly and builds it for release."
+en.builder = "a frontend build tool and dev server that serves code as native ES modules and bundles it for production."
+tr.beginner = "web projenizi hızla başlatan ve yayın için derleyen bir araç."
+tr.builder = "geliştirme sunucusu ve derleme aracı; kodu tarayıcıya ES modülleri olarak sunar, yayın için paketler."
+
+[[tech]]
+id = "webpack"
+name = "webpack"
+category = "build"
+npm = ["webpack", "webpack-cli"]
+en.beginner = "a tool that packs your project's many files into a few ready-to-run files."
+en.builder = "a module bundler for JavaScript and assets, configured through webpack.config files and run by webpack-cli."
+tr.beginner = "projenizin çok sayıda dosyasını birkaç hazır dosyada toplayan bir araç."
+tr.builder = "JavaScript ve varlık dosyalarını paketleyen modül paketleyici; ayarları webpack.config dosyasından okur, webpack-cli ile çalışır."
+
+[[tech]]
+id = "rollup"
+name = "Rollup"
+category = "build"
+npm = ["rollup"]
+en.beginner = "a tool that bundles library code into small, clean files for publishing."
+en.builder = "a JavaScript module bundler that uses ES module syntax and removes unused code, popular for building libraries."
+tr.beginner = "kütüphane kodunu yayın için küçük ve temiz dosyalara toplayan bir araç."
+tr.builder = "ES modül sözdizimini kullanan bir JavaScript paketleyicisi; kullanılmayan kodu çıkarır ve kütüphane derlemede sık tercih edilir."
+
+[[tech]]
+id = "esbuild"
+name = "esbuild"
+category = "build"
+npm = ["esbuild"]
+en.beginner = "a very fast tool that turns modern code into files a browser or server can run."
+en.builder = "a fast bundler and transpiler for JavaScript and TypeScript, written in Go, with a command-line and JavaScript API."
+tr.beginner = "modern kodu tarayıcının veya sunucunun çalıştırabileceği dosyalara çeviren çok hızlı bir araç."
+tr.builder = "JavaScript ve TypeScript için, Go ile yazılmış hızlı bir paketleyici ve derleyici; komut satırı ve JavaScript arayüzü sunar."
+
+[[tech]]
+id = "swc"
+name = "SWC"
+category = "build"
+npm = ["@swc/core", "@swc/*"]
+en.beginner = "a fast tool that converts modern JavaScript and TypeScript so older browsers can run them."
+en.builder = "a Rust-based compiler for JavaScript and TypeScript, used from Node.js through the @swc/core package."
+tr.beginner = "modern JavaScript ve TypeScript kodunu eski tarayıcıların anlayacağı hale getiren hızlı bir araç."
+tr.builder = "Rust ile yazılmış, JavaScript ve TypeScript için derleyici; Node.js paketi @swc/core bu işi yapar."
+
+[[tech]]
+id = "parcel"
+name = "Parcel"
+category = "build"
+npm = ["parcel"]
+en.beginner = "a zero-setup tool that bundles a web project without needing a config file."
+en.builder = "a web application bundler that works out its build setup on its own, with no configuration file required."
+tr.beginner = "yapılandırma dosyası gerektirmeden web projesini paketleyen bir araç."
+tr.builder = "yapılandırma olmadan çalışan bir web uygulaması paketleyicisi; derleme ayarlarını kendisi belirler."
+
+[[tech]]
+id = "turbo"
+name = "Turborepo"
+category = "build"
+npm = ["turbo"]
+en.beginner = "a tool that runs build and test steps across many packages, skipping parts that did not change."
+en.builder = "a task runner and build system for JavaScript and TypeScript monorepos that caches task results and runs tasks in dependency order."
+tr.beginner = "birçok paket arasında derleme ve test adımlarını çalıştıran, değişmeyen kısımları atlayan bir araç."
+tr.builder = "tek depoda birden çok paketi olan projeler için görev çalıştırıcısı ve derleme sistemi; sonuçları önbelleğe alır ve görevleri bağımlılık sırasıyla çalıştırır."
+
+[[tech]]
+id = "nx"
+name = "Nx"
+category = "build"
+npm = ["nx"]
+en.beginner = "a tool that manages a large project with many apps and libraries, running only what changed."
+en.builder = "a monorepo build system with a dependency graph, caching and a task runner, extensible through plugins."
+tr.beginner = "çok uygulamalı büyük projeleri yöneten, yalnızca değişen parçaları çalıştıran bir araç."
+tr.builder = "bağımlılık grafiği, önbellekleme ve görev çalıştırıcısı olan, eklentilerle genişleyen bir monorepo derleme sistemi."
+
+[[tech]]
+id = "lerna"
+name = "Lerna"
+category = "build"
+npm = ["lerna"]
+en.beginner = "a tool that helps publish several related packages from one repository together."
+en.builder = "a monorepo manager for versioning and publishing several npm packages from one repository."
+tr.beginner = "aynı depodaki birden çok ilgili paketi birlikte yayımlamaya yardım eden bir araç."
+tr.builder = "tek depoda birden çok npm paketinin sürümünü ve yayımını yöneten bir monorepo aracı."
+
+[[tech]]
+id = "tsup"
+name = "tsup"
+category = "build"
+npm = ["tsup"]
+en.beginner = "a tool that packs your TypeScript library into ready-to-publish files."
+en.builder = "a zero-config TypeScript bundler built on esbuild, mainly for building libraries and emitting type declarations."
+tr.beginner = "TypeScript kütüphanenizi yayına hazır dosyalara dönüştüren bir araç."
+tr.builder = "esbuild üzerine kurulu, ayar gerektirmeden TypeScript kütüphanelerini paketleyen ve tür dosyaları üreten bir araç."
+
+[[tech]]
+id = "tsx"
+name = "tsx"
+category = "build"
+npm = ["tsx"]
+en.beginner = "a tool that runs TypeScript files directly, without a separate build step first."
+en.builder = "a Node.js command that runs TypeScript and ESM files directly, using esbuild to strip the types."
+tr.beginner = "TypeScript dosyalarını ayrı bir derleme adımına ihtiyaç duymadan doğrudan çalıştıran bir araç."
+tr.builder = "TypeScript ve ESM dosyalarını doğrudan çalıştıran bir Node.js komutu; türleri esbuild ile ayıklar."
+
+[[tech]]
+id = "ts-node"
+name = "ts-node"
+category = "build"
+npm = ["ts-node"]
+en.beginner = "a tool that runs TypeScript code directly in Node.js during development."
+en.builder = "a TypeScript execution engine for Node.js that compiles files on the fly and can type-check them."
+tr.beginner = "geliştirme sırasında TypeScript kodunu doğrudan Node.js içinde çalıştıran bir araç."
+tr.builder = "Node.js için TypeScript çalıştırma aracı; dosyaları çalışırken derler ve isterse tür denetimi yapar."
+
+[[tech]]
+id = "nodemon"
+name = "nodemon"
+category = "build"
+npm = ["nodemon"]
+en.beginner = "a helper that restarts your Node.js app automatically whenever you save a file."
+en.builder = "a development utility that watches project files and restarts the Node.js process when they change."
+tr.beginner = "dosyayı her kaydettiğinizde Node.js uygulamanızı otomatik olarak yeniden başlatan bir yardımcı."
+tr.builder = "proje dosyalarını izleyen ve değiştiklerinde Node.js sürecini yeniden başlatan bir geliştirme aracı."
+
+[[tech]]
+id = "concurrently"
+name = "concurrently"
+category = "build"
+npm = ["concurrently"]
+en.beginner = "a helper that runs several commands at once, such as a server and a build watcher."
+en.builder = "a command-line tool that runs multiple npm scripts in parallel and combines their output."
+tr.beginner = "sunucu ve derleme izleyicisi gibi birkaç komutu aynı anda çalıştıran bir yardımcı."
+tr.builder = "birden çok npm betiğini paralel çalıştıran ve çıktılarını tek ekranda toplayan bir komut satırı aracı."
+
+[[tech]]
+id = "cross-env"
+name = "cross-env"
+category = "build"
+npm = ["cross-env"]
+en.beginner = "a helper that sets environment variables in one way that works on every operating system."
+en.builder = "a command-line tool that sets environment variables inline in npm scripts, so Windows and Unix shells both work."
+tr.beginner = "ortam değişkenlerini her işletim sisteminde çalışacak tek bir biçimde ayarlayan bir yardımcı."
+tr.builder = "npm betiklerinde ortam değişkenlerini satır içinde ayarlayan komut satırı aracı; Windows ve Unix kabuklarında çalışır."
+
+[[tech]]
+id = "dotenv"
+name = "dotenv"
+category = "build"
+npm = ["dotenv"]
+en.beginner = "a helper that loads settings from a .env file, keeping secrets out of the code."
+en.builder = "a module that reads KEY=value pairs from a .env file into process.env."
+tr.beginner = "gizli ayarları kodun dışında tutarak bir .env dosyasından uygulamaya yükleyen bir yardımcı."
+tr.builder = "bir .env dosyasındaki KEY=değer çiftlerini process.env içine okuyan bir modül."
+
+[[tech]]
+id = "husky"
+name = "Husky"
+category = "build"
+npm = ["husky"]
+en.beginner = "a helper that runs checks, like tests or lint, automatically before each git commit."
+en.builder = "a tool that installs git hooks from your project config so scripts run at events like pre-commit."
+tr.beginner = "her git commit işleminden önce testler veya kod denetimi gibi kontrolleri otomatik çalıştıran bir yardımcı."
+tr.builder = "proje ayarlarından git kancalarını kuran ve pre-commit gibi olaylarda betikleri çalıştıran bir araç."
+
+[[tech]]
+id = "lint-staged"
+name = "lint-staged"
+category = "build"
+npm = ["lint-staged"]
+en.beginner = "a helper that checks only the files you just changed, before they are committed."
+en.builder = "a tool run from git hooks that runs linters and formatters on staged files only."
+tr.beginner = "yalnızca az önce değiştirdiğiniz dosyaları, commit edilmeden önce denetleyen bir yardımcı."
+tr.builder = "git kancalarından çalışan ve yalnızca hazırlanan (staged) dosyalara kod denetleyicisi ve biçimlendirici uygulayan bir araç."
+
+[[tech]]
+id = "commitlint"
+name = "commitlint"
+category = "build"
+npm = ["@commitlint/*"]
+en.beginner = "a helper that rejects commit messages that do not follow the agreed format."
+en.builder = "a linter for git commit messages that checks them against a convention such as Conventional Commits."
+tr.beginner = "kabul edilen biçime uymayan commit mesajlarını reddeden bir yardımcı."
+tr.builder = "git commit mesajlarını Conventional Commits gibi bir kurala göre denetleyen bir araç."
+
+[[tech]]
+id = "postcss"
+name = "PostCSS"
+category = "build"
+npm = ["postcss"]
+en.beginner = "a tool that transforms your CSS with plugins, for example to add browser prefixes."
+en.builder = "a CSS processor that parses styles into a tree and runs JavaScript plugins over it; many build tools use it."
+tr.beginner = "eklentilerle CSS kodunu dönüştüren bir araç; örneğin tarayıcı önekleri eklemek için kullanılır."
+tr.builder = "CSS'i bir ağaca çevirip JavaScript eklentileriyle işleyen bir CSS işlemcisi; birçok derleme aracı bunu kullanır."
+
+[[tech]]
+id = "autoprefixer"
+name = "Autoprefixer"
+category = "build"
+npm = ["autoprefixer"]
+en.beginner = "a helper that adds browser-specific prefixes to CSS so styles work in more browsers."
+en.builder = "a PostCSS plugin that adds vendor prefixes to CSS rules based on the browsers you target."
+tr.beginner = "CSS kurallarına tarayıcılara özel önekler ekleyen bir yardımcı; stiller daha çok tarayıcıda çalışır."
+tr.builder = "hedeflenen tarayıcılara göre CSS'e tarayıcı önekleri ekleyen bir PostCSS eklentisi."
+
+[[tech]]
+id = "rimraf"
+name = "rimraf"
+category = "build"
+npm = ["rimraf"]
+en.beginner = "a helper that deletes folders and files, such as a build folder, on any operating system."
+en.builder = "a cross-platform rm -rf equivalent for npm scripts."
+tr.beginner = "derleme klasörü gibi klasörleri ve dosyaları her işletim sisteminde silen bir yardımcı."
+tr.builder = "npm betiklerinde Unix'teki rm -rf komutunun yerine geçen, platformlar arası bir araç."
+
+[[tech]]
+id = "npm-run-all"
+name = "npm-run-all"
+category = "build"
+npm = ["npm-run-all"]
+en.beginner = "a helper that runs several npm scripts one after another or all at once."
+en.builder = "a command-line tool that runs several npm scripts in series or in parallel."
+tr.beginner = "birden çok npm betiğini sırayla ya da aynı anda çalıştıran bir yardımcı."
+tr.builder = "birden çok npm betiğini seri veya paralel çalıştıran bir komut satırı aracı."
+
+[[tech]]
+id = "changesets"
+name = "Changesets"
+category = "build"
+npm = ["@changesets/cli", "@changesets/*"]
+en.beginner = "a tool that tracks version changes per package and writes release notes for you."
+en.builder = "a versioning and changelog tool for monorepos and npm packages, driven by small changeset files in the repo."
+tr.beginner = "her paketin sürüm değişikliklerini izleyen ve sizin için sürüm notları yazan bir araç."
+tr.builder = "monorepo ve npm paketleri için sürüm numaralarını ve değişiklik günlüğünü yöneten bir araç; değişiklikleri küçük dosyalarla kaydeder."
+
+[[tech]]
+id = "semantic-release"
+name = "semantic-release"
+category = "build"
+npm = ["semantic-release"]
+en.beginner = "a tool that publishes a new package version automatically, based on your commit messages."
+en.builder = "an automated release tool that picks the next version from Conventional Commits and publishes it to npm."
+tr.beginner = "commit mesajlarınıza göre yeni paket sürümünü otomatik olarak yayımlayan bir araç."
+tr.builder = "Conventional Commits mesajlarından bir sonraki sürümü belirleyen ve npm'e yayımlayan otomatik bir sürüm aracı."
+
+[[tech]]
+id = "eslint"
+name = "ESLint"
+category = "build"
+npm = ["eslint", "@eslint/*", "eslint-config-*", "eslint-plugin-*", "@typescript-eslint/*", "typescript-eslint"]
+en.beginner = "a tool that finds mistakes and bad style in your JavaScript and TypeScript code."
+en.builder = "the pluggable JavaScript and TypeScript linter; rule sets and parsers come as eslint-config and eslint-plugin packages."
+tr.beginner = "JavaScript ve TypeScript kodunuzdaki hataları ve kötü yazım biçimlerini bulan bir araç."
+tr.builder = "eklentilerle genişleyen JavaScript ve TypeScript kod denetleyicisi; kural setleri eslint-config ve eslint-plugin paketleriyle gelir."
+
+[[tech]]
+id = "prettier"
+name = "Prettier"
+category = "build"
+npm = ["prettier", "prettier-plugin-*"]
+en.beginner = "a tool that formats your code the same way every time, so style stays consistent."
+en.builder = "an opinionated code formatter for JavaScript, TypeScript, CSS and more, extendable with plugin packages."
+tr.beginner = "kodunuzu her seferinde aynı biçimde düzenleyen, yazım tarzını tutarlı tutan bir araç."
+tr.builder = "JavaScript, TypeScript, CSS ve diğer dosyalar için görüşe dayalı bir biçimlendirici; eklentilerle genişler."
+
+[[tech]]
+id = "biome"
+name = "Biome"
+category = "build"
+npm = ["@biomejs/biome"]
+en.beginner = "a fast tool that checks and formats JavaScript and TypeScript code in one step."
+en.builder = "a single Rust-based toolchain that lints and formats JavaScript, TypeScript and JSON files."
+tr.beginner = "JavaScript ve TypeScript kodunu tek adımda hem denetleyen hem biçimlendiren hızlı bir araç."
+tr.builder = "Rust ile yazılmış tek bir araç seti; JavaScript, TypeScript ve JSON dosyalarını denetler ve biçimlendirir."
+
+[[tech]]
+id = "babel"
+name = "Babel"
+category = "build"
+npm = ["@babel/*"]
+en.beginner = "a tool that converts newer JavaScript into a version that older browsers and tools understand."
+en.builder = "the Babel JavaScript compiler, which applies plugins and presets to transform syntax, set up in babel.config files."
+tr.beginner = "daha yeni JavaScript kodunu eski tarayıcıların ve araçların anlayacağı sürüme çeviren bir araç."
+tr.builder = "Babel JavaScript derleyicisi; eklentiler ve ön ayarlarla sözdizimini dönüştürür, babel.config dosyasıyla ayarlanır."
+
+[[tech]]
+id = "jest"
+name = "Jest"
+category = "testing"
+npm = ["jest", "ts-jest", "babel-jest", "@jest/*"]
+en.beginner = "a test runner that finds your test files and checks that your code behaves as expected."
+en.builder = "a JavaScript test framework with built-in assertions, mocking and coverage reports."
+tr.beginner = "test dosyalarınızı bulan ve kodunuzun beklendiği gibi çalıştığını kontrol eden bir test aracı."
+tr.builder = "yerleşik doğrulama, sahte nesne (mock) ve kapsam raporu içeren bir JavaScript test çatısı."
+
+[[tech]]
+id = "vitest"
+name = "Vitest"
+category = "testing"
+npm = ["vitest", "@vitest/*"]
+en.beginner = "a fast test runner that checks your code behaves as expected, often used with Vite projects."
+en.builder = "a Vite-powered test framework with Jest-compatible APIs, watch mode, and built-in coverage and mocking."
+tr.beginner = "kodunuzun beklendiği gibi çalıştığını kontrol eden, hızlı bir test aracı; çoğunlukla Vite projelerinde kullanılır."
+tr.builder = "Vite ile çalışan, Jest uyumlu bir test çatısı; izleme modu, kapsam raporu ve sahte nesneler sunar."
+
+[[tech]]
+id = "mocha"
+name = "Mocha"
+category = "testing"
+npm = ["mocha"]
+en.beginner = "a test runner that runs your test cases and reports which ones pass or fail."
+en.builder = "a flexible JavaScript test framework for Node.js and browsers; it leaves assertions and mocks to other libraries."
+tr.beginner = "test senaryolarınızı çalıştırıp hangilerinin geçtiğini ya da kaldığını gösteren bir test aracı."
+tr.builder = "Node.js ve tarayıcılarda çalışan esnek bir JavaScript test çatısı; doğrulama ve sahte nesneleri başka kütüphanelere bırakır."
+
+[[tech]]
+id = "chai"
+name = "Chai"
+category = "testing"
+npm = ["chai"]
+en.beginner = "a helper library that lets tests state expected results in plain readable sentences."
+en.builder = "an assertion library usually paired with Mocha, offering expect, should and assert styles."
+tr.beginner = "testlerin beklenen sonuçları okunabilir cümlelerle yazmasını sağlayan bir kütüphane."
+tr.builder = "test beklentilerini yazmak için doğrulama kütüphanesi; genellikle Mocha ile kullanılır ve expect, should, assert biçimleri sunar."
+
+[[tech]]
+id = "sinon"
+name = "Sinon"
+category = "testing"
+npm = ["sinon"]
+en.beginner = "a library that fakes functions and timers in tests, so you can check how code calls them."
+en.builder = "a standalone test helper providing spies, stubs, mocks and fake timers for JavaScript tests."
+tr.beginner = "testlerde fonksiyonları ve zamanlayıcıları taklit eden, kodun onları nasıl çağırdığını denetlemenizi sağlayan bir kütüphane."
+tr.builder = "JavaScript testleri için spy, stub, mock ve sahte zamanlayıcılar sunan bağımsız bir yardımcı kütüphane."
+
+[[tech]]
+id = "ava"
+name = "AVA"
+category = "testing"
+npm = ["ava"]
+en.beginner = "a test runner that runs tests in parallel, so a full test suite finishes sooner."
+en.builder = "a minimal JavaScript test runner that executes tests concurrently in separate processes."
+tr.beginner = "testleri paralel çalıştırarak tüm test paketinin daha çabuk bitmesini sağlayan bir test aracı."
+tr.builder = "testleri eşzamanlı ve ayrı süreçlerde çalıştıran küçük bir JavaScript test aracı."
+
+[[tech]]
+id = "testing-library"
+name = "Testing Library"
+category = "testing"
+npm = ["@testing-library/*"]
+en.beginner = "helpers that test your screens the way a real person would see and use them."
+en.builder = "a family of DOM testing utilities that find elements by role and text, with framework packages such as @testing-library/react."
+tr.beginner = "ekranlarınızı gerçek bir kişinin gördüğü ve kullandığı gibi test eden yardımcılar."
+tr.builder = "öğeleri rol ve metne göre bulan DOM test araçları ailesi; @testing-library/react gibi çatıya özel paketleri vardır."
+
+[[tech]]
+id = "playwright"
+name = "Playwright"
+category = "testing"
+npm = ["@playwright/test", "playwright"]
+en.beginner = "a tool that opens real browsers and clicks through your site to test it automatically."
+en.builder = "a browser automation and end-to-end testing library for Chromium, Firefox and WebKit, with its own test runner."
+tr.beginner = "gerçek tarayıcıları açıp sitenizde gezinerek otomatik olarak test eden bir araç."
+tr.builder = "Chromium, Firefox ve WebKit için tarayıcı otomasyonu ve uçtan uca test kütüphanesi; kendi test çalıştırıcısı vardır."
+
+[[tech]]
+id = "cypress"
+name = "Cypress"
+category = "testing"
+npm = ["cypress"]
+en.beginner = "a testing tool that runs your web app in a browser and checks what users see."
+en.builder = "an end-to-end and component testing framework for web apps, with a browser-based interactive test runner."
+tr.beginner = "web uygulamanızı bir tarayıcıda çalıştırıp kullanıcının neler gördüğünü kontrol eden bir test aracı."
+tr.builder = "web uygulamaları için uçtan uca ve bileşen testi çatısı; tarayıcıda çalışan etkileşimli test çalıştırıcısı içerir."
+
+[[tech]]
+id = "puppeteer"
+name = "Puppeteer"
+category = "testing"
+npm = ["puppeteer"]
+en.beginner = "a library that controls a Chrome browser from code, for scraping pages or taking screenshots."
+en.builder = "a Node.js library that drives Chrome or Chromium over the DevTools protocol for automation and testing."
+tr.beginner = "koddan Chrome tarayıcısını yöneten; sayfalardan veri toplamak veya ekran görüntüsü almak için kullanılan bir kütüphane."
+tr.builder = "Chrome veya Chromium'u DevTools protokolü üzerinden süren, otomasyon ve testler için bir Node.js kütüphanesi."
+
+[[tech]]
+id = "supertest"
+name = "SuperTest"
+category = "testing"
+npm = ["supertest"]
+en.beginner = "a helper that sends web requests to your server in tests and checks the replies."
+en.builder = "a Node.js HTTP assertion library that sends requests to your app in tests and checks status, headers and body."
+tr.beginner = "testlerde sunucunuza web istekleri gönderip yanıtları denetleyen bir yardımcı."
+tr.builder = "Node.js uygulamalarına HTTP istekleri gönderip durum kodunu, başlıkları ve gövdeyi doğrulayan bir test kütüphanesi."
+
+[[tech]]
+id = "nock"
+name = "Nock"
+category = "testing"
+npm = ["nock"]
+en.beginner = "a helper that fakes calls to outside web services during tests so tests stay offline."
+en.builder = "an HTTP mocking library for Node.js that intercepts outgoing requests and returns scripted responses."
+tr.beginner = "testlerde dış web servislerine yapılan çağrıları taklit ederek testleri çevrimdışı tutan bir yardımcı."
+tr.builder = "Node.js için HTTP taklit kütüphanesi; giden istekleri yakalar ve önceden yazılmış yanıtları döndürür."
+
+[[tech]]
+id = "msw"
+name = "Mock Service Worker"
+category = "testing"
+npm = ["msw"]
+en.beginner = "a tool that intercepts network requests and returns fake answers, in tests or in the browser."
+en.builder = "an API mocking library that intercepts requests at the network level in Node.js and browsers."
+tr.beginner = "ağ isteklerini yakalayıp sahte yanıtlar döndüren bir araç; testlerde veya tarayıcıda kullanılır."
+tr.builder = "Node.js ve tarayıcılarda ağ düzeyinde istekleri yakalayan bir API taklit (mock) kütüphanesi."
+
+[[tech]]
+id = "jsdom"
+name = "jsdom"
+category = "testing"
+npm = ["jsdom"]
+en.beginner = "a fake browser page in JavaScript, so tests can work with HTML without a real browser."
+en.builder = "a DOM and HTML implementation for Node.js, used by Jest and other test runners as a test environment."
+tr.beginner = "gerçek tarayıcı olmadan testlerin HTML ile çalışmasını sağlayan, JavaScript ile yazılmış sahte bir sayfa."
+tr.builder = "Node.js için DOM ve HTML uygulaması; Jest gibi test araçlarında test ortamı olarak kullanılır."
+
+[[tech]]
+id = "happy-dom"
+name = "happy-dom"
+category = "testing"
+npm = ["happy-dom"]
+en.beginner = "a lighter fake browser for tests, an alternative to jsdom."
+en.builder = "a JavaScript implementation of the browser DOM for Node.js test environments, an alternative to jsdom."
+tr.beginner = "testler için daha hafif bir sahte tarayıcı; jsdom'a alternatif olarak kullanılabilir."
+tr.builder = "Node.js test ortamları için JavaScript ile yazılmış bir tarayıcı DOM uygulaması; jsdom'un alternatifi."
+
+[[tech]]
+id = "faker"
+name = "Faker"
+category = "testing"
+npm = ["@faker-js/faker"]
+en.beginner = "a library that makes realistic fake names, emails and addresses for tests and demos."
+en.builder = "a fake-data generator for JavaScript with localized data sets, used to seed databases and fixtures."
+tr.beginner = "testler ve örnek sayfalar için gerçekçi sahte isim, e-posta ve adres üreten bir kütüphane."
+tr.builder = "JavaScript için sahte veri üreteci; dil bazlı veri setleri sunar ve veritabanlarını doldurmakta kullanılır."
+
+[[tech]]
+id = "storybook"
+name = "Storybook"
+category = "ui"
+npm = ["storybook", "@storybook/*"]
+en.beginner = "a workshop app where you build and view UI components one by one, separate from your site."
+en.builder = "a tool for developing and documenting UI components in isolation, with stories that can also be tested."
+tr.beginner = "arayüz parçalarını sitenizden ayrı olarak tek tek oluşturup görebileceğiniz bir çalışma alanı."
+tr.builder = "arayüz bileşenlerini ayrı ortamda geliştirmek ve belgelemek için bir araç; hikâyeler test edilebilir."
+
+[[tech]]
+id = "c8"
+name = "c8"
+category = "testing"
+npm = ["c8"]
+en.beginner = "a tool that measures how much of your code tests actually run, as a coverage report."
+en.builder = "a code coverage tool for Node.js that uses V8's built-in coverage instead of instrumenting the code."
+tr.beginner = "testlerinizin kodunuzun ne kadarını çalıştırdığını ölçen ve bir kapsam raporu veren bir araç."
+tr.builder = "Node.js için kapsam aracı; kodu değiştirmek yerine V8'in yerleşik kapsam özelliğini kullanır."
+
+[[tech]]
+id = "nyc"
+name = "nyc"
+category = "testing"
+npm = ["nyc"]
+en.beginner = "a tool that measures how much of your code is covered by tests."
+en.builder = "the command-line interface for Istanbul, a code coverage tool for JavaScript and Node.js."
+tr.beginner = "kodunuzun ne kadarının testlerle kapsandığını ölçen bir araç."
+tr.builder = "JavaScript ve Node.js için kapsam aracı Istanbul'un komut satırı arayüzü."
+
+[[tech]]
+id = "vercel"
+name = "Vercel CLI"
+category = "deploy"
+npm = ["vercel"]
+en.beginner = "a command-line tool that deploys your web project to Vercel's hosting from your computer."
+en.builder = "the official Vercel command-line interface for creating, linking and deploying projects to the Vercel platform."
+tr.beginner = "web projenizi bilgisayarınızdan Vercel barındırma hizmetine yayınlayan bir komut satırı aracı."
+tr.builder = "Vercel'in resmi komut satırı arayüzü; projeleri oluşturmak, bağlamak ve Vercel platformuna yayınlamak için kullanılır."
+
+[[tech]]
+id = "pm2"
+name = "PM2"
+category = "deploy"
+npm = ["pm2"]
+en.beginner = "a manager that keeps your Node.js app running in the background and restarts it after crashes."
+en.builder = "a production process manager for Node.js with clustering, log handling and startup scripts."
+tr.beginner = "Node.js uygulamanızı arka planda çalışır tutan ve çökerse yeniden başlatan bir süreç yöneticisi."
+tr.builder = "Node.js için üretim ortamı süreç yöneticisi; kümeleme, günlük (log) yönetimi ve açılış betikleri sunar."
+
+[[tech]]
+id = "serverless"
+name = "Serverless Framework"
+category = "deploy"
+npm = ["serverless"]
+en.beginner = "a tool that deploys your backend code to cloud services without you managing servers."
+en.builder = "the Serverless Framework CLI, which defines and deploys functions and their events on AWS and other cloud providers."
+tr.beginner = "sunucuları kendiniz yönetmeden, arka uç kodunuzu bulut hizmetlerine yükleyen bir araç."
+tr.builder = "AWS ve diğer bulut sağlayıcılarında işlevleri ve tetikleyicilerini tanımlayıp yükleyen Serverless Framework aracı."
+
+[[tech]]
+id = "aws-cdk"
+name = "AWS CDK"
+category = "deploy"
+npm = ["aws-cdk", "aws-cdk-lib"]
+en.beginner = "a tool that describes your cloud setup as TypeScript or Python code, then creates it on AWS."
+en.builder = "the AWS Cloud Development Kit: an infrastructure-as-code framework that synthesizes CloudFormation templates; aws-cdk is its CLI."
+tr.beginner = "bulut altyapınızı TypeScript veya Python kodu olarak tanımlayıp AWS üzerinde oluşturan bir araç."
+tr.builder = "AWS Cloud Development Kit; altyapıyı kod olarak yazıp CloudFormation şablonlarına çeviren bir çatı ve aws-cdk komut satırı aracı."
+
+[[tech]]
+id = "pulumi"
+name = "Pulumi"
+category = "deploy"
+npm = ["@pulumi/*"]
+en.beginner = "a tool that describes cloud resources in normal programming languages and creates them for you."
+en.builder = "an infrastructure-as-code SDK where @pulumi/* packages provide cloud providers and resources for TypeScript and other languages."
+tr.beginner = "bulut kaynaklarını sıradan programlama dilleriyle tanımlayıp sizin için oluşturan bir araç."
+tr.builder = "altyapıyı kod olarak yönetmek için SDK; @pulumi/* paketleri TypeScript'te bulut sağlayıcılarını ve kaynaklarını sunar."
+
+[[tech]]
+id = "sst"
+name = "SST"
+category = "deploy"
+npm = ["sst"]
+en.beginner = "a framework that sets up your web app's backend and hosting in the cloud, mostly AWS, using TypeScript."
+en.builder = "an infrastructure-as-code framework for building and deploying full-stack apps on your own cloud accounts, mostly AWS."
+tr.beginner = "web uygulamanızın arka ucunu ve barındırmasını bulutta (çoğunlukla AWS) TypeScript ile kuran bir çatı."
+tr.builder = "uçtan uca uygulamaları kendi bulut hesaplarınızda (çoğunlukla AWS), altyapıyı kod olarak yazarak kurmak ve yayınlamak için bir çatı."
+
+[[tech]]
+id = "cloudflare-workers"
+name = "Cloudflare Workers"
+category = "deploy"
+npm = ["wrangler"]
+en.beginner = "a tool that builds and deploys code that runs on Cloudflare's network close to your users."
+en.builder = "the Wrangler command-line tool for Cloudflare Workers, which are serverless functions at the network edge."
+tr.beginner = "Cloudflare ağında, kullanıcılarınıza yakın çalışan kodu geliştiren ve yayınlayan bir araç."
+tr.builder = "Cloudflare Workers için Wrangler komut satırı aracı; kenar ağında çalışan sunucusuz işlevleri yönetir."
+
+[[tech]]
+id = "wait-on"
+name = "wait-on"
+category = "build"
+npm = ["wait-on"]
+en.beginner = "a helper that waits until a server or file is ready before the next step runs."
+en.builder = "a command-line tool and library that waits for files, TCP ports or HTTP URLs to become available before a script continues."
+tr.beginner = "bir sunucu ya da dosya hazır olana kadar bekleyip sonraki adımı başlatan bir yardımcı."
+tr.builder = "dosyaların, bağlantı noktalarının (port) veya HTTP adreslerinin hazır olmasını bekleyen bir komut satırı aracı."

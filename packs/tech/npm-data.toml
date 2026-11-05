@@ -1,0 +1,601 @@
+# Data and ORM packages for npm. Licensed CC0-1.0 (see packs/LICENSE). Schema: crates/hm-tech/src/catalog.rs.
+
+[[tech]]
+id = "prisma"
+name = "Prisma"
+category = "data"
+npm = ["prisma", "@prisma/client"]
+en.beginner = "a tool that lets your code read and write the database and catches mistakes before the app runs."
+en.builder = "a TypeScript ORM with a schema file, a generated typed client and migrations run by the Prisma CLI."
+tr.beginner = "kodun veritabanını basit komutlarla okuyup yazmasını sağlayan ve hataları uygulama çalışmadan önce yakalayan bir araç."
+tr.builder = "şema dosyasından tür bilgisi üreten bir TypeScript ORM'i; göçleri prisma komut satırı aracıyla yönetir."
+
+[[tech]]
+id = "drizzle"
+name = "Drizzle ORM"
+category = "data"
+npm = ["drizzle-orm", "drizzle-kit"]
+en.beginner = "a library that turns code into database queries."
+en.builder = "a TypeScript ORM and SQL query builder with typed schemas, plus drizzle-kit for migrations."
+tr.beginner = "kodu veritabanı sorgularına çeviren bir kütüphane."
+tr.builder = "türü belli şemalarla çalışan bir TypeScript ORM ve SQL sorgu kurucusu; drizzle-kit göçleri yönetir."
+
+[[tech]]
+id = "typeorm"
+name = "TypeORM"
+category = "data"
+npm = ["typeorm"]
+en.beginner = "a library that saves and loads app data as database rows, using classes."
+en.builder = "a TypeScript and JavaScript ORM that maps classes to tables, with entities, repositories and migrations."
+tr.beginner = "uygulama verilerini sınıflar aracılığıyla veritabanına kaydeden ve oradan okuyan bir kütüphane."
+tr.builder = "sınıfları veritabanı tablolarına eşleyen bir TypeScript ve JavaScript ORM'i; varlık sınıfları, depolar ve göçler içerir."
+
+[[tech]]
+id = "sequelize"
+name = "Sequelize"
+category = "data"
+npm = ["sequelize"]
+en.beginner = "a library that saves and reads app data in a database, using simple JavaScript models."
+en.builder = "a Node.js ORM for Postgres, MySQL, SQLite and SQL Server, with models, associations and migrations."
+tr.beginner = "uygulama verilerini basit JavaScript modelleriyle veritabanına kaydeden bir kütüphane."
+tr.builder = "Postgres, MySQL, SQLite ve SQL Server ile çalışan bir Node.js ORM'i; modeller, ilişkiler ve göçler içerir."
+
+[[tech]]
+id = "mongoose"
+name = "Mongoose"
+category = "data"
+npm = ["mongoose"]
+en.beginner = "a library that gives MongoDB data a clear shape and checks it before saving."
+en.builder = "a Node.js ODM for MongoDB that defines schemas and models, with validation, queries and save hooks."
+tr.beginner = "MongoDB verilerine net bir yapı veren ve kaydetmeden önce kontrol eden bir kütüphane."
+tr.builder = "MongoDB için bir Node.js ODM'i; şemalar ve modeller tanımlar, doğrulama, sorgular ve kayıt öncesi işlemler sunar."
+
+[[tech]]
+id = "knex"
+name = "Knex.js"
+category = "data"
+npm = ["knex"]
+en.beginner = "a library that writes safe database queries for you from plain JavaScript."
+en.builder = "a SQL query builder for Node.js with migrations and seeds, supporting Postgres, MySQL, SQLite and more."
+tr.beginner = "düz JavaScript ile yazılmış kodu güvenli veritabanı sorgularına çeviren bir kütüphane."
+tr.builder = "Node.js için bir SQL sorgu kurucusu; göç ve örnek veri araçlarıyla Postgres, MySQL ve SQLite'ı destekler."
+
+[[tech]]
+id = "kysely"
+name = "Kysely"
+category = "data"
+npm = ["kysely"]
+en.beginner = "a library that builds database queries in code, with TypeScript checking each one."
+en.builder = "a type-safe SQL query builder for TypeScript that works with Postgres, MySQL, SQLite and others."
+tr.beginner = "veritabanı sorgularını kodla oluşturan ve her birini TypeScript ile kontrol eden bir kütüphane."
+tr.builder = "TypeScript için tür güvenli bir SQL sorgu kurucusu; Postgres, MySQL, SQLite ve diğerleriyle çalışır."
+
+[[tech]]
+id = "mikro-orm"
+name = "MikroORM"
+category = "data"
+npm = ["@mikro-orm/*"]
+en.beginner = "a library that saves objects to a database and tracks their changes for you."
+en.builder = "a TypeScript ORM that tracks entity changes with a unit of work, with migrations and many database drivers."
+tr.beginner = "nesneleri veritabanına kaydeden ve üzerlerindeki değişiklikleri kendisi takip eden bir kütüphane."
+tr.builder = "varlık değişikliklerini bir iş birimi ile izleyen bir TypeScript ORM'i; göçler ve birçok veritabanı sürücüsü içerir."
+
+[[tech]]
+id = "objection"
+name = "Objection.js"
+category = "data"
+npm = ["objection"]
+en.beginner = "a library that gives database tables simple model classes and easy relations."
+en.builder = "an ORM built on top of Knex, with models, relations, eager loading and JSON schema validation."
+tr.beginner = "veritabanı tablolarını basit model sınıflarına ve kolay ilişkilere dönüştüren bir kütüphane."
+tr.builder = "Knex üzerine kurulu bir ORM; modeller, ilişkiler, ilişkili verileri önceden yükleme ve JSON şema doğrulaması sunar."
+
+[[tech]]
+id = "neon"
+name = "Neon serverless driver"
+category = "data"
+npm = ["@neondatabase/serverless"]
+en.beginner = "a small connector that lets an app reach a Neon Postgres database over the internet."
+en.builder = "a Postgres driver for Neon that works over WebSockets and HTTP, for edge and serverless functions."
+tr.beginner = "bir uygulamanın internet üzerinden Neon Postgres veritabanına bağlanmasını sağlayan küçük bir bağlayıcı."
+tr.builder = "Neon için WebSocket ve HTTP üzerinden çalışan bir Postgres sürücüsü; sunucusuz işlevlere uygundur."
+
+[[tech]]
+id = "planetscale"
+name = "PlanetScale database driver"
+category = "data"
+npm = ["@planetscale/database"]
+en.beginner = "a small connector that lets an app talk to a PlanetScale MySQL database online."
+en.builder = "a driver for PlanetScale's MySQL databases that sends queries over HTTP, for edge and serverless runtimes."
+tr.beginner = "bir uygulamanın internet üzerinden PlanetScale MySQL veritabanıyla konuşmasını sağlayan küçük bir bağlayıcı."
+tr.builder = "PlanetScale MySQL veritabanları için HTTP üzerinden sorgu gönderen bir sürücü; uç ve sunucusuz ortamlara uygundur."
+
+[[tech]]
+id = "libsql"
+name = "libSQL client"
+category = "data"
+npm = ["@libsql/client"]
+en.beginner = "a small connector that lets apps store data in a light database, on a device or online."
+en.builder = "the client for libSQL, a fork of SQLite, used with Turso and with local or remote SQLite databases."
+tr.beginner = "uygulamaların verileri hafif bir veritabanında, cihazda ya da bulutta saklamasını sağlayan küçük bir bağlayıcı."
+tr.builder = "SQLite'tan türetilmiş libSQL için istemci; Turso ile ve yerel ya da uzak SQLite veritabanlarıyla kullanılır."
+
+[[tech]]
+id = "upstash"
+name = "Upstash Redis client"
+category = "data"
+npm = ["@upstash/redis"]
+en.beginner = "a small connector that lets apps store quick-to-read data in a hosted Redis cache."
+en.builder = "a Redis client that talks to Upstash's hosted Redis over HTTP, for serverless and edge code."
+tr.beginner = "uygulamaların hızlı okunan verileri barındırılan bir Redis önbelleğinde saklamasını sağlayan küçük bir kütüphane."
+tr.builder = "Upstash'in barındırılan Redis hizmetine HTTP üzerinden bağlanan bir Redis istemcisi; sunucusuz ve uç kodlar için uygundur."
+
+[[tech]]
+id = "bullmq"
+name = "BullMQ"
+category = "data"
+npm = ["bullmq"]
+en.beginner = "a library that queues slow tasks, such as emails, and runs them in the background."
+en.builder = "a Node.js job queue backed by Redis, with workers, retries, and delayed or repeating jobs."
+tr.beginner = "e-posta gönderme gibi yavaş işleri sıraya koyup arka planda çalıştıran bir kütüphane."
+tr.builder = "Redis üzerinde çalışan bir Node.js iş kuyruğu; işleyiciler, yeniden deneme ve ertelenmiş ya da tekrarlanan işler sunar."
+
+[[tech]]
+id = "bull"
+name = "Bull"
+category = "data"
+npm = ["bull"]
+en.beginner = "an older library that queues background jobs, such as sending emails, using Redis."
+en.builder = "a Node.js job queue for Redis, the predecessor of BullMQ."
+tr.beginner = "arka planda çalışacak işleri, örneğin e-postaları, Redis ile sıraya koyan eski bir kütüphane."
+tr.builder = "Redis için bir Node.js iş kuyruğu; BullMQ'nun öncülüdür."
+
+[[tech]]
+id = "dexie"
+name = "Dexie.js"
+category = "data"
+npm = ["dexie"]
+en.beginner = "a library that saves data inside the user's browser so it can also work offline."
+en.builder = "a wrapper around IndexedDB, the browser's built-in database, with a simple query API and live queries."
+tr.beginner = "verileri kullanıcının tarayıcısında saklayan ve internet olmadan da çalışmaya yardımcı olan bir kütüphane."
+tr.builder = "tarayıcının yerleşik veritabanı olan IndexedDB için bir sarmalayıcı; basit bir sorgu arayüzü ve canlı sorgular sunar."
+
+[[tech]]
+id = "idb"
+name = "idb"
+category = "data"
+npm = ["idb"]
+en.beginner = "a small helper that makes saving data in the browser simpler."
+en.builder = "a small wrapper that makes the browser's IndexedDB easier to use."
+tr.beginner = "tarayıcıda veri saklamayı daha kolay hale getiren küçük bir yardımcı kütüphane."
+tr.builder = "tarayıcının yerleşik veritabanı IndexedDB'yi daha sade kullanmayı sağlayan küçük bir sarmalayıcı."
+
+[[tech]]
+id = "tanstack-query"
+name = "TanStack Query"
+category = "data"
+npm = ["@tanstack/react-query", "@tanstack/vue-query"]
+en.beginner = "a library that loads data from a server and keeps the screen up to date with it."
+en.builder = "a data-fetching and caching library for React and Vue, with loading states, retries and background refresh."
+tr.beginner = "sunucudan veri çekip ekranın bu verilerle güncel kalmasını sağlayan bir kütüphane."
+tr.builder = "React ve Vue için veri çekme ve önbellekleme kütüphanesi; yükleme durumları, yeniden deneme ve arka planda yenileme sunar."
+
+[[tech]]
+id = "swr"
+name = "SWR"
+category = "data"
+npm = ["swr"]
+en.beginner = "a small library that loads data from a server and shows it fast while refreshing."
+en.builder = "a React data-fetching library from Vercel that uses stale-while-revalidate caching."
+tr.beginner = "sunucudan veriyi çekip önce eskisini gösteren, arka planda da yenileyen küçük bir kütüphane."
+tr.builder = "Vercel'in React için veri çekme kütüphanesi; eski önbellek verisini gösterip arka planda yeniden doğrulayan bir yöntem kullanır."
+
+[[tech]]
+id = "apollo-client"
+name = "Apollo Client"
+category = "data"
+npm = ["@apollo/client"]
+en.beginner = "a library that loads GraphQL data from a server and keeps it in the app's cache."
+en.builder = "a GraphQL client for React and other frontends, with a normalized cache and query hooks."
+tr.beginner = "GraphQL verilerini sunucudan alıp uygulamanın önbelleğinde tutan bir kütüphane."
+tr.builder = "React ve diğer ön yüzler için bir GraphQL istemcisi; normalleştirilmiş önbellek ve sorgu kancaları sunar."
+
+[[tech]]
+id = "apollo-server"
+name = "Apollo Server"
+category = "data"
+npm = ["@apollo/server"]
+en.beginner = "a library that sets up a GraphQL API that the app's frontend can ask for data."
+en.builder = "a standalone GraphQL server library that runs a schema and resolvers over HTTP, for Node.js."
+tr.beginner = "uygulamanın ön yüzünün veri isteyebileceği bir GraphQL API'si kuran kütüphane."
+tr.builder = "Node.js için, şema ve çözümleyicileri HTTP üzerinden sunan bağımsız bir GraphQL sunucu kütüphanesi."
+
+[[tech]]
+id = "graphql-request"
+name = "graphql-request"
+category = "data"
+npm = ["graphql-request"]
+en.beginner = "a small library that sends GraphQL questions to a server with very little code."
+en.builder = "a minimal GraphQL client that sends queries and mutations over fetch, without a cache."
+tr.beginner = "GraphQL sorularını çok az kodla sunucuya gönderen küçük bir kütüphane."
+tr.builder = "sorguları ve değişiklikleri fetch üzerinden gönderen, önbelleği olmayan minimal bir GraphQL istemcisi."
+
+[[tech]]
+id = "urql"
+name = "urql"
+category = "data"
+npm = ["urql"]
+en.beginner = "a GraphQL library for React that loads and caches server data."
+en.builder = "an extensible GraphQL client for React with a document cache, extended through a chain of exchange plugins."
+tr.beginner = "React için GraphQL verilerini sunucudan yükleyen ve önbelleğe alan bir kütüphane."
+tr.builder = "React için eklentilerle genişleyen bir GraphQL istemcisi; belge önbelleği içerir."
+
+[[tech]]
+id = "convex"
+name = "Convex"
+category = "data"
+npm = ["convex"]
+en.beginner = "a hosted backend with a database that updates the app's screens live when data changes."
+en.builder = "a hosted backend platform with a reactive database, server functions and a TypeScript client."
+tr.beginner = "veri değiştiğinde uygulamanın ekranlarını canlı olarak güncelleyen, barındırılan bir arka uç."
+tr.builder = "veri değişince canlı güncellenen bir veritabanı, sunucu işlevleri ve TypeScript istemcisi içeren barındırılan bir arka uç platformu."
+
+[[tech]]
+id = "pglite"
+name = "PGlite"
+category = "data"
+npm = ["@electric-sql/pglite"]
+en.beginner = "a full Postgres database that runs inside the app itself, in the browser or on Node.js."
+en.builder = "Postgres compiled to WebAssembly as an embeddable library, for running a real database in the browser."
+tr.beginner = "uygulamanın içinde, tarayıcıda ya da Node.js'te çalışan tam bir Postgres veritabanı."
+tr.builder = "Postgres'in WebAssembly'ye derlenmiş, uygulamaya gömülebilen bir sürümü; gerçek bir veritabanını tarayıcıda çalıştırır."
+
+[[tech]]
+id = "axios"
+name = "Axios"
+category = "other"
+npm = ["axios"]
+en.beginner = "a library that sends requests to web servers and reads their replies."
+en.builder = "an HTTP client for browsers and Node.js, with request interceptors, timeouts and JSON handling."
+tr.beginner = "web sunucularına istek gönderip yanıtlarını okuyan bir kütüphane."
+tr.builder = "tarayıcılar ve Node.js için bir HTTP istemcisi; istek ara katmanları, zaman aşımı ve JSON işleme sunar."
+
+[[tech]]
+id = "ky"
+name = "ky"
+category = "other"
+npm = ["ky"]
+en.beginner = "a small library that sends web requests with a simpler, cleaner syntax than the built-in tools."
+en.builder = "a tiny HTTP client built on the browser's fetch API, with retries, timeouts and JSON helpers."
+tr.beginner = "web istekleri göndermek için daha sade bir söz dizimi sunan küçük bir kütüphane."
+tr.builder = "tarayıcının fetch API'si üzerine kurulu, yeniden deneme, zaman aşımı ve JSON yardımcıları sunan küçük bir HTTP istemcisi."
+
+[[tech]]
+id = "got"
+name = "Got"
+category = "other"
+npm = ["got"]
+en.beginner = "a library that sends web requests from Node.js and retries them when they fail."
+en.builder = "an HTTP request library for Node.js with retries, timeouts and streams."
+tr.beginner = "Node.js'ten web istekleri gönderen ve başarısız olanları yeniden deneyen bir kütüphane."
+tr.builder = "Node.js için bir HTTP istek kütüphanesi; yeniden deneme, zaman aşımı ve akış desteği sunar."
+
+[[tech]]
+id = "node-fetch"
+name = "node-fetch"
+category = "other"
+npm = ["node-fetch"]
+en.beginner = "a library that brings the browser's web request tool to Node.js."
+en.builder = "a light-weight implementation of the browser's fetch API for Node.js."
+tr.beginner = "tarayıcının web istek aracını Node.js'e getiren bir kütüphane."
+tr.builder = "tarayıcının fetch API'sinin Node.js için hafif bir uygulaması."
+
+[[tech]]
+id = "next-auth"
+name = "Auth.js (NextAuth)"
+category = "auth"
+npm = ["next-auth", "@auth/*"]
+en.beginner = "a library that adds sign-in to an app, with logins from Google, GitHub and other providers."
+en.builder = "an authentication library for Next.js and other frameworks, started as NextAuth.js and now called Auth.js, with sessions, OAuth and database adapters."
+tr.beginner = "uygulamaya Google, GitHub ve diğer hesaplarla giriş ekleyen bir kütüphane."
+tr.builder = "Next.js ve diğer çatılar için bir kimlik doğrulama kütüphanesi; NextAuth.js olarak başladı, şimdi Auth.js adını taşır; oturumlar, OAuth ve veritabanı bağdaştırıcıları içerir."
+
+[[tech]]
+id = "clerk"
+name = "Clerk"
+category = "auth"
+npm = ["@clerk/*"]
+en.beginner = "a hosted service and library that handles sign-up, login and user accounts for an app."
+en.builder = "a hosted user management platform with prebuilt sign-in components for React, Next.js and others."
+tr.beginner = "uygulama için kayıt olma, giriş yapma ve kullanıcı hesaplarını yöneten barındırılan bir hizmet."
+tr.builder = "React ve Next.js gibi çatılar için hazır giriş bileşenleri ve araçlar sunan, barındırılan bir kullanıcı yönetim platformu."
+
+[[tech]]
+id = "better-auth"
+name = "Better Auth"
+category = "auth"
+npm = ["better-auth"]
+en.beginner = "a library that adds sign-in, sessions and accounts to an app that you host yourself."
+en.builder = "a TypeScript authentication framework with email and social logins, two-factor support and plugins."
+tr.beginner = "uygulamaya giriş, oturum ve hesap ekleyen, kendi sunucunuzda çalıştırabileceğiniz bir kütüphane."
+tr.builder = "e-posta ve sosyal hesap girişleri, iki adımlı doğrulama ve eklentiler sunan bir TypeScript kimlik doğrulama çatısı."
+
+[[tech]]
+id = "passport"
+name = "Passport"
+category = "auth"
+npm = ["passport", "passport-*"]
+en.beginner = "a library that adds many login methods, such as passwords and social accounts, to a Node.js app."
+en.builder = "an authentication middleware for Node.js with a strategy plugin for each login method, such as passport-local."
+tr.beginner = "Node.js uygulamasına şifre ve sosyal hesap gibi birçok giriş yöntemi ekleyen bir kütüphane."
+tr.builder = "Node.js için kimlik doğrulama ara katmanı; her giriş yöntemi için passport-local gibi ayrı bir stratejiyle çalışır."
+
+[[tech]]
+id = "jsonwebtoken"
+name = "jsonwebtoken"
+category = "auth"
+npm = ["jsonwebtoken"]
+en.beginner = "a library that creates and checks signed tokens that prove who a user is."
+en.builder = "a Node.js library to sign, verify and decode JSON Web Tokens (JWT)."
+tr.beginner = "kullanıcının kim olduğunu kanıtlayan, imzalı belirteçler (token) oluşturan ve kontrol eden bir kütüphane."
+tr.builder = "JSON Web Token (JWT) belirteçlerini imzalamak, doğrulamak ve çözmek için bir Node.js kütüphanesi."
+
+[[tech]]
+id = "jose"
+name = "jose"
+category = "auth"
+npm = ["jose"]
+en.beginner = "a library that creates and checks signed login tokens in many JavaScript environments."
+en.builder = "a JavaScript library for JOSE standards, including JWT, JWS, JWE and JWK, that runs in many runtimes."
+tr.beginner = "giriş için imzalı belirteçleri birçok JavaScript ortamında oluşturan ve kontrol eden bir kütüphane."
+tr.builder = "JOSE standartlarını (JWT, JWS, JWE, JWK) birçok çalışma ortamında destekleyen bir JavaScript kütüphanesi."
+
+[[tech]]
+id = "bcrypt"
+name = "bcrypt"
+category = "auth"
+npm = ["bcrypt", "bcryptjs"]
+en.beginner = "a library that stores passwords in a scrambled form, so the real ones are never kept."
+en.builder = "a password hashing library based on bcrypt; bcrypt is the native build, bcryptjs the pure JavaScript one."
+tr.beginner = "şifreleri geri çevrilemeyecek biçimde kodlayarak saklayan bir kütüphane."
+tr.builder = "bcrypt algoritmasıyla şifre özeti üreten kütüphane; bcrypt yerel, bcryptjs saf JavaScript sürümüdür."
+
+[[tech]]
+id = "argon2"
+name = "argon2"
+category = "auth"
+npm = ["argon2"]
+en.beginner = "a library that safely scrambles passwords using a modern method that resists cracking."
+en.builder = "a Node.js binding for the Argon2 password hashing algorithm."
+tr.beginner = "şifreleri, kırılmaya karşı dayanıklı modern bir yöntemle güvenli biçimde kodlayan bir kütüphane."
+tr.builder = "Argon2 şifre özetleme algoritması için bir Node.js bağlaması."
+
+[[tech]]
+id = "helmet"
+name = "Helmet"
+category = "auth"
+npm = ["helmet"]
+en.beginner = "a small add-on for Express-style servers that sets security headers to block common web attacks."
+en.builder = "a Node.js middleware that sets security-related HTTP response headers, such as CSP and HSTS."
+tr.beginner = "uygulamanın yanıtlarına güvenlik ayarları ekleyerek yaygın web saldırılarını engelleyen küçük bir eklenti."
+tr.builder = "güvenlik ile ilgili HTTP yanıt başlıklarını (CSP, HSTS gibi) ayarlayan bir Node.js ara katmanı."
+
+[[tech]]
+id = "cors"
+name = "cors"
+category = "auth"
+npm = ["cors"]
+en.beginner = "a small add-on that tells browsers which other websites may ask the server for data."
+en.builder = "a Node.js middleware that sets CORS response headers, which control cross-origin browser requests."
+tr.beginner = "tarayıcılara, sunucudan hangi başka sitelerin veri isteyebileceğini bildiren küçük bir eklenti."
+tr.builder = "CORS yanıt başlıklarını ayarlayan bir Node.js ara katmanı; farklı kaynaklı tarayıcı isteklerini denetler."
+
+[[tech]]
+id = "express-rate-limit"
+name = "express-rate-limit"
+category = "auth"
+npm = ["express-rate-limit"]
+en.beginner = "a small add-on that limits how many requests one visitor can send in a set time."
+en.builder = "an Express middleware that caps repeated requests per client, to slow brute-force attacks and abuse."
+tr.beginner = "bir ziyaretçinin belli bir sürede gönderebileceği istek sayısını sınırlayan küçük bir eklenti."
+tr.builder = "Express için, kaba kuvvet denemelerini ve kötüye kullanımı yavaşlatmak amacıyla istekleri sınırlayan bir ara katman."
+
+[[tech]]
+id = "iron-session"
+name = "iron-session"
+category = "auth"
+npm = ["iron-session"]
+en.beginner = "a library that keeps a user's login session in a sealed, encrypted cookie."
+en.builder = "a stateless session library for Next.js and Node.js that stores encrypted data in cookies."
+tr.beginner = "kullanıcının giriş oturumunu şifreli bir çerezde tutan bir kütüphane."
+tr.builder = "Next.js ve Node.js için, verileri çerezlerde şifreli olarak saklayan durumsuz bir oturum kütüphanesi."
+
+[[tech]]
+id = "auth0"
+name = "Auth0"
+category = "auth"
+npm = ["@auth0/*"]
+en.beginner = "a hosted login service that handles sign-in, passwords and user accounts for an app."
+en.builder = "a hosted identity platform with SDKs for web and mobile frameworks, supporting OAuth and OpenID Connect."
+tr.beginner = "uygulama için giriş, şifre ve kullanıcı hesaplarını yöneten barındırılan bir kimlik hizmeti."
+tr.builder = "web ve mobil çatılar için kütüphaneleri olan, barındırılan bir kimlik platformu; OAuth ve OpenID Connect destekler."
+
+[[tech]]
+id = "kinde"
+name = "Kinde"
+category = "auth"
+npm = ["@kinde-oss/*"]
+en.beginner = "a hosted service that takes care of sign-up, login and user accounts for web apps."
+en.builder = "a hosted authentication and user management platform with SDKs for Next.js, React and other frameworks."
+tr.beginner = "web uygulamaları için kayıt, giriş ve kullanıcı hesaplarını üstlenen barındırılan bir hizmet."
+tr.builder = "Next.js, React ve diğer çatılar için hazır araçları olan, barındırılan bir kimlik doğrulama ve kullanıcı yönetim platformu."
+
+[[tech]]
+id = "dompurify"
+name = "DOMPurify"
+category = "auth"
+npm = ["dompurify", "isomorphic-dompurify"]
+en.beginner = "a library that cleans up HTML so harmful scripts cannot sneak into a web page."
+en.builder = "an HTML sanitizer that removes XSS payloads, usable in browsers and in Node.js via isomorphic-dompurify."
+tr.beginner = "web sayfasına zararlı kodların girmesini engellemek için HTML'i temizleyen bir kütüphane."
+tr.builder = "XSS saldırı kodlarını temizleyen bir HTML temizleyici; tarayıcıda ve isomorphic-dompurify ile Node.js'te çalışır."
+
+[[tech]]
+id = "sanitize-html"
+name = "sanitize-html"
+category = "auth"
+npm = ["sanitize-html"]
+en.beginner = "a library that strips unsafe tags and attributes from HTML that users submit."
+en.builder = "a Node.js HTML sanitizer that keeps only an allowlist of tags and attributes."
+tr.beginner = "kullanıcıların gönderdiği HTML'deki güvensiz etiketleri ve öznitelikleri ayıklayan bir kütüphane."
+tr.builder = "Node.js için bir HTML temizleyici; yalnızca izin verilen etiket ve öznitelikleri tutar."
+
+[[tech]]
+id = "xss"
+name = "xss"
+category = "auth"
+npm = ["xss"]
+en.beginner = "a small library that cleans user-written HTML or text so it is safe to show on a page."
+en.builder = "a whitelist-based HTML filter that escapes or removes unsafe tags, to prevent cross-site scripting."
+tr.beginner = "kullanıcının yazdığı HTML'i sayfada güvenle gösterilebilecek hale getiren küçük bir kütüphane."
+tr.builder = "izin listesine dayalı bir HTML süzgeci; siteler arası betik saldırısını önlemek için güvensiz etiketleri çıkarır."
+
+[[tech]]
+id = "zod"
+name = "Zod"
+category = "validation"
+npm = ["zod"]
+en.beginner = "a library that checks that data has the right shape before the app uses it."
+en.builder = "a TypeScript-first schema validation library that infers static types from schemas."
+tr.beginner = "uygulama veriyi kullanmadan önce doğru biçimde olup olmadığını kontrol eden bir kütüphane."
+tr.builder = "şemalardan TypeScript türlerini çıkaran, TypeScript öncelikli bir şema doğrulama kütüphanesi."
+
+[[tech]]
+id = "yup"
+name = "Yup"
+category = "validation"
+npm = ["yup"]
+en.beginner = "a library that checks form and object data against rules you write in plain code."
+en.builder = "a JavaScript schema builder for value parsing and validation, often used with form libraries."
+tr.beginner = "form ve nesne verilerini kendi yazdığın kurallara göre kontrol eden bir kütüphane."
+tr.builder = "değer ayrıştırma ve doğrulama için bir JavaScript şema kurucusu; genellikle form kütüphaneleriyle kullanılır."
+
+[[tech]]
+id = "joi"
+name = "Joi"
+category = "validation"
+npm = ["joi"]
+en.beginner = "a library that describes what valid input looks like and rejects anything else."
+en.builder = "a schema description and validation library for JavaScript, originally built for the hapi framework."
+tr.beginner = "geçerli girdinin nasıl olması gerektiğini tanımlayan ve diğerlerini reddeden bir kütüphane."
+tr.builder = "JavaScript için şema tanımlama ve doğrulama kütüphanesi; başlangıçta hapi çatısı için geliştirildi."
+
+[[tech]]
+id = "valibot"
+name = "Valibot"
+category = "validation"
+npm = ["valibot"]
+en.beginner = "a small, modular library that checks input data with rules you define."
+en.builder = "a lightweight, tree-shakable schema validation library for TypeScript and JavaScript."
+tr.beginner = "girdi verilerini sizin belirlediğiniz kurallarla denetleyen küçük bir kütüphane."
+tr.builder = "TypeScript ve JavaScript için hafif, yalnızca kullanılan parçaların paketlendiği bir şema doğrulama kütüphanesi."
+
+[[tech]]
+id = "ajv"
+name = "Ajv"
+category = "validation"
+npm = ["ajv"]
+en.beginner = "a fast library that checks data against a JSON schema."
+en.builder = "a fast JSON Schema validator that compiles schemas into JavaScript functions."
+tr.beginner = "verileri bir JSON şemasına göre hızlıca kontrol eden bir kütüphane."
+tr.builder = "şemaları JavaScript fonksiyonlarına çeviren hızlı bir JSON Schema doğrulayıcısı."
+
+[[tech]]
+id = "class-validator"
+name = "class-validator"
+category = "validation"
+npm = ["class-validator"]
+en.beginner = "a library that checks class fields with labels such as required or email."
+en.builder = "a decorator-based validation library for TypeScript classes, often used with NestJS."
+tr.beginner = "sınıf alanlarını, örneğin zorunlu veya e-posta olup olmadığını, etiketlerle kontrol eden bir kütüphane."
+tr.builder = "TypeScript sınıfları için dekoratör tabanlı bir doğrulama kütüphanesi; çoğunlukla NestJS ile kullanılır."
+
+[[tech]]
+id = "class-transformer"
+name = "class-transformer"
+category = "validation"
+npm = ["class-transformer"]
+en.beginner = "a library that converts plain data into class objects and back again."
+en.builder = "a TypeScript library that transforms plain objects into class instances and back, using decorators."
+tr.beginner = "düz verileri sınıf nesnelerine, sonra da tekrar düz verilere çeviren bir kütüphane."
+tr.builder = "düz nesneleri sınıf örneklerine ve geri dönüştüren bir TypeScript kütüphanesi; dekoratörleri destekler."
+
+[[tech]]
+id = "superstruct"
+name = "Superstruct"
+category = "validation"
+npm = ["superstruct"]
+en.beginner = "a small library that describes the shape of data and checks it while the app runs."
+en.builder = "a JavaScript and TypeScript library for defining and validating data structures with composable, typed structs."
+tr.beginner = "verinin biçimini tanımlayan ve uygulama çalışırken kontrol eden küçük bir kütüphane."
+tr.builder = "veri yapılarını tanımlamak ve doğrulamak için JavaScript ve TypeScript kütüphanesi; birleştirilebilir, tür bilgisi taşıyan yapılar sunar."
+
+[[tech]]
+id = "typebox"
+name = "TypeBox"
+category = "validation"
+npm = ["@sinclair/typebox", "typebox"]
+en.beginner = "a library that defines a data shape once and uses it for both types and checks."
+en.builder = "a JSON Schema builder for TypeScript that produces types and validation schemas from one definition."
+tr.beginner = "veri biçimini bir kez tanımlayıp hem tür hem doğrulama için kullanan bir kütüphane."
+tr.builder = "tek bir tanımdan hem TypeScript türleri hem de JSON Schema doğrulaması üreten bir kütüphane."
+
+[[tech]]
+id = "io-ts"
+name = "io-ts"
+category = "validation"
+npm = ["io-ts"]
+en.beginner = "a library that checks data while the app runs and gives matching TypeScript types."
+en.builder = "a TypeScript runtime type system and decoder library that validates data against codecs."
+tr.beginner = "uygulama çalışırken verileri kontrol eden ve buna uyan TypeScript türleri veren bir kütüphane."
+tr.builder = "veriyi kodlayıcılara (codec) göre doğrulayan, TypeScript için çalışma zamanı tür sistemi ve çözücü kütüphanesi."
+
+[[tech]]
+id = "arktype"
+name = "ArkType"
+category = "validation"
+npm = ["arktype"]
+en.beginner = "a library that writes data rules as TypeScript-like text and checks input against them."
+en.builder = "a TypeScript-first validator that defines types with string syntax and infers them at compile time."
+tr.beginner = "veri kurallarını TypeScript benzeri bir yazımla tanımlayıp girdiyi bunlara göre kontrol eden bir kütüphane."
+tr.builder = "türleri metin sözdizimiyle tanımlayan, TypeScript öncelikli bir doğrulayıcı; türleri derleme anında çıkarır."
+
+[[tech]]
+id = "hookform-resolvers"
+name = "React Hook Form resolvers"
+category = "validation"
+npm = ["@hookform/resolvers"]
+en.beginner = "a helper that connects form checking rules, such as Zod or Yup, to a React form."
+en.builder = "an adapter package that plugs schema validators such as Zod, Yup and Joi into React Hook Form."
+tr.beginner = "Zod veya Yup gibi form kurallarını bir React formuna bağlayan yardımcı bir paket."
+tr.builder = "Zod, Yup ve Joi gibi şema doğrulayıcılarını React Hook Form'a bağlayan bağdaştırıcı paketi."
+
+[[tech]]
+id = "validator"
+name = "validator"
+category = "validation"
+npm = ["validator"]
+en.beginner = "a library that checks text such as emails, web addresses and phone numbers for correct format."
+en.builder = "a JavaScript library of string validators and sanitizers, such as isEmail and isURL."
+tr.beginner = "e-posta, web adresi ve telefon gibi metinlerin biçimini kontrol eden bir kütüphane."
+tr.builder = "e-posta, URL gibi metin doğrulayıcıları ve temizleyicileri sunan bir JavaScript kütüphanesi."
+
+[[tech]]
+id = "t3-env"
+name = "T3 Env"
+category = "build"
+npm = ["@t3-oss/env-nextjs"]
+en.beginner = "a helper that checks secret settings, such as database passwords, when the app starts."
+en.builder = "a Next.js environment variable loader that validates env values with schemas, such as Zod ones."
+tr.beginner = "uygulama başladığında veritabanı şifresi gibi gizli ayarları kontrol eden küçük bir yardımcı."
+tr.builder = "Next.js için ortam değişkenlerini okuyan ve Zod gibi şemalarla doğrulayan bir araç."
