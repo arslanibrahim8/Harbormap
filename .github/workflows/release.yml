@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify-ui:
+    name: Verify embedded UI bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ui/learn
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/learn/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run verify
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: verify-ui
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+            target: aarch64-apple-darwin
+            ext: ""
+            archive: tar.gz
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            ext: ""
+            archive: tar.gz
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            ext: ".exe"
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install --profile minimal --no-self-update
+      - name: Ensure target is installed
+        run: rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Build release binary
+        run: cargo build --release --locked -p harbormap --target ${{ matrix.target }}
+      - name: Package archive (Unix)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="harbormap-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          staging="dist/${name}"
+          mkdir -p "${staging}"
+          cp "target/${{ matrix.target }}/release/harbormap" "${staging}/"
+          cp README.md LICENSE "${staging}/"
+          tar -C dist -czf "dist/${name}.tar.gz" "${name}"
+      - name: Package archive (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = "harbormap-$env:GITHUB_REF_NAME-${{ matrix.target }}"
+          $staging = Join-Path "dist" $name
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/harbormap.exe" $staging
+          Copy-Item "README.md", "LICENSE" $staging
+          Compress-Archive -Path $staging -DestinationPath (Join-Path "dist" "$name.zip")
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/harbormap-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum harbormap-* | sort -k2 > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
