@@ -10,7 +10,7 @@ use hm_core::signature::Level;
 #[command(
     name = "harbormap",
     version,
-    about = "Know what's running, why it's broken, and keep your AI agents from breaking it."
+    about = "Local-first code map and runtime doctor: understand your codebase and running services with zero AI tokens for facts."
 )]
 pub struct Cli {
     /// Print JSON instead of text.

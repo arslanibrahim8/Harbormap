@@ -1,6 +1,6 @@
 [package]
 name = "harbormap"
-description = "Know what's running, why it's broken, and keep your AI agents from breaking it."
+description = "Local-first code map and runtime doctor: understand your codebase and running services with zero AI tokens for facts."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
